@@ -6,9 +6,9 @@ jobs:
             matrix:
                 include:
                     - target: wasm32-unknown-unknown
-                      features: nvidia-attest/kds_async
+                      features: snp-attest/kds_async
                     - target: x86_64-unknown-linux-gnu
-                      features: nvidia-attest/kds_sync
+                      features: snp-attest/kds_sync
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v5
