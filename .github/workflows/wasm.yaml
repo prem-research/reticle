@@ -1,0 +1,16 @@
+on: ["push"]
+
+jobs:
+    clippy:
+        strategy:
+            matrix:
+                include:
+                    - target: wasm32-unknown-unknown
+                      features: nvidia-attest/kds_async
+                    - target: x86_64-unknown-linux-gnu
+                      features: nvidia-attest/kds_sync
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v5
+            - name: Run Clippy
+              uses: cargo clippy --target=${{matrix.target}} --features=${{matrix.features}}

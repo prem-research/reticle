@@ -1,10 +1,5 @@
-use anyhow::Context;
-use rsa::pkcs8::LineEnding;
 use sev::firmware::host::TcbVersion;
-use x509_cert::{
-    certificate::{CertificateInner, Rfc5280},
-    der::EncodePem,
-};
+use x509_cert::certificate::{CertificateInner, Rfc5280};
 
 const KDS_CERT_SITE: &str = "https://kdsintf.amd.com";
 const KDS_VCEK: &str = "/vcek/v1";
@@ -43,7 +38,6 @@ pub fn decode_product_name(
 )> {
     let decoded: Vec<std::string::String> = std::string::String::from_utf8(product_name)?
         .chars()
-        .into_iter()
         .filter(|c| c.is_alphanumeric() || c.eq(&'-'))
         .collect::<std::string::String>()
         .split('-')
