@@ -13,4 +13,4 @@ jobs:
         steps:
             - uses: actions/checkout@v5
             - name: Run Clippy
-              uses: cargo clippy --target=${{ matrix.target }} --features=${{ matrix.features }}
+              run: cargo clippy --target=${{ matrix.target }} --features=${{ matrix.features }}
