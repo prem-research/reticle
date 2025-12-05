@@ -2,6 +2,7 @@ on: ["push"]
 
 jobs:
     clippy:
+        name: Run cargo check/clippy on all targets
         strategy:
             matrix:
                 package: ["nvidia-attest", "prem-rs", "snp-attest"]
@@ -24,3 +25,35 @@ jobs:
                   target: ${{ matrix.target }}
             - name: Run Clippy
               run: cargo clippy --package=${{ matrix.package }} --target=${{ matrix.target }} --features="${{ matrix.features }}"
+    test:
+        needs: [clippy]
+        name: Run unit tests
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v5
+            - name: Run cargo test
+              run: cargo test
+    wasm:
+        name: Run wasm-pack on prem-rs
+        needs: [test]
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v5
+            - name: Install wasm-pack
+              run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: "20"
+                  registry-url: "https://npm.pkg.github.com"
+            - name: Run wasm-pack build
+              run: wasm-pack build prem-rs
+            - name: Configure .npmrc for GitHub Packages
+              run: |
+                  echo "@${{ github.repository_owner }}:registry=https://npm.pkg.github.com" >> ~/.npmrc
+                  echo "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" >> ~/.npmrc
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - name: Publish npm package on the local github registry
+              run: |
+                  npm publish prem-rs/pkg/
