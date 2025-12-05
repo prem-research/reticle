@@ -9,11 +9,13 @@ jobs:
                 exclude:
                     - package: prem-rs
                       target: x86_64-unknown-linux-gnu
+                    - package: snp-attest
+                      target: wasm32-unknown-unknown
+
                 include:
                     - package: snp-attest
+                      target: wasm32-unknown-unknown
                       features: snp-attest/kds_async
-                    - package: snp-attest
-                      features: snp-attest/kds_sync
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v5
