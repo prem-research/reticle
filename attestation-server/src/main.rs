@@ -73,9 +73,9 @@ async fn cpu_attestation(
         .get_report(None, Some(nonce.nonce()), None)
         .context("error sourcing the report")?;
 
-    drop(report); // release the lock
+    drop(firmware); // release the lock
 
-    let base64 = BASE64_STANDARD.encode(report);
+    let report = BASE64_STANDARD.encode(report);
     Ok(report)
 }
 

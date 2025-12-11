@@ -7,9 +7,9 @@
         "rust-analyzer": {
             "initialization_options": {
                 "cargo": {
-                    "target": "wasm32-unknown-unknown",
+                    // "target": "wasm32-unknown-unknown",
                     "features": [
-                        "kds_async"
+                        // "kds_async"
                     ]
                 }
             }
