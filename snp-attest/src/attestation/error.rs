@@ -1,6 +1,6 @@
 use thiserror::Error;
-use wasm_bindgen::{JsError, JsValue, prelude::wasm_bindgen};
-use wasm_log::Config;
+#[cfg(target_family = "wasm")]
+use wasm_bindgen::prelude::*;
 use x509_parser::error::X509Error;
 
 // #[wasm_bindgen]
@@ -47,6 +47,7 @@ pub enum AttestationError {
     WrongNonce,
 }
 
+#[cfg(target_family = "wasm")]
 impl From<AttestationError> for JsValue {
     fn from(value: AttestationError) -> Self {
         JsError::from(value).into()
@@ -66,7 +67,12 @@ impl From<AttestationError> for JsValue {
 //     }
 // }
 
-#[wasm_bindgen(start)]
-fn start() {
-    wasm_log::init(Config::default());
+#[cfg(feature = "logger")]
+mod logger {
+    use wasm_log::Config;
+
+    #[wasm_bindgen(start)]
+    fn start() {
+        wasm_log::init(Config::default());
+    }
 }

@@ -9,6 +9,7 @@ use rocket::{
     routes,
 };
 use sev::firmware::guest::Firmware;
+use snp_attest::nonce::SevNonce;
 use tokio::sync::Mutex;
 
 #[cfg(feature = "sev")]
@@ -16,15 +17,9 @@ use crate::response::ApiError;
 
 pub type SharedFirmware = Mutex<Firmware>;
 
-struct CpuNonce(Box<[u8; 64]>);
+pub struct SevNonceParam(SevNonce);
 
-impl CpuNonce {
-    fn nonce(&self) -> [u8; 64] {
-        *self.0
-    }
-}
-
-impl<'a> FromFormField<'a> for CpuNonce {
+impl<'a> FromFormField<'a> for SevNonceParam {
     fn from_value(field: rocket::form::ValueField<'a>) -> rocket::form::Result<'a, Self> {
         use form::Error;
 
@@ -34,11 +29,11 @@ impl<'a> FromFormField<'a> for CpuNonce {
                 Error::validation("nonce could not be decoded neither from hex nor base64")
             })?;
 
-        let nonce = decoded
+        let nonce: Box<[u8; 64]> = decoded
             .try_into()
             .map_err(|_| Error::validation("nonce is not exactly 32 bytes wide"))?;
 
-        Ok(CpuNonce(nonce))
+        Ok(SevNonceParam(nonce.into()))
     }
 
     // fn from_param(param: &'a str) -> Result<Self, Self::Error> {}
@@ -59,23 +54,23 @@ impl<'a> FromFormField<'a> for CpuNonce {
         todo!()
     }
 }
-
 #[rocket::get("/cpu?<nonce>")]
 #[cfg(feature = "sev")]
 async fn cpu_attestation(
-    nonce: CpuNonce,
+    nonce: SevNonceParam,
     firmware: &State<SharedFirmware>,
-) -> Result<String, ApiError> {
+) -> Result<Vec<u8>, ApiError> {
+    let SevNonceParam(nonce) = nonce;
     use anyhow::Context;
 
     let mut firmware = firmware.lock().await;
     let report = firmware
-        .get_report(None, Some(nonce.nonce()), None)
+        .get_report(None, Some(*nonce), None)
         .context("error sourcing the report")?;
 
     drop(firmware); // release the lock
 
-    let report = BASE64_STANDARD.encode(report);
+    // let report = BASE64_STANDARD.encode(report);
     Ok(report)
 }
 

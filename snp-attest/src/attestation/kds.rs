@@ -1,8 +1,13 @@
+#[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use super::{AttestationError, ParsedAttestation, VerifiedChain, chain::CRL};
+use crate::{
+    ParsedAttestation,
+    chain::{CRL, VerifiedChain},
+    error::AttestationError,
+};
 
-#[wasm_bindgen]
+#[cfg_attr(target_family = "wasm", wasm_bindgen)]
 /// Fetches the certificate chain for the correct CPU from AMD's KDS server
 pub async fn fetch_certificates(
     attestation: &ParsedAttestation,
@@ -21,7 +26,7 @@ pub async fn fetch_certificates(
     Ok(chain)
 }
 
-#[wasm_bindgen]
+#[cfg_attr(target_family = "wasm", wasm_bindgen)]
 /// Fetches the certificate revocation list from AMD's KDS
 pub async fn fetch_crl(attestation: &ParsedAttestation) -> Result<CRL, AttestationError> {
     let crl = crate::kds::get_crl(&attestation.generation.titlecase())

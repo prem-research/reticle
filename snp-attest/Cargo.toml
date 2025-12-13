@@ -49,10 +49,11 @@ features = ["js"]
 [target.'cfg(target_family = "wasm")'.dependencies]
 wasm-bindgen = "0.2.105"
 wasm-bindgen-futures = "0.4.55"
-wasm-log = "0.3.1"
+wasm-log = { version = "0.3.1", optional = true }
 
 [features]
 default = []
+logger = ["dep:wasm-log"]
 hyperv = ["dep:tss-esapi"]
 kds = ["dep:reqwest"]
 kds_sync = ["kds"]

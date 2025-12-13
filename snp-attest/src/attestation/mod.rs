@@ -4,15 +4,16 @@ pub mod chain;
 pub mod error;
 /// Methods for interacting with AMD's keyserver
 pub mod kds;
-pub mod nonce;
+// pub mod nonce;
 
 use std::ops::Deref;
 
-use crate::oid;
-use der::Encode;
-use nonce::Nonce;
-use sev::{Generation, firmware::guest::AttestationReport, parser::ByteParser};
+#[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
+
+use crate::{nonce::SevNonce, oid};
+use der::Encode;
+use sev::{Generation, firmware::guest::AttestationReport, parser::ByteParser};
 use x509_parser::prelude::*;
 
 use self::{
@@ -20,7 +21,7 @@ use self::{
     error::{AttestationError, ParseReason, VerificationReason},
 };
 
-#[wasm_bindgen]
+#[cfg_attr(target_family = "wasm", wasm_bindgen)]
 /// Represents a parsed attestation report with some already
 /// parsed commonly accessed fields
 #[allow(unused)]
@@ -32,9 +33,8 @@ pub struct ParsedAttestation {
     report: AttestationReport,
 }
 
-#[wasm_bindgen]
+#[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl ParsedAttestation {
-    #[wasm_bindgen(constructor)]
     /// Parses and constructs a new attestation report from a stream of binary data
     pub fn new(bytes: &[u8]) -> Result<Self, AttestationError> {
         let report =
@@ -58,9 +58,8 @@ impl ParsedAttestation {
         })
     }
 
-    #[wasm_bindgen]
     /// Verifies the attestation report against a certificate chain
-    pub fn verify(&self, chain: &VerifiedChain, nonce: &Nonce) -> Result<(), AttestationError> {
+    pub fn verify(&self, chain: &VerifiedChain, nonce: &SevNonce) -> Result<(), AttestationError> {
         // let certificates = chain.parse_certificates()?;
 
         // TODO: unify everything and use either x509-cert or x509-parser
