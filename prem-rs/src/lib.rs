@@ -69,7 +69,10 @@ pub struct Client {
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl Client {
-    pub async fn request_attestation(&self, nonce: SevNonce) -> Result<ParsedAttestation, PremErr> {
+    pub async fn request_attestation(
+        &self,
+        nonce: &SevNonce,
+    ) -> Result<ParsedAttestation, PremErr> {
         let url = self.url.join("/attestation/cpu").unwrap();
 
         // build the request with parameter ?nonce=<nonce> encoded in hex

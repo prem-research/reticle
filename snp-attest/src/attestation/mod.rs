@@ -21,7 +21,7 @@ use self::{
     error::{AttestationError, ParseReason, VerificationReason},
 };
 
-#[cfg_attr(target_family = "wasm", wasm_bindgen)]
+#[cfg_attr(target_family = "wasm", wasm_bindgen(js_namespace = "sev"))]
 /// Represents a parsed attestation report with some already
 /// parsed commonly accessed fields
 #[allow(unused)]
@@ -80,8 +80,9 @@ impl ParsedAttestation {
         }
 
         let product_name_ext = exts_map.get(&oid::PRODUCT_NAME).unwrap();
-        let (product_name, _) = crate::kds::decode_product_name(product_name_ext.value.to_vec())
-            .map_err(|_| ParseReason::DecodeProductName)?;
+        let (product_name, _) =
+            crate::kds_util::decode_product_name(product_name_ext.value.to_vec())
+                .map_err(|_| ParseReason::DecodeProductName)?;
 
         if product_name != self.generation.titlecase() {
             Err(VerificationReason::BadProductName)?;

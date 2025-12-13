@@ -5,7 +5,7 @@ pub mod oid;
 // #[cfg(feature = "kds")]
 // pub mod json;
 #[cfg(feature = "kds")]
-pub mod kds;
+mod kds_util;
 
 // #[cfg(target_family = "wasm")]
 #[cfg(feature = "attestation")]

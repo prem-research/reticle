@@ -17,3 +17,6 @@ wasm-bindgen-futures = "0.4.56"
 
 [dev-dependencies]
 tokio = {version = "*", features = ["full"]}
+
+[package.metadata.wasm-pack.profile.release.wasm-bindgen]
+split-linked-modules = true

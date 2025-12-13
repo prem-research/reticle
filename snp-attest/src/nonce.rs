@@ -3,7 +3,7 @@ use std::ops::Deref;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
-#[cfg_attr(target_family = "wasm", wasm_bindgen)]
+#[cfg_attr(target_family = "wasm", wasm_bindgen(js_namespace = "sev"))]
 pub struct SevNonce(Box<[u8; 64]>);
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
@@ -15,6 +15,10 @@ impl SevNonce {
         getrandom::getrandom(bytes.as_mut_slice()).unwrap();
 
         SevNonce(bytes)
+    }
+
+    pub fn generate() -> Self {
+        Self::new()
     }
 
     pub fn to_hex(&self) -> String {

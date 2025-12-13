@@ -20,7 +20,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-#[cfg_attr(target_family = "wasm", wasm_bindgen)]
+#[cfg_attr(target_family = "wasm", wasm_bindgen(js_namespace = "nvidia"))]
 #[allow(unused)]
 pub struct DecodedClaims {
     overall_claims: OverallClaims,
@@ -29,7 +29,7 @@ pub struct DecodedClaims {
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl DecodedClaims {
-    #[cfg_attr(target_family = "wasm", wasm_bindgen)]
+    // #[cfg_attr(target_family = "wasm", wasm_bindgen)]
     pub fn verify(&self, nonce: &str) -> Result<(), GpuAttestationError> {
         use verifiers::*;
 
@@ -40,7 +40,7 @@ impl DecodedClaims {
 }
 
 #[derive(PartialEq, Debug)]
-#[cfg_attr(target_family = "wasm", wasm_bindgen)]
+#[cfg_attr(target_family = "wasm", wasm_bindgen(js_namespace = "nvidia"))]
 pub struct EATToken {
     overall: String,
     gpu: HashMap<String, String>,
@@ -48,7 +48,7 @@ pub struct EATToken {
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl EATToken {
-    #[cfg_attr(target_family = "wasm", wasm_bindgen)]
+    // #[cfg_attr(target_family = "wasm", wasm_bindgen)]
     pub fn parse(from: &str) -> Result<Self, GpuAttestationError> {
         let [overall, gpu]: [serde_json::Value; 2] = serde_json::from_str(from)?;
 
@@ -72,7 +72,7 @@ impl EATToken {
         Ok(Self { overall, gpu })
     }
 
-    #[cfg_attr(target_family = "wasm", wasm_bindgen)]
+    // #[cfg_attr(target_family = "wasm", wasm_bindgen)]
     pub fn attest(self, keys: &KeyChain) -> Result<DecodedClaims, GpuAttestationError> {
         // decoding the header beforehand is necessary to gain the kid
         let jwt_header = jsonwebtoken::decode_header(&self.overall)?;
