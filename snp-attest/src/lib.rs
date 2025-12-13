@@ -8,8 +8,10 @@ pub mod oid;
 pub mod kds;
 
 // #[cfg(target_family = "wasm")]
+#[cfg(feature = "attestation")]
 pub mod attestation;
 // #[cfg(target_family = "wasm")]
+#[cfg(feature = "attestation")]
 pub use attestation::*;
 
 /* temporarily disable hyperv */

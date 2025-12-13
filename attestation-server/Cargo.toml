@@ -18,4 +18,4 @@ base64 = "0.22.1"
 hex = "0.4.3"
 thiserror = "2.0.17"
 
-snp-attest = { path = "../snp-attest" }
+snp-attest = { path = "../snp-attest", default-features = false }
