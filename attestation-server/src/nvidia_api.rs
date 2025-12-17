@@ -52,7 +52,7 @@ impl AttestCommand {
             .code()
             .context("nvattest was killed by a signal")?;
 
-        let attestation: NvAttestation = serde_json::from_slice(&output.stdout)?;
+        let attestation: NvAttestation = serde_json::from_slice(dbg!(&output.stdout))?;
 
         match status {
             0 => Ok(attestation),

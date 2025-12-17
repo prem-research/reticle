@@ -8,6 +8,7 @@ pub struct ErrorInner {
 }
 
 #[derive(Responder)]
+#[response(status = 500, content_type = "json")]
 pub struct ApiError(Json<ErrorInner>);
 
 impl From<anyhow::Error> for ApiError {

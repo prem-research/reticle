@@ -39,7 +39,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
         rocket
             .manage(nvattest)
-            .mount("/", routes![nvidia_api::nvidia_attestation])
+            .mount("/attestation", routes![nvidia_api::nvidia_attestation])
     };
 
     rocket.launch().await?;
