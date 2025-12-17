@@ -1,97 +1,49 @@
 mod response;
 
+mod nonce;
+#[cfg(feature = "nvidia")]
+mod nvidia_api;
 #[cfg(feature = "sev")]
-use anyhow::Context;
-use base64::{Engine, prelude::BASE64_STANDARD};
-use rocket::{
-    State,
-    form::{self, FromFormField},
-    routes,
-};
-use sev::firmware::guest::Firmware;
-use snp_attest::nonce::SevNonce;
+mod sev_api;
+
+use rocket::routes;
 use tokio::sync::Mutex;
 
+use anyhow::Context;
+
 #[cfg(feature = "sev")]
-use crate::response::ApiError;
+use sev::firmware::guest::Firmware;
 
-pub type SharedFirmware = Mutex<Firmware>;
-
-pub struct SevNonceParam(SevNonce);
-
-impl<'a> FromFormField<'a> for SevNonceParam {
-    fn from_value(field: rocket::form::ValueField<'a>) -> rocket::form::Result<'a, Self> {
-        use form::Error;
-
-        let decoded = hex::decode(field.value) // either decode using hex
-            .or(BASE64_STANDARD.decode(field.value)) // or using base64
-            .map_err(|_| {
-                Error::validation("nonce could not be decoded neither from hex nor base64")
-            })?;
-
-        let nonce: Box<[u8; 64]> = decoded
-            .try_into()
-            .map_err(|_| Error::validation("nonce is not exactly 32 bytes wide"))?;
-
-        Ok(SevNonceParam(nonce.into()))
-    }
-
-    // fn from_param(param: &'a str) -> Result<Self, Self::Error> {}
-    fn from_data<'life0, 'async_trait>(
-        field: rocket::form::DataField<'a, 'life0>,
-    ) -> ::core::pin::Pin<
-        Box<
-            dyn ::core::future::Future<Output = rocket::form::Result<'a, Self>>
-                + ::core::marker::Send
-                + 'async_trait,
-        >,
-    >
-    where
-        'a: 'async_trait,
-        'life0: 'async_trait,
-        Self: 'async_trait,
-    {
-        todo!()
-    }
-}
-#[rocket::get("/cpu?<nonce>")]
-#[cfg(feature = "sev")]
-async fn cpu_attestation(
-    nonce: SevNonceParam,
-    firmware: &State<SharedFirmware>,
-) -> Result<Vec<u8>, ApiError> {
-    let SevNonceParam(nonce) = nonce;
-    use anyhow::Context;
-
-    let mut firmware = firmware.lock().await;
-    let report = firmware
-        .get_report(None, Some(*nonce), None)
-        .context("error sourcing the report")?;
-
-    drop(firmware); // release the lock
-
-    // let report = BASE64_STANDARD.encode(report);
-    Ok(report)
-}
+#[cfg(feature = "nvidia")]
+use crate::nvidia_api::NvAttest;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    #[cfg(feature = "sev")]
-    let firmware: Mutex<Firmware> = Firmware::open()
-        .context("failed to open sev-snp firmware")?
-        .into();
-
     let rocket = rocket::build();
 
     #[cfg(feature = "sev")]
-    let rocket = rocket.manage(firmware);
+    let rocket = {
+        let firmware: Mutex<Firmware> = Firmware::open()
+            .context("failed to open sev-snp firmware")?
+            .into();
 
-    #[cfg(feature = "sev")]
-    rocket
-        .mount("/attestation", routes![cpu_attestation])
-        .launch()
-        .await?;
+        rocket
+            .manage(firmware)
+            .mount("/attestation", routes![sev_api::cpu_attestation])
+    };
 
-    // graceful shutdown
+    #[cfg(feature = "nvidia")]
+    let rocket = {
+        let nvattest =
+            NvAttest::new("/usr/local/bin/nvattest").context("missing nvattest binary")?;
+
+        rocket
+            .manage(nvattest)
+            .mount("/", routes![nvidia_api::nvidia_attestation])
+    };
+
+    rocket.launch().await?;
+
+    // // graceful shutdown
     Ok(())
 }

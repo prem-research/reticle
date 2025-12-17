@@ -14,12 +14,19 @@ const NVIDIA_NRAS: LazyCell<Url> =
 #[cfg_attr(target_family = "wasm", wasm_bindgen(js_namespace = "nvidia"))]
 pub struct KeyChain(jwk::JwkSet);
 
-#[cfg_attr(target_family = "wasm", wasm_bindgen(js_namespace = "nvidia"))]
-pub async fn fetch_keychain() -> Result<KeyChain, GpuAttestationError> {
-    let well_known = reqwest::get(NVIDIA_NRAS.join(".well-known/jwks.json").unwrap()).await?;
-    let jwk_set: jwk::JwkSet = well_known.json().await?;
+impl KeyChain {
+    pub async fn fetch_keychain() -> Result<KeyChain, GpuAttestationError> {
+        let well_known = reqwest::get(NVIDIA_NRAS.join(".well-known/jwks.json").unwrap()).await?;
+        let jwk_set: jwk::JwkSet = well_known.json().await?;
 
-    Ok(KeyChain(jwk_set))
+        Ok(KeyChain(jwk_set))
+    }
+}
+
+#[cfg_attr(target_family = "wasm", wasm_bindgen(js_namespace = "nvidia"))]
+/// Same as [`KeyChain:fetch_keychain`], put in for better wasm compatibility
+pub async fn fetch_keychain() -> Result<KeyChain, GpuAttestationError> {
+    KeyChain::fetch_keychain().await
 }
 
 impl Deref for KeyChain {
