@@ -5,21 +5,23 @@ jobs:
         name: Run cargo check/clippy on all targets
         strategy:
             matrix:
-                package: ["nvidia-attest", "prem-rs", "snp-attest"]
+                package: ["nvidia-attest", "prem-rs"]
                 target: ["wasm32-unknown-unknown", "x86_64-unknown-linux-gnu"]
-                exclude:
-                    - package: prem-rs
-                      target: x86_64-unknown-linux-gnu
-                    - package: snp-attest
-                      target: wasm32-unknown-unknown
-
                 include:
                     - package: snp-attest
                       target: wasm32-unknown-unknown
                       features: snp-attest/kds_async
+                    - package: snp-attest
+                      target: x86_64-unknown-linux-gnu
+                      feature: snp-attest/kds_async
+                    - package: snp-attest
+                      target: x86_64-unknown-linux-gnu
+                      feature: snp-attest/kds_sync
+                    - include: attestation-server
+                      target: x86_64-unknown-linux-gnu
         runs-on: ubuntu-latest
         permissions:
-          contents: read
+            contents: read
         steps:
             - uses: actions/checkout@v5
             - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -32,7 +34,7 @@ jobs:
         name: Run unit tests
         runs-on: ubuntu-latest
         permissions:
-          contents: read
+            contents: read
         steps:
             - uses: actions/checkout@v5
             - name: Run cargo test
@@ -42,8 +44,8 @@ jobs:
         needs: [test]
         runs-on: ubuntu-latest
         permissions:
-          contents: read
-          packages: write
+            contents: read
+            packages: write
         steps:
             - uses: actions/checkout@v5
             - name: Install wasm-pack
