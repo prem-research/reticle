@@ -1,4 +1,4 @@
-use std::{cell::LazyCell, ops::Deref};
+use std::{ops::Deref, sync::LazyLock};
 
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -8,8 +8,8 @@ use reqwest::Url;
 
 use crate::error::GpuAttestationError;
 
-const NVIDIA_NRAS: LazyCell<Url> =
-    LazyCell::new(|| Url::parse("https://nras.attestation.nvidia.com").unwrap());
+static NVIDIA_NRAS: LazyLock<Url> =
+    LazyLock::new(|| Url::parse("https://nras.attestation.nvidia.com").unwrap());
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen(js_namespace = "nvidia"))]
 pub struct KeyChain(jwk::JwkSet);

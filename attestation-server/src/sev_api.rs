@@ -1,13 +1,8 @@
-use base64::{Engine, prelude::BASE64_STANDARD};
-use rocket::{
-    State,
-    form::{self, FromFormField},
-};
+use rocket::State;
 use sev::firmware::guest::Firmware;
 use snp_attest::nonce::SevNonce;
 use tokio::sync::Mutex;
 
-#[cfg(feature = "sev")]
 use crate::nonce::NonceParam;
 use crate::response::ApiError;
 

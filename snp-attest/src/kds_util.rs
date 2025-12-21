@@ -21,14 +21,14 @@ fn encode_hw_id(chip_id: &[u8; 64]) -> String {
     hex::encode(chip_id)
 }
 
-pub fn decode_stepping(
-    stepping: std::string::String,
-) -> std::option::Option<(std::string::String, std::string::String)> {
-    stepping
-        .chars()
-        .next()
-        .map(|rev| (rev.to_string(), stepping[1..].to_string()))
-}
+// pub fn decode_stepping(
+//     stepping: std::string::String,
+// ) -> std::option::Option<(std::string::String, std::string::String)> {
+//     stepping
+//         .chars()
+//         .next()
+//         .map(|rev| (rev.to_string(), stepping[1..].to_string()))
+// }
 
 pub fn decode_product_name(
     product_name: Vec<u8>,
@@ -208,20 +208,20 @@ mod async_kds {
     }
 }
 
-// #[cfg(feature = "")]
-pub mod crl {
-    use x509_parser::prelude::*;
+// // #[cfg(feature = "")]
+// pub mod crl {
+//     use x509_parser::prelude::*;
 
-    pub fn is_revoked(ask: &X509Certificate, crl: &CertificateRevocationList) -> bool {
-        let ask_serial = &ask.serial;
+//     pub fn is_revoked(ask: &X509Certificate, crl: &CertificateRevocationList) -> bool {
+//         let ask_serial = &ask.serial;
 
-        crl.iter_revoked_certificates()
-            .any(|a| a.serial() == ask_serial)
-    }
+//         crl.iter_revoked_certificates()
+//             .any(|a| a.serial() == ask_serial)
+//     }
 
-    pub fn verify(ark: &X509Certificate, crl: &CertificateRevocationList) -> anyhow::Result<bool> {
-        let public_key = ark.public_key();
+//     pub fn verify(ark: &X509Certificate, crl: &CertificateRevocationList) -> anyhow::Result<bool> {
+//         let public_key = ark.public_key();
 
-        Ok(crl.verify_signature(public_key).is_ok())
-    }
-}
+//         Ok(crl.verify_signature(public_key).is_ok())
+//     }
+// }

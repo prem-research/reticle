@@ -53,9 +53,7 @@ impl ClientBuilder {
     }
 
     pub fn build(self) -> Result<Client, PremErr> {
-        let reqwest_client = self
-            .reqwest_client
-            .unwrap_or_else(|| reqwest::Client::default());
+        let reqwest_client = self.reqwest_client.unwrap_or_default();
 
         Ok(Client {
             url: self.url.parse().map_err(PremErr::Parse)?,

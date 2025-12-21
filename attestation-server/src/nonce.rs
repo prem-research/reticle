@@ -24,7 +24,7 @@ impl<'a, const N: usize, T: From<Box<[u8; N]>> + Send + Sync> FromFormField<'a>
 
     // fn from_param(param: &'a str) -> Result<Self, Self::Error> {}
     fn from_data<'life0, 'async_trait>(
-        field: rocket::form::DataField<'a, 'life0>,
+        _field: rocket::form::DataField<'a, 'life0>,
     ) -> ::core::pin::Pin<
         Box<
             dyn ::core::future::Future<Output = rocket::form::Result<'a, Self>>

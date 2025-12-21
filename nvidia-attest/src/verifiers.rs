@@ -24,7 +24,7 @@ impl VerificationError {
     fn invalid_nonce(got: impl AsRef<[u8]>, expected: impl AsRef<[u8]>) -> VerificationError {
         let got = hex::encode(got);
         let expected = hex::encode(expected);
-        VerificationError::InvalidNonce(got.into(), expected.into())
+        VerificationError::InvalidNonce(got, expected)
     }
 }
 
@@ -90,10 +90,7 @@ impl VerificationRule<GpuClaims> for NonceValidator<'_> {
 
         (&claims.eat_nonce == expected)
             .then_some(())
-            .ok_or(VerificationError::invalid_nonce(
-                &claims.eat_nonce,
-                expected,
-            ))
+            .ok_or(VerificationError::invalid_nonce(claims.eat_nonce, expected))
     }
 }
 
@@ -105,9 +102,6 @@ impl VerificationRule<OverallClaims> for NonceValidator<'_> {
 
         (&claims.eat_nonce == expected)
             .then_some(())
-            .ok_or(VerificationError::invalid_nonce(
-                &claims.eat_nonce,
-                expected,
-            ))
+            .ok_or(VerificationError::invalid_nonce(claims.eat_nonce, expected))
     }
 }

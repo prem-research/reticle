@@ -3,7 +3,7 @@ use std::ops::Deref;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
-#[cfg_attr(target_family = "wasm", wasm_bindgen(js_namespace = "sev"))]
+#[cfg_attr(target_family = "wasm", wasm_bindgen(js_namespace = "nvidia"))]
 pub struct NvidiaNonce(Box<[u8; 32]>);
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
@@ -23,6 +23,12 @@ impl NvidiaNonce {
 
     pub fn to_hex(&self) -> String {
         hex::encode_upper(self.0.as_ref())
+    }
+}
+
+impl Default for NvidiaNonce {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

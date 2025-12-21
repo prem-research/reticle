@@ -1,6 +1,5 @@
 use nvidia_attest::nonce::NvidiaNonce;
 use prem_rs::ClientBuilder;
-use snp_attest::{kds, nonce::SevNonce};
 
 #[tokio::main]
 async fn main() {

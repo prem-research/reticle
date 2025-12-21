@@ -7,6 +7,7 @@ use tokio::process::Command;
 
 use crate::{nonce::NonceParam, response::ApiJsonResult};
 
+#[allow(unused)]
 pub enum NvVerifier {
     Local,
     Remote,

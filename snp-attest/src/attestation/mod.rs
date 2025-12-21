@@ -88,6 +88,9 @@ impl ParsedAttestation {
             Err(VerificationReason::BadProductName)?;
         }
 
+        /* check for revocation */
+        // TODO: check in certificate revocation list
+
         /* Check full chain */
         log::info!("Verifying self report signature");
         chain.check_signature(&self.report)?;
