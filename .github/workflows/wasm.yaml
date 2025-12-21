@@ -18,6 +18,8 @@ jobs:
                       target: wasm32-unknown-unknown
                       features: snp-attest/kds_async
         runs-on: ubuntu-latest
+        permissions:
+          contents: read
         steps:
             - uses: actions/checkout@v5
             - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -29,6 +31,8 @@ jobs:
         needs: [clippy]
         name: Run unit tests
         runs-on: ubuntu-latest
+        permissions:
+          contents: read
         steps:
             - uses: actions/checkout@v5
             - name: Run cargo test
@@ -37,6 +41,9 @@ jobs:
         name: Run wasm-pack on prem-rs
         needs: [test]
         runs-on: ubuntu-latest
+        permissions:
+          contents: read
+          packages: write
         steps:
             - uses: actions/checkout@v5
             - name: Install wasm-pack
