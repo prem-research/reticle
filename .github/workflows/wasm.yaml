@@ -55,12 +55,10 @@ jobs:
               with:
                   node-version: "20"
                   registry-url: "https://npm.pkg.github.com/"
+                  scope: "@PremAI-io"
             - name: Run wasm-pack build
               run: wasm-pack build --scope ${{ github.repository_owner }} prem-rs
-            - name: Add registry to package.json
-              run: |
-                  jq '. |= . + {"repository": {"type": "git", "url": "https://github.com/premAI-io/pcci-attestation-stack"}}' prem-rs/pkg/package.json
-            - name: Publish npm package on the local github registry
+            - name: Publish the npm package
               run: npm publish prem-rs/pkg/
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
