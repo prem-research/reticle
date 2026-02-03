@@ -11,18 +11,14 @@ use tokio::sync::Mutex;
 
 use anyhow::Context;
 
-#[cfg(feature = "sev")]
-use sev::firmware::guest::Firmware;
-
-#[cfg(feature = "nvidia")]
-use crate::nvidia_api::NvAttest;
-
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let rocket = rocket::build();
 
     #[cfg(feature = "sev")]
     let rocket = {
+        use sev::firmware::guest::Firmware;
+
         let firmware: Mutex<Firmware> = Firmware::open()
             .context("failed to open sev-snp firmware")?
             .into();
@@ -34,11 +30,12 @@ async fn main() -> Result<(), anyhow::Error> {
 
     #[cfg(feature = "nvidia")]
     let rocket = {
-        let nvattest =
-            NvAttest::new("/usr/local/bin/nvattest").context("missing nvattest binary")?;
+        use nvat::SdkHandle;
+
+        let sdk = SdkHandle::get_handle()?;
 
         rocket
-            .manage(nvattest)
+            .manage(sdk)
             .mount("/attestation", routes![nvidia_api::nvidia_attestation])
     };
 
