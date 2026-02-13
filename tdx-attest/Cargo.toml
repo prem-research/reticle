@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.101"
 # dcap-qvl = "0.3"
 tdx-quote = "0.0.5"
 wasm-bindgen.workspace = true
 wasm-bindgen-futures.workspace = true
 thiserror = "2"
+zerocopy = { version = "0.8.39", features = ["derive"] }

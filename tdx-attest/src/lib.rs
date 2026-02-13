@@ -1,31 +1,243 @@
-use tdx_quote::{QeReportCertificationData, Quote, QuoteParseError};
-use thiserror::Error;
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 
+use crate::parser::{CursorExt, Parse, ParseError, ParseErrorExt};
+
+pub mod ca;
 pub mod keychain;
+pub mod parser;
 
-#[derive(Error, Debug)]
-pub enum TdxError {
-    #[error("{0}")]
-    Parsing(#[from] QuoteParseError),
+pub const TEE_TYPE_TDX: u32 = 0x81;
 
-    #[error("the tdx quote is missing QE identity")]
-    MissingQe,
+#[repr(transparent)]
+#[derive(FromBytes, KnownLayout, Clone, Copy, Immutable, Unaligned, Debug)]
+pub struct SVN([u8; 16]);
+
+#[repr(C, packed)]
+#[derive(FromBytes, KnownLayout, Immutable, Unaligned, Debug)]
+struct QuoteHeader {
+    version: u16,
+    attestation_type: u16,
+    tee_type: u32,
+
+    reserved: [u8; 4],
+
+    qe_vendor_id: [u8; 16],
+    user_data: [u8; 20],
 }
 
-#[cfg_attr(target_family = "wasm", wasm_bindgen(js_namespace = "sev"))]
-pub struct TdxQuote {
-    quote: Quote,
-    qe_identity: QeReportCertificationData,
+pub type Sha384 = [u8; 48];
+
+#[repr(C, packed)]
+#[derive(FromBytes, KnownLayout, Immutable, Unaligned, Debug)]
+pub struct QuoteBody {
+    tee_tcb_svn: SVN,
+    mrseam: Sha384,
+    mrsignerseam: Sha384,
+    seamsttributes: [u8; 8],
+    tdattributes: [u8; 8],
+    xfam: [u8; 8],
+    mrtd: Sha384,
+    mrconfigid: [u8; 48],
+    mrowner: [u8; 48],
+    mrownerconfig: [u8; 48],
+    rtmr: [Sha384; 4],
+    report_data: [u8; 64],
 }
 
-#[cfg_attr(target_family = "wasm", wasm_bindgen(js_namespace = "sev"))]
-impl TdxQuote {
-    pub fn parse(quote: &[u8]) -> Result<Self, TdxError> {
-        let quote = Quote::from_bytes(quote)?;
-        let qe_identity = quote
-            .qe_report_certification_data()
-            .ok_or(TdxError::MissingQe)?;
+#[repr(C, packed)]
+#[derive(FromBytes, Immutable, KnownLayout, Unaligned, Debug)]
+pub struct EnclaveReport {
+    cpu_svn: SVN,
+    miscselect: u32,
+    reserved: [u8; 28],
+    attributes: [u8; 16],
+    mrenclave: [u8; 32],
+    _1_reserved: [u8; 32],
+    mrsigner: [u8; 32],
+    _2_reserved: [u8; 96],
+    isv_prod_id: u16,
+    isv_svn: u16,
+    _3_reserved: [u8; 60],
+    report_data: [u8; 64],
+}
 
-        todo!();
+#[derive(Debug)]
+pub struct QeAuthenticationData<'a>(&'a [u8]);
+
+impl<'d> Parse<'d> for QeAuthenticationData<'d> {
+    fn parse(mut cursor: impl parser::Cursor + 'd) -> Result<Self, ParseError> {
+        let size: usize = cursor
+            .take_u16()
+            .context("could not read size of qe authentication data")?
+            .into();
+
+        cursor
+            .split_off(size)
+            .map(QeAuthenticationData)
+            .context("not enough bytes to read Authentication Data")
+    }
+}
+
+#[derive(Debug)]
+pub struct QeReportCertificationData<'a> {
+    qe_report: &'a EnclaveReport,
+    qe_report_signature: &'a [u8; 64],
+    qe_authentication_data: QeAuthenticationData<'a>,
+    certification_data: QuoteData<'a>,
+}
+
+impl<'d> Parse<'d> for QeReportCertificationData<'d> {
+    fn parse(mut cursor: impl parser::Cursor + 'd) -> Result<Self, ParseError> {
+        let qe_report = cursor
+            .zerocopy_ref::<EnclaveReport>()
+            .context("failed parsing Enclave Report")?;
+
+        // let qe_report_signature = cursor
+        //     .take_slice()
+        //     .context("could not get QE Report Signature")?;
+
+        // let qe_authentication_das
+
+        todo!()
+        // Ok(Self {
+        //     qe_report,
+        //     qe_report_signature,
+        //     qe_authentication_data,
+        //     certification_data,
+        // })
+    }
+}
+
+#[derive(Debug)]
+pub enum QuoteData<'a> {
+    CpuSvns(&'a [u8]),
+    EncryptedCpuSvnsRSA2048(&'a [u8]),
+    EncryptedCpuSvnsRSA3072(&'a [u8]),
+    // PckLeaf, currently not supported
+    PckChain(&'a [u8]),
+    QeReportCertificationData(Box<QeReportCertificationData<'a>>),
+    // PlatformManifest, currently not supported
+}
+
+impl QuoteData<'_> {
+    const CPUSVNS: u16 = 0x01;
+    const RSA2048: u16 = 0x02;
+    const RSA3072: u16 = 0x03;
+    const PCKCHAIN: u16 = 0x05;
+    const QE_RCD: u16 = 0x06; // qe report certification data
+}
+
+impl<'d> Parse<'d> for QuoteData<'d> {
+    fn parse(mut cursor: impl parser::Cursor + 'd) -> Result<Self, ParseError> {
+        let certification_type = cursor
+            .take_u16()
+            .context("could not read certification type")?;
+
+        let data_size = cursor
+            .take_u32()
+            .context("could not read cetification data size")?
+            .try_into()
+            .expect("integer did not fit in u32");
+
+        let certification_data = cursor.split_off(data_size).context(format!(
+            "not enough bytes {data_size} to parse certification_type = {certification_type}"
+        ))?;
+
+        // try to match all different qe certification data types
+        let parsed = match certification_type {
+            Self::CPUSVNS => Self::CpuSvns(certification_data),
+            Self::RSA2048 => Self::EncryptedCpuSvnsRSA2048(certification_data),
+            Self::RSA3072 => Self::EncryptedCpuSvnsRSA3072(certification_data),
+            Self::PCKCHAIN => Self::PckChain(certification_data),
+            Self::QE_RCD => {
+                Self::QeReportCertificationData(QeReportCertificationData::parse(cursor)?.into())
+            }
+            _ => parse_bail!("unknown certification type in certification data"),
+        };
+
+        Ok(parsed)
+    }
+}
+
+#[derive(Debug)]
+pub struct Certification<'a> {
+    /// ecdsa signature over the header and td quote body using the private part of attestation_key
+    quote_signature: &'a [u8; 64],
+    /// the public part of the attestation key generated by the quoting enclave
+    attestation_key: &'a [u8; 64],
+    /// data required to verify the signature over QE report and the attestation key
+    quote_data: QuoteData<'a>,
+}
+
+impl<'d> Parse<'d> for Certification<'d> {
+    fn parse(mut cursor: impl parser::Cursor + 'd) -> Result<Self, ParseError> {
+        let quote_signature = cursor
+            .take_slice()
+            .context("could not read quote signature")?;
+
+        let attestation_key = cursor
+            .take_slice()
+            .context("could not read attestation key")?;
+
+        let quote_data_length: usize = cursor
+            .take_u32()
+            .context("could not get Quote Data length")?
+            as usize;
+
+        if quote_data_length > cursor.remaining() {
+            parse_bail!("not enough data remaining")
+        }
+
+        let certification_data = QuoteData::parse(cursor)?;
+
+        Ok(Self {
+            quote_signature,
+            attestation_key,
+            quote_data: certification_data,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct Quote<'a> {
+    quote_header: &'a QuoteHeader,
+    quote_body: &'a QuoteBody,
+    certification: Certification<'a>,
+}
+
+impl<'d> Parse<'d> for Quote<'d> {
+    fn parse(mut cursor: impl parser::Cursor + 'd) -> Result<Self, ParseError> {
+        let quote_header: &QuoteHeader = cursor
+            .zerocopy_ref()
+            .context("failed to parse quote_header")?;
+
+        // make some assumptions for attestation
+        // - quote version == 4 (v3 is for SGX, v5 isn't out yet)
+        // - tee_type is TDX
+        // - attestation type is 2 (only one supported by tdx as per documentation)
+        if quote_header.version != 4 {
+            parse_bail!("Only v4 quotes are supported");
+        }
+
+        if quote_header.tee_type != TEE_TYPE_TDX {
+            parse_bail!("Only TDX is supported, not SGX");
+        }
+
+        if quote_header.attestation_type != 2 {
+            parse_bail!("Attestation types other than 2 are not supported in TDX or SGX");
+        }
+
+        let quote_body = cursor
+            .zerocopy_ref::<QuoteBody>()
+            .context("failed to parse quote_body")?;
+
+        // let certification = cursor.parse::<Certification>()?;
+        let certification = Certification::parse(cursor)?;
+
+        Ok(Quote {
+            quote_header,
+            quote_body,
+            certification, // certification_data: todo!(),
+        })
     }
 }

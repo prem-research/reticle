@@ -173,7 +173,7 @@ mod async_kds {
         log::debug!("Requesting {url}");
 
         let cert = CertificateInner::<Rfc5280>::load_pem_chain(&resp)?;
-        let [ask, _ark]: [CertificateInner; 2] = cert
+        let [ask, ark]: [CertificateInner; 2] = cert
             .try_into()
             .map_err(|_| anyhow::format_err!("missing ask or ark from certificate chain"))?;
 
