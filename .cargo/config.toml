@@ -1,0 +1,12 @@
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+    "-C", "link-arg=-Wl,-Bstatic",
+    "-C", "link-arg=-lxmlsec1",
+    "-C", "link-arg=-lxslt",
+    "-C", "link-arg=-lxml2",
+    "-C", "link-arg=-lssl",
+    "-C", "link-arg=-lcrypto",
+    "-C", "link-arg=-lz",
+    "-C", "link-arg=-lltdl",
+    "-C", "link-arg=-Wl,-Bdynamic",
+]

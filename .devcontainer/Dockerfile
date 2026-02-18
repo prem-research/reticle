@@ -107,7 +107,7 @@ RUN \
     && cd /tmp/libxslt \
     && ./autogen.sh \
         --prefix=${SYSROOT} --host=${TARGET_TRIPLE}gnu \
-        --with-python=no --enable-shared --disable-static \
+        --with-python=no --enable-shared --enable-static \
     && make -j$(nproc) \
     && make install \
     && rm -rf /tmp/libxslt
