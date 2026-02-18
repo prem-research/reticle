@@ -1,11 +1,20 @@
 FROM mcr.microsoft.com/devcontainers/rust:2-bookworm
 
+ENV TARGET_TRIPLE=x86_64-linux-
+ENV RUST_TARGET=x86_64-unknown-linux-gnu
+ENV OPENSSL_TARGET=linux-generic64
 ENV OPENSSL_VER="3.0.17"
+ENV ZLIB_VER=1.3.2
+ENV CURL_VER=8.7.1
+ENV LIBTOOL_VER=2.4.7
+ENV LIBXML2_VER=2.9.14
+ENV LIBXSLT_VER=1.1.39
+ENV XMLSEC_VER=1.3.9
 #ENV TPM2TSS_VER="4.1.3"
 
 RUN apt-get update \
     && apt-get install -qyy --no-install-recommends \
-    gcc-multilib-x86-64-linux-gnu \
+    gcc-x86-64-linux-gnu \
     g++-x86-64-linux-gnu \
     pkg-config \
     make \
@@ -17,7 +26,8 @@ RUN apt-get update \
     libtool \
     pkgconf \
     acl \
-    libltdl-dev
+    libltdl-dev \
+    clang
 
 ENV SYSROOT="/x86_64-sysroot"
 ENV PKG_CONFIG_ALLOW_CROSS=1
@@ -30,9 +40,9 @@ RUN wget \
     && cd /tmp \
     && tar xvf /tmp/openssl-${OPENSSL_VER}.tar.gz \
     && cd openssl-${OPENSSL_VER} \
-    && ./Configure linux-generic64 \
-    --prefix=${SYSROOT} \
-    --cross-compile-prefix=x86_64-linux-gnu- \
+    && ./Configure ${OPENSSL_TARGET} \
+        --prefix=${SYSROOT} \
+        --cross-compile-prefix=${TARGET_TRIPLE}gnu- \
     && make -j$(nproc) \
     && make install \
     && rm -rf \
@@ -40,66 +50,83 @@ RUN wget \
     /tmp/openssl-${OPENSSL_VER}.tar.gz
 
 RUN wget \
-    https://zlib.net/zlib-1.3.2.tar.gz \
-    -O /tmp/zlib-1.3.2.tar.gz \
+    https://zlib.net/zlib-${ZLIB_VER}.tar.gz \
+    -O /tmp/zlib-${ZLIB_VER}.tar.gz \
     && cd /tmp \
-    && tar xvf zlib-1.3.2.tar.gz \
-    && cd zlib-1.3.2 \
-    && CC=x86_64-linux-gnu-gcc CHOST=x86_64-linux- ./configure --prefix=${SYSROOT} \
+    && tar xvf zlib-${ZLIB_VER}.tar.gz \
+    && cd zlib-${ZLIB_VER} \
+    && CC=${TARGET_TRIPLE}gnu-gcc CHOST=${TARGET_TRIPLE} ./configure --prefix=${SYSROOT} \
     && make -j$(nproc) \
     && make install \
-    && rm -rf /tmp/zlib-1.3.2 /tmp/zlib-1.3.2.tar.gz
+    && rm -rf /tmp/zlib-${ZLIB_VER} /tmp/zlib-${ZLIB_VER}.tar.gz
 
 RUN wget \
-    https://curl.se/download/curl-8.7.1.tar.gz \
-    -O /tmp/curl-8.7.1.tar.gz \
+    https://curl.se/download/curl-${CURL_VER}.tar.gz \
+    -O /tmp/curl-${CURL_VER}.tar.gz \
     && cd /tmp \
-    && tar xvf curl-8.7.1.tar.gz \
-    && cd curl-8.7.1 \
-    && CPPFLAGS="-I${SYSROOT}/include" LDFLAGS="-L${SYSROOT}/lib" ./configure --prefix=${SYSROOT} --host=x86_64-linux-gnu --with-ssl=${SYSROOT} --disable-shared --enable-static \
+    && tar xvf curl-${CURL_VER}.tar.gz \
+    && cd curl-${CURL_VER} \
+    && CPPFLAGS="-I${SYSROOT}/include" LDFLAGS="-L${SYSROOT}/lib" ./configure \
+        --prefix=${SYSROOT} \
+        --host=${TARGET_TRIPLE}gnu \
+        --with-ssl=${SYSROOT} \
+        --disable-shared \
+        --enable-static \
     && make -j$(nproc) \
     && make install \
-    && rm -rf /tmp/curl-8.7.1 /tmp/curl-8.7.1.tar.gz
+    && rm -rf /tmp/curl-${CURL_VER} /tmp/curl-${CURL_VER}.tar.gz
 
 RUN \
-    wget https://ftp.gnu.org/gnu/libtool/libtool-2.4.7.tar.gz -O /tmp/libtool-2.4.7.tar.gz \
+    wget https://ftp.gnu.org/gnu/libtool/libtool-${LIBTOOL_VER}.tar.gz \
+        -O /tmp/libtool-${LIBTOOL_VER}.tar.gz \
     && cd /tmp \
-    && tar xvf libtool-2.4.7.tar.gz \
-    && cd libtool-2.4.7 \
-    && ./configure --prefix=${SYSROOT} --host=x86_64-linux-gnu \
+    && tar xvf libtool-${LIBTOOL_VER}.tar.gz \
+    && cd libtool-${LIBTOOL_VER} \
+    && ./configure --prefix=${SYSROOT} --host=${TARGET_TRIPLE}gnu \
     && make -j$(nproc) \
     && make install \
-    && rm -rf /tmp/libtool-2.4.7 /tmp/libtool-2.4.7.tar.gz
+    && rm -rf /tmp/libtool-${LIBTOOL_VER} /tmp/libtool-${LIBTOOL_VER}.tar.gz
 
 # nvat-rs build
 RUN \
-    git clone https://gitlab.gnome.org/GNOME/libxml2.git -b v2.9.14 /tmp/libxml2 \
+    git clone https://gitlab.gnome.org/GNOME/libxml2.git \
+        -b v${LIBXML2_VER} /tmp/libxml2 \
     && cd /tmp/libxml2 \
-    && CFLAGS=-fPIC ./autogen.sh --prefix=${SYSROOT} --host=x86_64-linux-gnu --enable-static --disable-shared --with-lzma=no --with-zlib=no \
+    && CFLAGS=-fPIC ./autogen.sh \
+        --prefix=${SYSROOT} \
+        --host=${TARGET_TRIPLE}gnu \
+        --enable-static --disable-shared \
+        --with-lzma=no --with-zlib=no \
     && make -j$(nproc) \
     && make install \
     && rm -rf /tmp/libxml2
 
 RUN \
-    git clone https://gitlab.gnome.org/GNOME/libxslt.git -b v1.1.39 \
+    git clone https://gitlab.gnome.org/GNOME/libxslt.git -b v${LIBXSLT_VER} \
       /tmp/libxslt \
     && cd /tmp/libxslt \
-    && ./autogen.sh --prefix=${SYSROOT} --host=x86_64-linux-gnu --with-python=no --enable-shared --disable-static \
+    && ./autogen.sh \
+        --prefix=${SYSROOT} --host=${TARGET_TRIPLE}gnu \
+        --with-python=no --enable-shared --disable-static \
     && make -j$(nproc) \
     && make install \
     && rm -rf /tmp/libxslt
 
 RUN \
     wget \
-      https://github.com/lsh123/xmlsec/releases/download/1.3.9/xmlsec1-1.3.9.tar.gz \
-      -O/tmp/xmlsec1-1.3.9.tar.gz \
+      https://github.com/lsh123/xmlsec/releases/download/${XMLSEC_VER}/xmlsec1-${XMLSEC_VER}.tar.gz \
+      -O/tmp/xmlsec1-${XMLSEC_VER}.tar.gz \
     && cd /tmp \
-    && tar xvf xmlsec1-1.3.9.tar.gz \
-    && cd xmlsec1-1.3.9 \
-    && ./configure --prefix=${SYSROOT} --host=x86_64-linux-gnu --with-libltdl=${SYSROOT} --enable-static \
+    && tar xvf xmlsec1-${XMLSEC_VER}.tar.gz \
+    && cd xmlsec1-${XMLSEC_VER} \
+    && ./configure \
+        --prefix=${SYSROOT} --host=${TARGET_TRIPLE}gnu \
+        --with-libltdl=${SYSROOT} --enable-static \
     && make -j$(nproc) \
     && make install \
-    && rm -rf /tmp/xmlsec1-1.3.9 /tmp/xmlsec1-1.3.9.tar.gz
+    && rm -rf \
+        /tmp/xmlsec1-${XMLSEC_VER} \
+        /tmp/xmlsec1-${XMLSEC_VER}.tar.gz
 
 # RUN git clone \
 #     https://github.com/tpm2-software/tpm2-tss.git \
@@ -110,16 +137,16 @@ RUN \
 #     --disable-fapi \
 #     --disable-policy \
 #     --prefix="${SYSROOT}" \
-#     --target=x86_64-linux-gnu \
-#     --host=x86_64-linux-gnu \
-#     CC=/usr/bin/x86_64-linux-gnu-gcc \
-#     CXX=/usr/bin/x86_64-linux-gnu-cpp \
+#     --target=${TARGET_TRIPLE}gnu \
+#     --host=${TARGET_TRIPLE}gnu \
+#     CC=/usr/bin/${TARGET_TRIPLE}gnu-gcc \
+#     CXX=/usr/bin/${TARGET_TRIPLE}gnu-cpp \
 #     && make -j$(nproc) \
 #     && make install \
 #     && rm -rf /tmp/tpm2-tss
 
 RUN rustup target add \
-    x86_64-unknown-linux-gnu
+        ${RUST_TARGET}
 
 RUN apt-get autoremove -y \
     && apt-get clean -y \
