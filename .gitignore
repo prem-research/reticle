@@ -1,2 +1,11 @@
+# rust
 target/
+
+# others
 *.bck/
+/attestation-sdk
+
+# AI assist
+CLAUDE.local.[mM][dD]
+AGENTS.local.[mM][dD]
+settings.local.json

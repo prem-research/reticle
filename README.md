@@ -19,7 +19,7 @@
             --scope premai-io \ # repo owner
             prem-rs
 
-## TODOs
+## TODOs
 
 - use `vcpkg` for cross compilation?
 - chroot with all deps ($SYSROOT)

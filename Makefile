@@ -32,7 +32,7 @@ bins:
 		$(if $(FEATURES),--no-default-features --features "$(FEATURES)",)
 
 	# TODO: fix
-	cp $${SYSROOT:-/usr/local}/lib/libnvat.so.1.1.0 $(CURDIR)
+	#cp $${SYSROOT:-/usr/local}/lib/libnvat.so.1.1.0 $(CURDIR)
 
 wasm:
 	wasm-pack build --scope premai-io prem-rs
