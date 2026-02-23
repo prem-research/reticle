@@ -203,6 +203,8 @@ jobs:
          needs: [build-image, libnvat, clippy, test]
          runs-on: *x-runs-on
          container: *x-container
+         env:
+          IMAGE_NAME: ${{ vars.REPOSITORY_URL }}/premai-io/attestation-server
          steps:
               - name: Set up Docker Buildx
                 uses: docker/setup-buildx-action@v3
@@ -239,16 +241,16 @@ jobs:
               - name: Docker meta
                 id: meta
                 uses: docker/metadata-action@v5
+                env:
+                  DOCKER_METADATA_SHORT_SHA_LENGTH: 7
                 with:
-                    images: ${{ vars.REPOSITORY_URL }}/premai-io/attestation-server
+                    images: ${{ env.IMAGE_NAME }}
                     tags: |
                       type=sha,prefix=
                       type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
                       type=ref,event=branch,enable=${{ github.ref != 'refs/heads/main' }}
               - uses: docker/build-push-action@v6
                 name: Build and push
-                env:
-                  IMAGE_NAME: ${{ vars.REPOSITORY_URL }}/premai-io/attestation-server
                 with:
                     context: ./
                     file: ./attestation-server/Dockerfile
