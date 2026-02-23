@@ -200,7 +200,7 @@ jobs:
 
     attestation-server:
          name: Build attestation-server docker container
-         needs: [build-image, libnvat]
+         needs: [build-image, libnvat, clippy, test]
          runs-on: *x-runs-on
          container: *x-container
          steps:
