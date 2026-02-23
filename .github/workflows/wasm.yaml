@@ -236,6 +236,15 @@ jobs:
                     registry: ${{ vars.REPOSITORY_URL }}
                     username: ${{ secrets.REPOSITORY_USER }}
                     password: ${{ secrets.REPOSITORY_PASSWORD }}
+              - name: Docker meta
+                id: meta
+                uses: docker/metadata-action@v5
+                with:
+                    images: ${{ vars.REPOSITORY_URL }}/premai-io/attestation-server
+                    tags: |
+                      type=sha,prefix=
+                      type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+                      type=ref,event=branch,enable=${{ github.ref != 'refs/heads/main' }}
               - uses: docker/build-push-action@v6
                 name: Build and push
                 env:
@@ -244,9 +253,8 @@ jobs:
                     context: ./
                     file: ./attestation-server/Dockerfile
                     push: true
-                    tags: |
-                      ${{ env.IMAGE_NAME }}:latest
-                      ${{ env.IMAGE_NAME }}:${{ github.sha }}
+                    tags: ${{ steps.meta.outputs.tags }}
+                    labels: ${{ steps.meta.outputs.labels }}
                     build-args: |
                       SYSROOT=./sysroot
                       FEATURES=sev nvidia
