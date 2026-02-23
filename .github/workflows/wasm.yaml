@@ -84,8 +84,8 @@ jobs:
           run: apt update && apt install -y tree && tree ${{ env.SYSROOT }}
 
     clippy:
-        if: false
         name: Run cargo check/clippy on all targets
+        if: false
         needs: [build-image, libnvat]
         strategy:
             matrix:
