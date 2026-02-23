@@ -35,6 +35,14 @@ WORKDIR /app
 COPY ${SYSROOT}/lib /sysroot/lib
 COPY ./target/release/attestation-server /attestation-server
 
+RUN apt-get update \
+    && apt-get install -y \
+        ca-certificates
+
+RUN apt-get autoremove -y \
+    && apt-get clean -y \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV ROCKET_ENV=prod
 ENV ROCKET_ADDRESS=0.0.0.0
 ENV ROCKET_PORT=8000
