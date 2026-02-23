@@ -5,11 +5,6 @@ const KDS_CERT_SITE: &str = "https://kdsintf.amd.com";
 const KDS_VCEK: &str = "/vcek/v1";
 const KDS_CERT_CHAIN: &str = "cert_chain";
 
-#[cfg(feature = "kds_async")]
-pub use async_kds::*;
-#[cfg(feature = "kds_sync")]
-pub use sync_kds::*;
-
 fn get_base_url(product_name: String) -> String {
     format!(
         "{KDS_CERT_SITE}{KDS_VCEK}/\
@@ -58,170 +53,71 @@ pub fn get_query_tuple(name: &str, byte: u8) -> (std::string::String, std::strin
     (String::from(name), format!("{:02}", byte))
 }
 
-#[cfg(feature = "kds_sync")]
-mod sync_kds {
-    use super::*;
-    use sev::firmware::host::TcbVersion;
+use reqwest::Client;
 
-    pub fn get_vcek_tcb(
-        chip_id: &[u8; 64],
-        tcb: TcbVersion,
-        product_name: &str,
-    ) -> anyhow::Result<sev::certs::snp::Certificate> {
-        let client = reqwest::blocking::Client::new();
-        let req = client
-            .get(format!(
-                "{}/{}",
-                get_base_url(product_name.to_string()),
-                encode_hw_id(chip_id)
-            ))
-            .query(&[
-                get_query_tuple("blSPL", tcb.bootloader),
-                get_query_tuple("teeSPL", tcb.tee),
-                get_query_tuple("snpSPL", tcb.snp),
-                get_query_tuple("ucodeSPL", tcb.microcode),
-            ]);
-
-        let resp = req.send()?.bytes()?;
-        Ok(sev::certs::snp::Certificate::from_der(&resp).expect("invalid vcek from AMD KDS"))
-    }
-
-    pub fn get_cert_chain(product_name: &str) -> anyhow::Result<sev::certs::snp::ca::Chain> {
-        let client = reqwest::blocking::Client::new();
-        let req = client.get(format!(
+pub async fn get_vcek_tcb(
+    chip_id: &[u8; 64],
+    tcb: TcbVersion,
+    product_name: &str,
+) -> anyhow::Result<sev::certs::snp::Certificate> {
+    let client = Client::new();
+    let req = client
+        .get(format!(
             "{}/{}",
             get_base_url(product_name.to_string()),
-            KDS_CERT_CHAIN,
-        ));
-        let resp = req.send()?.bytes()?;
+            encode_hw_id(chip_id)
+        ))
+        .query(&[
+            get_query_tuple("blSPL", tcb.bootloader),
+            get_query_tuple("teeSPL", tcb.tee),
+            get_query_tuple("snpSPL", tcb.snp),
+            get_query_tuple("ucodeSPL", tcb.microcode),
+        ]);
 
-        let cert = CertificateInner::<Rfc5280>::load_pem_chain(&resp)?;
-
-        let ask = cert.get(0).context("missing ask")?.to_pem(LineEnding::LF)?;
-        let ark = cert.get(1).context("missing ark")?.to_pem(LineEnding::LF)?;
-
-        Ok(sev::certs::snp::ca::Chain::from_pem(
-            ark.as_bytes(),
-            ask.as_bytes(),
-        )?)
-    }
-
-    pub fn get_chain(
-        chip_id: &[u8; 64],
-        tcb: TcbVersion,
-        product_name: &str,
-    ) -> anyhow::Result<sev::certs::snp::Chain> {
-        let vcek = get_vcek_tcb(&chip_id, tcb, product_name)?;
-        let cert_chain = get_cert_chain(product_name)?;
-        Ok(sev::certs::snp::Chain {
-            ca: cert_chain,
-            vek: vcek,
-        })
-    }
-
-    pub fn get_crl(product_name: &str) -> anyhow::Result<Vec<u8>> {
-        let client = reqwest::blocking::Client::new();
-        let req = client.get(format!(
-            "{}/crl",
-            super::get_base_url(product_name.to_string())
-        ));
-        let resp = req.send()?.bytes()?;
-
-        Ok(resp.into())
-    }
+    let resp = req.send().await?.bytes().await?;
+    Ok(sev::certs::snp::Certificate::from_der(&resp).expect("invalid vcek from AMD KDS"))
 }
 
-#[cfg(feature = "kds_async")]
-mod async_kds {
-    use reqwest::Client;
+pub async fn get_cert_chain(product_name: &str) -> anyhow::Result<sev::certs::snp::ca::Chain> {
+    let client = Client::new();
+    let url = format!(
+        "{}/{}",
+        get_base_url(product_name.to_string()),
+        KDS_CERT_CHAIN,
+    );
+    let req = client.get(&url);
+    let resp = req.send().await?.bytes().await?;
 
-    use super::*;
+    log::debug!("Requesting {url}");
 
-    pub async fn get_vcek_tcb(
-        chip_id: &[u8; 64],
-        tcb: TcbVersion,
-        product_name: &str,
-    ) -> anyhow::Result<sev::certs::snp::Certificate> {
-        let client = Client::new();
-        let req = client
-            .get(format!(
-                "{}/{}",
-                get_base_url(product_name.to_string()),
-                encode_hw_id(chip_id)
-            ))
-            .query(&[
-                get_query_tuple("blSPL", tcb.bootloader),
-                get_query_tuple("teeSPL", tcb.tee),
-                get_query_tuple("snpSPL", tcb.snp),
-                get_query_tuple("ucodeSPL", tcb.microcode),
-            ]);
+    let cert = CertificateInner::<Rfc5280>::load_pem_chain(&resp)?;
+    let [ask, ark]: [CertificateInner; 2] = cert
+        .try_into()
+        .map_err(|_| anyhow::format_err!("missing ask or ark from certificate chain"))?;
 
-        let resp = req.send().await?.bytes().await?;
-        Ok(sev::certs::snp::Certificate::from_der(&resp).expect("invalid vcek from AMD KDS"))
-    }
-
-    pub async fn get_cert_chain(product_name: &str) -> anyhow::Result<sev::certs::snp::ca::Chain> {
-        let client = Client::new();
-        let url = format!(
-            "{}/{}",
-            get_base_url(product_name.to_string()),
-            KDS_CERT_CHAIN,
-        );
-        let req = client.get(&url);
-        let resp = req.send().await?.bytes().await?;
-
-        log::debug!("Requesting {url}");
-
-        let cert = CertificateInner::<Rfc5280>::load_pem_chain(&resp)?;
-        let [ask, ark]: [CertificateInner; 2] = cert
-            .try_into()
-            .map_err(|_| anyhow::format_err!("missing ask or ark from certificate chain"))?;
-
-        Ok(sev::certs::snp::ca::Chain {
-            ask: ask.into(),
-            ark: ark.into(),
-        })
-    }
-
-    pub async fn get_chain(
-        chip_id: &[u8; 64],
-        tcb: TcbVersion,
-        product_name: &str,
-    ) -> anyhow::Result<sev::certs::snp::Chain> {
-        let vcek = get_vcek_tcb(chip_id, tcb, product_name).await?;
-        let cert_chain = get_cert_chain(product_name).await?;
-        Ok(sev::certs::snp::Chain {
-            ca: cert_chain,
-            vek: vcek,
-        })
-    }
-
-    pub async fn get_crl(product_name: &str) -> Result<Vec<u8>, reqwest::Error> {
-        let client = Client::new();
-        let req = client.get(format!(
-            "{}/crl",
-            super::get_base_url(product_name.to_string())
-        ));
-        let resp = req.send().await?.bytes().await?;
-
-        Ok(resp.into())
-    }
+    Ok(sev::certs::snp::ca::Chain {
+        ask: ask.into(),
+        ark: ark.into(),
+    })
 }
 
-// // #[cfg(feature = "")]
-// pub mod crl {
-//     use x509_parser::prelude::*;
+pub async fn get_chain(
+    chip_id: &[u8; 64],
+    tcb: TcbVersion,
+    product_name: &str,
+) -> anyhow::Result<sev::certs::snp::Chain> {
+    let vcek = get_vcek_tcb(chip_id, tcb, product_name).await?;
+    let cert_chain = get_cert_chain(product_name).await?;
+    Ok(sev::certs::snp::Chain {
+        ca: cert_chain,
+        vek: vcek,
+    })
+}
 
-//     pub fn is_revoked(ask: &X509Certificate, crl: &CertificateRevocationList) -> bool {
-//         let ask_serial = &ask.serial;
+pub async fn get_crl(product_name: &str) -> Result<Vec<u8>, reqwest::Error> {
+    let client = Client::new();
+    let req = client.get(format!("{}/crl", get_base_url(product_name.to_string())));
+    let resp = req.send().await?.bytes().await?;
 
-//         crl.iter_revoked_certificates()
-//             .any(|a| a.serial() == ask_serial)
-//     }
-
-//     pub fn verify(ark: &X509Certificate, crl: &CertificateRevocationList) -> anyhow::Result<bool> {
-//         let public_key = ark.public_key();
-
-//         Ok(crl.verify_signature(public_key).is_ok())
-//     }
-// }
+    Ok(resp.into())
+}

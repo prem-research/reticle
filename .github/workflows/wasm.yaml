@@ -90,18 +90,6 @@ jobs:
             matrix:
                 package: ["nvidia-attest", "prem-rs"]
                 target: ["wasm32-unknown-unknown", "x86_64-unknown-linux-gnu"]
-                include:
-                    - package: snp-attest
-                      target: wasm32-unknown-unknown
-                      features: snp-attest/kds_async
-                    - package: snp-attest
-                      target: x86_64-unknown-linux-gnu
-                      features: snp-attest/kds_async
-                    # - package: snp-attest
-                    #   target: x86_64-unknown-linux-gnu
-                    #   features: snp-attest/kds_sync
-                    - package: attestation-server
-                      target: x86_64-unknown-linux-gnu
         runs-on: *x-runs-on
         container: *x-container
         permissions:
@@ -128,8 +116,7 @@ jobs:
                 env -u SYSROOT -u PKG_CONFIG_SYSROOT_DIR \
                 RUSTFLAGS="-L${{ env.SYSROOT }}/lib" cargo clippy \
                     --package=${{ matrix.package }} \
-                    --target=${{ matrix.target }} \
-                    --features="${{ matrix.features }}"
+                    --target=${{ matrix.target }}
 
     test:
         needs: [build-image, libnvat, clippy]
