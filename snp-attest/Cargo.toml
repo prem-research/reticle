@@ -3,24 +3,6 @@ name = "snp-attest"
 version = "0.1.0"
 edition = "2024"
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
-[[bin]]
-name = "attest-report"
-required-features = ["kds_sync", "bin"]
-
-[[bin]]
-name = "create-report"
-required-features = ["kds_sync", "bin"]
-
-[[bin]]
-name = "vtpm-attestation-key"
-required-features = ["hyperv", "kds_sync", "bin"]
-
-[[bin]]
-name = "vtpm-pcrs"
-required-features = ["hyperv", "kds_sync", "bin"]
 
 [dependencies]
 sev = { version = "7.1.1", default-features = false, features = ["crypto_nossl", "snp"] }
@@ -52,11 +34,9 @@ wasm-bindgen-futures = "0.4.55"
 wasm-log = { version = "0.3.1", optional = true }
 
 [features]
-default = ["attestation"]
+default = ["attestation", "kds"]
 logger = ["dep:wasm-log"]
 hyperv = ["dep:tss-esapi"]
 kds = ["dep:reqwest"]
 attestation = []
-kds_sync = ["kds"]
-kds_async = ["kds"]
 bin = ["dep:clap"]
