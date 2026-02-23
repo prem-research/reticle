@@ -3,4 +3,4 @@ resolver = "3"
 members = ["libattest","nvidia-attest", "prem-rs", "snp-attest", "attestation-server"]
 
 [patch.crates-io]
-sev = { git = "https://github.com/BRA1L0R/sev" }
+sev = { git = "https://github.com/BRA1L0R/sev", branch = "prem" }
