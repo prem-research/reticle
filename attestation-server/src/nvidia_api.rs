@@ -1,5 +1,3 @@
-use std::{fmt::Display, path::PathBuf};
-
 use anyhow::Context;
 use nvat::{AttestationBuilder, SdkHandle, nonce::NvatNonce};
 use rocket::State;
@@ -16,7 +14,7 @@ pub async fn nvidia_attestation(
 
     // TEMPORARY FIX FOR BAD NVIDIA APIS
     let nonce = hex::encode(&nonce[..]);
-    let nonce = NvatNonce::from_hex(&sdk, &nonce)
+    let nonce = NvatNonce::from_hex(sdk, &nonce)
         .context("internal nvat error when converting the nonce")?;
 
     let result = AttestationBuilder::new(sdk)
