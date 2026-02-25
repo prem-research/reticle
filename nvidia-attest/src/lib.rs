@@ -8,6 +8,7 @@ use std::{collections::HashMap, ops::Deref};
 
 use jsonwebtoken::{DecodingKey, Validation};
 use libattest::{AddRule, VerificationBuilder};
+use serde::Serialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
@@ -24,6 +25,7 @@ use crate::{
 
 #[derive(Debug)]
 #[cfg_attr(target_family = "wasm", wasm_bindgen(js_namespace = "nvidia"))]
+#[derive(Serialize)]
 pub struct DecodedClaims {
     overall_claims: OverallClaims,
     gpu_claims: HashMap<String, GpuClaims>,

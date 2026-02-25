@@ -35,7 +35,7 @@ pub type DigestRepr = (String, (String, String));
 #[error("invalid digest representation")]
 pub struct InvalidDigestRepr;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(try_from = "DigestRepr")]
 pub enum Digest {
     Sha256([u8; 32]),
@@ -66,7 +66,7 @@ impl TryFrom<DigestRepr> for Digest {
 }
 
 /// Claims from the overall JWT token.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct OverallClaims {
     #[serde(rename = "x-nvidia-ver")]
     pub claims_version: Option<String>,

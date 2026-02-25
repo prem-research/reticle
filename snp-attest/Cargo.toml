@@ -34,9 +34,10 @@ wasm-bindgen-futures = "0.4.55"
 wasm-log = { version = "0.3.1", optional = true }
 
 [features]
-default = ["attestation", "kds"]
+default = ["attestation", "kds", "serde"]
 logger = ["dep:wasm-log"]
 hyperv = ["dep:tss-esapi"]
+serde = ["sev/serde"]
 kds = ["dep:reqwest"]
 attestation = []
 bin = ["dep:clap"]
