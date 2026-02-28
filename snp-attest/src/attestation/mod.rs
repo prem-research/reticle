@@ -68,10 +68,6 @@ impl ParsedAttestation {
         self.cpu_mod_id
     }
 
-    pub fn report(&self) -> &AttestationReport {
-        &self.report
-    }
-
     /// Verifies the attestation report against a certificate chain
     pub fn verify(&self, chain: &VerifiedChain, nonce: &SevNonce) -> Result<(), AttestationError> {
         // let certificates = chain.parse_certificates()?;
@@ -123,5 +119,8 @@ impl ParsedAttestation {
     pub fn generation(&self) -> Generation {
         self.generation
     }
-}
 
+    pub fn report(&self) -> &AttestationReport {
+        &self.report
+    }
+}
