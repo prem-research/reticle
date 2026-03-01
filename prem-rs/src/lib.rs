@@ -1,31 +1,13 @@
-use std::str::FromStr;
+pub mod error;
 
 use nvidia_attest::{EATToken, keychain::KeyChain, nonce::NvidiaNonce};
 use snp_attest::{ParsedAttestation, nonce::SevNonce};
-use thiserror::Error;
-use wasm_bindgen::prelude::*;
 
 pub use nvidia_attest;
 use reqwest::Url;
 pub use snp_attest;
 
-#[derive(Error, Debug)]
-pub enum PremErr {
-    #[error("error parsing the server url")]
-    Parse(<Url as FromStr>::Err),
-    #[error("error requesting prem's server: ${0}")]
-    Request(#[from] reqwest::Error),
-    #[error("error from sev attestation: ${0}")]
-    Sev(#[from] snp_attest::error::AttestationError),
-    #[error("error from nvidia attestation: ${0}")]
-    Nvidia(#[from] nvidia_attest::error::GpuAttestationError),
-}
-
-impl From<PremErr> for JsValue {
-    fn from(value: PremErr) -> Self {
-        JsError::from(value).into()
-    }
-}
+use crate::error::PremErr;
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 pub struct ClientBuilder {
@@ -70,6 +52,12 @@ pub struct Client {
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl Client {
+    /// Requests and parses a SEV-SNP attestation from the attestation server.
+    ///
+    /// ### Warning
+    /// This method exposes core functionality and does not perform cryptographic
+    /// or measurement checks on the attestation. If you want to perform end-to-end attestation
+    /// please refer to [`Self::attest_sev`]
     pub async fn request_sev(&self, nonce: &SevNonce) -> Result<ParsedAttestation, PremErr> {
         let url = self.url.join("/attestation/cpu").unwrap();
 
@@ -90,6 +78,12 @@ impl Client {
         Ok(attestation)
     }
 
+    /// Requests and parses an Nvidia EATToken attestation from the attestation server
+    ///
+    /// ### Warning
+    /// This method exposes core functionality and does not perform cryptographic
+    /// or measurement checks on the attestation. If you want to perform end-to-end attestation
+    /// please refer to [`Self::attest_nvidia`]
     pub async fn request_nvidia(&self, nonce: &NvidiaNonce) -> Result<EATToken, PremErr> {
         let url = self.url.join("/attestation/nvidia").unwrap();
 
@@ -106,7 +100,7 @@ impl Client {
         Ok(response)
     }
 
-    /// Completes a full round of attestation. Generates nonce and validates claims all in one
+    /// Performs end-to-end sev-snp attestation. Generates nonce and validates claims all in one
     pub async fn attest_sev(&self) -> Result<(), PremErr> {
         let nonce = SevNonce::generate();
 
@@ -120,7 +114,7 @@ impl Client {
         Ok(())
     }
 
-    /// Completes a full round of attestation. Generates nonce and validates claims all in one
+    /// Completes end-to-end nvidia attestation. Generates nonce and validates claims all in one
     pub async fn attest_nvidia(&self) -> Result<(), PremErr> {
         let nonce = NvidiaNonce::generate();
         let keychain = KeyChain::fetch_keychain().await?;
