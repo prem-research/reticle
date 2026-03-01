@@ -7,6 +7,10 @@ env:
     "PKG_CONFIG_SYSROOT_DIR": "/x86_64-sysroot"
     "SYSROOT": "/x86_64-sysroot"
 
+permissions:
+    contents: read
+    packages: write
+
 jobs:
     build-image:
         if: ${{ !endsWith(github.event.head_commit.message, '[skip-ci]') }}
@@ -160,15 +164,15 @@ jobs:
               with:
                 name: x86_64-sysroot
                 path: ${{ env.SYSROOT }}
-            # - uses: actions/create-github-app-token@v2
-            #   id: app-token
-            #   with:
-            #     app-id: ${{ secrets.APP_ID }}
-            #     private-key: ${{ secrets.APP_SECRET }}
-            #     repositories: nvat-rs
-            # - name: access token git setup
-            #   run: |
-            #     git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "ssh://git@github.com/"
+            - uses: actions/create-github-app-token@v2
+              id: app-token
+              with:
+                app-id: ${{ secrets.APP_ID }}
+                private-key: ${{ secrets.APP_SECRET }}
+                repositories: nvat-rs
+            - name: access token git setup
+              run: |
+                git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "ssh://git@github.com/"
             - name: Install wasm-pack
               run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
             - name: Run wasm-pack build
