@@ -6,6 +6,7 @@ edition = "2024"
 [features]
 sev = ["dep:sev"]
 nvidia = ["dep:nvat"]
+tdx = []
 default = ["sev", "nvidia"]
 
 [dependencies]

@@ -2085,6 +2085,7 @@ name = "prem-rs"
 version = "0.1.2"
 dependencies = [
  "bytes",
+ "libattest",
  "nvidia-attest",
  "reqwest",
  "snp-attest",

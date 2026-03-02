@@ -6,14 +6,25 @@ mod nvidia_api;
 #[cfg(feature = "sev")]
 mod sev_api;
 
+use libattest::modules::{Module, Modules, ModulesBuilder};
 use log::LevelFilter;
 use rocket::routes;
 use tokio::sync::Mutex;
 
 use anyhow::Context;
 
+use crate::response::ApiJsonResult;
+
 #[rocket::get("/modules")]
-fn modules() {}
+fn modules() -> ApiJsonResult<Modules> {
+    let modules = ModulesBuilder::new()
+        .insert_if(Module::Nvidia, cfg!(feature = "nvidia"))
+        .insert_if(Module::Sev, cfg!(feature = "sev"))
+        .insert_if(Module::Tdx, cfg!(feature = "tdx"))
+        .build();
+
+    response::ok(modules)
+}
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -24,6 +35,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let rocket = rocket::build();
     let mut routes = routes![];
+
+    // advertise server capabilities
+    routes.extend(routes![modules]);
 
     #[cfg(feature = "sev")]
     let rocket = {

@@ -1,5 +1,7 @@
 pub mod modules;
 pub mod verification;
+
+pub use modules::*;
 pub use verification::*;
 
 #[cfg(target_family = "wasm")]
