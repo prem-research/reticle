@@ -2,6 +2,10 @@ use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_family = "wasm")]
+use wasm_bindgen::prelude::*;
+
+#[cfg_attr(target_family = "wasm", wasm_bindgen)]
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Hash, Clone, Copy)]
 pub enum Module {
     Sev,
@@ -26,10 +30,18 @@ impl Module {
 }
 
 #[derive(Serialize, Deserialize)]
+#[cfg_attr(target_family = "wasm", wasm_bindgen)]
 pub struct Modules {
     modules: Vec<Module>,
 }
 
+impl Modules {
+    pub fn modules(&self) -> &[Module] {
+        &self.modules
+    }
+}
+
+#[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl Modules {
     /// Returns whether the available modules specified make up a complete
     /// attestable system (cpu, gpu, ecc..)
@@ -47,8 +59,8 @@ impl Modules {
         cpu && gpu
     }
 
-    pub fn modules(&self) -> &[Module] {
-        &self.modules
+    pub fn modules_owned(&self) -> Vec<Module> {
+        self.modules.clone()
     }
 }
 

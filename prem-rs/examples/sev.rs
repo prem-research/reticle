@@ -1,4 +1,3 @@
-use nvidia_attest::nonce::NvidiaNonce;
 use prem_rs::ClientBuilder;
 
 #[tokio::main]
