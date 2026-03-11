@@ -3271,6 +3271,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "const-oid 0.10.2",
  "der 0.8.0",
  "hex",
  "p256",

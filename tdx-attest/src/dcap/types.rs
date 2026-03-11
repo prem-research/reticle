@@ -1,8 +1,25 @@
+use der::Decode;
+use hex::ToHex;
 use zerocopy::{FromBytes, Immutable, KnownLayout, Unaligned};
 
 #[repr(transparent)]
 #[derive(FromBytes, KnownLayout, Clone, Copy, Immutable, Unaligned, Debug)]
 pub struct SVN([u8; 16]);
+
+#[derive(Debug, Clone, Copy)]
+pub struct Fmspc(pub [u8; 6]);
+
+impl Fmspc {
+    pub fn hex(&self) -> String {
+        self.0.encode_hex()
+    }
+}
+
+impl ToString for Fmspc {
+    fn to_string(&self) -> String {
+        self.hex()
+    }
+}
 
 #[repr(C, packed)]
 #[derive(FromBytes, KnownLayout, Immutable, Unaligned, Debug, Clone)]

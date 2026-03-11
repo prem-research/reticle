@@ -20,10 +20,13 @@ async fn main() -> anyhow::Result<()> {
 
     println!("{quote:?}");
 
-    let pcs = Pcs::new("https://pccs.phala.network")?;
-    let identity = pcs.fetch_qe_identity().await?;
+    let fmspc = quote.certification().sgx_extensions()?.fmspc().unwrap();
+    dbg!(fmspc);
 
-    println!("{identity:?}");
+    // let pcs = Pcs::new("https://pccs.phala.network")?;
+    // let identity = pcs.fetch_qe_identity().await?;
+
+    // println!("{identity:?}");
 
     Ok(())
 }

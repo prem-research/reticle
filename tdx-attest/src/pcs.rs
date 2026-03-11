@@ -65,6 +65,8 @@ impl Pcs {
             .context("failed to verify pcs response")?;
         Ok(identity)
     }
+
+    // pub async fn
 }
 
 pub struct Collateral {}

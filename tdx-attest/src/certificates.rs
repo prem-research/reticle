@@ -1,5 +1,9 @@
 pub mod ca;
 pub mod crl;
+pub mod error;
+pub mod extensions;
+
+pub use error::CertificateError;
 
 use std::{fmt::Display, time::SystemTime};
 
@@ -13,31 +17,10 @@ use p256::{
 };
 use spki::{DecodePublicKey, ObjectIdentifier};
 use thiserror::Error;
-use x509_cert::{anchor::CertPolicies, crl::TbsCertList, serial_number::SerialNumber};
-
-#[derive(Debug, Error)]
-pub enum CertificateError {
-    #[error("tried parsing a certificate with an unsupported algorithm: {0}")]
-    WrongAlgorithm(spki::Error),
-
-    #[error("a signature or key was serialized in the wrong format in the certificate")]
-    WrongFormat,
-
-    #[error("the format for the certificate chain is wrong")]
-    BadChain,
-
-    #[error("error while verifying the signature of one or more certificates: {0}")]
-    BadSignature(p256::ecdsa::Error),
-
-    #[error("this cryptographic entity is expired")]
-    Expired,
-
-    #[error("an error occurred while parsing the certificate: {0}")]
-    Der(#[from] der::Error),
-
-    #[error("a certificate (serial_number = {serial_number}) has been revoked")]
-    Revoked { serial_number: SerialNumber },
-}
+use x509_cert::{
+    anchor::CertPolicies, certificate::TbsCertificateInner, crl::TbsCertList,
+    serial_number::SerialNumber,
+};
 
 #[derive(Debug)]
 pub enum IntermediateCa {
@@ -69,6 +52,9 @@ pub type PinnedCertificate = &'static EcdsaCert;
 impl EcdsaCert {
     /// verifies that this certificate (`self`) contains a signed public key
     /// that attests for the authenticity of the signature of another certificate (`other`)
+    ///
+    /// # Errors
+    /// Returns error if the two certificates cannot be linked by cryptographical means
     pub fn verify_cert(&self, other: &Self) -> Result<(), CertificateError> {
         let other_tbs = other.certificate.tbs_certificate().to_der()?;
         self.public_key
@@ -78,7 +64,16 @@ impl EcdsaCert {
         Ok(())
     }
 
+    #[must_use]
+    pub fn cert(&self) -> &TbsCertificateInner {
+        self.certificate.tbs_certificate()
+    }
+
     /// verifies if the certificate is self-signed
+    ///
+    /// # Errors
+    /// Returns error if trust cannot be enstablished
+    /// within self
     pub fn verify_self(&self) -> Result<(), CertificateError> {
         self.verify_cert(self)
     }
@@ -142,8 +137,8 @@ impl EcdsaCert {
 
         Ok(Self {
             certificate,
-            signature,
             public_key,
+            signature,
         })
     }
 }
@@ -165,7 +160,9 @@ impl TryFrom<x509_cert::Certificate> for EcdsaCert {
 /// represents a cryptographically verified
 /// certificate chain
 pub struct CertificateChain {
+    /// optional trust anchor of a pinned certificate
     anchor: Option<PinnedCertificate>,
+    /// a chain of certificates. Last one is leaf.
     chain: Vec<EcdsaCert>,
 }
 
@@ -177,6 +174,7 @@ impl Verifier<Signature> for CertificateChain {
 }
 
 impl CertificateChain {
+    #[must_use]
     pub fn with_anchor(anchor: PinnedCertificate) -> Self {
         Self {
             anchor: Some(anchor),
@@ -184,6 +182,15 @@ impl CertificateChain {
         }
     }
 
+    #[must_use]
+    /// Returns the leaf certificate or None if this certificate chain is empty
+    /// and does not have any anchor of trust
+    pub fn leaf(&self) -> Option<&EcdsaCert> {
+        self.chain.last().or(self.anchor)
+    }
+
+    /// Inserts a new leaf into this certificate chain. The certificate is first
+    /// verified by the previous certificates
     pub fn push_certificate(&mut self, other: EcdsaCert) -> Result<(), CertificateError> {
         let verifier = self.chain.last().or(self.anchor);
 
