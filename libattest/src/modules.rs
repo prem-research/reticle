@@ -23,6 +23,7 @@ pub struct Modules {
     gpu: Option<GpuModule>,
 }
 
+#[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl Modules {
     pub fn cpu(&self) -> CpuModule {
         self.cpu
