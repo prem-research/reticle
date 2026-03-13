@@ -1,6 +1,5 @@
 use rocket::State;
 use sev::firmware::guest::Firmware;
-use snp_attest::nonce::SevNonce;
 use tokio::sync::Mutex;
 
 use crate::nonce::NonceParam;
@@ -11,7 +10,7 @@ pub type SharedFirmware = Mutex<Firmware>;
 #[rocket::get("/cpu?<nonce>")]
 #[cfg(feature = "sev")]
 pub async fn cpu_attestation(
-    nonce: NonceParam<SevNonce, 64>,
+    nonce: NonceParam<libattest::ByteNonce<64>, 64>,
     firmware: &State<SharedFirmware>,
 ) -> Result<Vec<u8>, ApiError> {
     let NonceParam(nonce) = nonce;

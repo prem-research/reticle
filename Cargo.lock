@@ -168,6 +168,7 @@ dependencies = [
  "base64 0.22.1",
  "env_logger",
  "hex",
+ "libattest",
  "log",
  "nvat",
  "rocket",
@@ -938,10 +939,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "139ef39800118c7683f2fd3c98c1b23c09ae076556b435f8e9064ae108aaeeec"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "r-efi",
  "wasip2",
  "wasip3",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1485,6 +1488,9 @@ checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 name = "libattest"
 version = "0.1.0"
 dependencies = [
+ "getrandom 0.4.1",
+ "hex",
+ "serde",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -2079,6 +2085,7 @@ name = "prem-rs"
 version = "0.1.2"
 dependencies = [
  "bytes",
+ "libattest",
  "nvidia-attest",
  "reqwest",
  "snp-attest",
@@ -2744,6 +2751,7 @@ dependencies = [
  "der",
  "getrandom 0.2.16",
  "hex",
+ "libattest",
  "log",
  "p384",
  "reqwest",

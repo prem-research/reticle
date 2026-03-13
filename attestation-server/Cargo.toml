@@ -6,6 +6,7 @@ edition = "2024"
 [features]
 sev = ["dep:sev"]
 nvidia = ["dep:nvat"]
+tdx = []
 default = ["sev", "nvidia"]
 
 [dependencies]
@@ -19,6 +20,7 @@ base64 = "0.22.1"
 hex = "0.4.3"
 thiserror = "2"
 nvat = { git = "ssh://git@github.com/premAI-io/nvat-rs.git", branch = "main", optional = true }
+libattest = { path = "../libattest" }
 
 snp-attest = { path = "../snp-attest", default-features = false }
 env_logger = "0.11.8"

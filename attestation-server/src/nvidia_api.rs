@@ -2,14 +2,14 @@ use anyhow::Context;
 use nvat::{AttestationBuilder, SdkHandle, nonce::NvatNonce};
 use rocket::State;
 
+use crate::nonce::NonceParam;
 #[cfg(feature = "nvidia")]
 use crate::response::ApiError;
-use crate::{nonce::NonceParam, response::ApiJsonResult};
 
 #[rocket::get("/nvidia?<nonce>")]
 #[cfg(feature = "nvidia")]
 pub async fn nvidia_attestation(
-    nonce: NonceParam<Box<[u8; 32]>, 32>,
+    nonce: NonceParam<libattest::ByteNonce<32>, 32>,
     sdk: &State<SdkHandle>,
 ) -> Result<String, ApiError> {
     let NonceParam(nonce) = nonce;

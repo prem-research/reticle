@@ -6,8 +6,6 @@ pub mod error;
 pub mod kds;
 // pub mod nonce;
 
-use std::ops::Deref;
-
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
@@ -105,7 +103,8 @@ impl ParsedAttestation {
         log::info!("Verifying self report signature");
         chain.check_signature(&self.report)?;
 
-        if &self.report.report_data != nonce.deref() {
+        let nonce: &[u8; 64] = nonce.as_ref();
+        if &self.report.report_data != nonce {
             log::error!("wrong nonce in reported data");
             return Err(AttestationError::WrongNonce);
         }

@@ -1,5 +1,6 @@
 pub mod error;
 
+use libattest::{CpuModule, GpuModule, Modules};
 use nvidia_attest::{EATToken, keychain::KeyChain, nonce::NvidiaNonce};
 use snp_attest::{ParsedAttestation, nonce::SevNonce};
 
@@ -55,6 +56,16 @@ pub struct Client {
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl Client {
+    /// Gather available attestable modules from remote attestation endpoint
+    pub async fn request_modules(&self) -> Result<libattest::Modules, PremErr> {
+        let url = self.url.join("/attestation/modules").unwrap();
+
+        let response: Modules = self.reqwest_client.get(url).send().await?.json().await?;
+
+        // check whether the modules are enough to attest a device (a gpu and a cpu)
+        Ok(response)
+    }
+
     /// Requests and parses a SEV-SNP attestation from the attestation server.
     ///
     /// ### Warning
@@ -73,7 +84,7 @@ impl Client {
             .await?;
 
         // decode the raw byte stream from the http request
-        let attestation = response.bytes().await?;
+        let attestation = response.error_for_status()?.bytes().await?;
 
         // parse attestation using snp-attest crate
         let attestation = ParsedAttestation::new(&attestation)?;
@@ -97,7 +108,7 @@ impl Client {
             .send()
             .await?;
 
-        let response = response.text().await?;
+        let response = response.error_for_status()?.text().await?;
         let response = EATToken::parse(&response)?;
 
         Ok(response)
@@ -128,5 +139,25 @@ impl Client {
         claims.validate(&nonce)?;
 
         Ok(())
+    }
+
+    /// Steps:
+    /// - Gathers modules to attest from attestation server
+    /// - Iterates through each module and performs end-to-end attestation
+    /// - Returns the list of attested modules
+    pub async fn attest(&self) -> Result<Modules, PremErr> {
+        let modules = self.request_modules().await?;
+
+        match modules.cpu() {
+            CpuModule::Sev => self.attest_sev().await?,
+            _ => unimplemented!(),
+        }
+
+        match modules.gpu() {
+            Some(GpuModule::Nvidia) => self.attest_nvidia().await?,
+            _ => unimplemented!(),
+        }
+
+        Ok(modules)
     }
 }

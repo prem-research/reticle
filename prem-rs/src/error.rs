@@ -14,6 +14,11 @@ pub enum PremErr {
     Sev(#[from] snp_attest::error::AttestationError),
     #[error("error from nvidia attestation: ${0}")]
     Nvidia(#[from] nvidia_attest::error::GpuAttestationError),
+
+    #[error(
+        "attestation server reported less modules than what's required to attest a full system"
+    )]
+    Incomplete,
 }
 
 impl From<PremErr> for JsValue {

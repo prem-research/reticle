@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use libattest::VerificationRule;
 use thiserror::Error;
 
@@ -86,7 +84,7 @@ impl<'a> From<&'a NvidiaNonce> for NonceValidator<'a> {
 impl VerificationRule<GpuClaims> for NonceValidator<'_> {
     type Error = VerificationError;
     fn verify(&self, claims: &GpuClaims) -> Result<(), Self::Error> {
-        let expected = self.0.deref();
+        let expected: &[u8; 32] = self.0.as_ref();
 
         (&claims.eat_nonce == expected)
             .then_some(())
@@ -98,7 +96,7 @@ impl VerificationRule<GpuClaims> for NonceValidator<'_> {
 impl VerificationRule<OverallClaims> for NonceValidator<'_> {
     type Error = VerificationError;
     fn verify(&self, claims: &OverallClaims) -> Result<(), Self::Error> {
-        let expected = self.0.deref();
+        let expected: &[u8; 32] = self.0.as_ref();
 
         (&claims.eat_nonce == expected)
             .then_some(())
