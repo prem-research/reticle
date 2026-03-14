@@ -1,4 +1,4 @@
-on: ["push"]
+on: ["push", "workflow_dispatch"]
 
 env:
     "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER": "/usr/bin/x86_64-linux-gnu-gcc"
