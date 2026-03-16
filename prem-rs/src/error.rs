@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use reqwest::Url;
+use reqwest::{Url, header::InvalidHeaderValue};
 use thiserror::Error;
 use wasm_bindgen::{JsError, JsValue};
 
@@ -14,6 +14,9 @@ pub enum PremErr {
     Sev(#[from] snp_attest::error::AttestationError),
     #[error("error from nvidia attestation: ${0}")]
     Nvidia(#[from] nvidia_attest::error::GpuAttestationError),
+
+    #[error("supplied a string that could not be safely put into a header")]
+    InvalidHeaderValue(#[from] InvalidHeaderValue),
 
     #[error(
         "attestation server reported less modules than what's required to attest a full system"

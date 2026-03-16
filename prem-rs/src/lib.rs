@@ -5,7 +5,10 @@ use nvidia_attest::{EATToken, keychain::KeyChain, nonce::NvidiaNonce};
 use snp_attest::{ParsedAttestation, nonce::SevNonce};
 
 pub use nvidia_attest;
-use reqwest::Url;
+use reqwest::{
+    Url,
+    header::{HeaderMap, HeaderValue},
+};
 pub use snp_attest;
 
 #[cfg(target_family = "wasm")]
@@ -16,16 +19,7 @@ use crate::error::PremErr;
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 pub struct ClientBuilder {
     url: String,
-    reqwest_client: Option<reqwest::Client>,
-}
-
-impl ClientBuilder {
-    pub fn with_reqwest_client(self, client: reqwest::Client) -> Self {
-        Self {
-            reqwest_client: Some(client),
-            ..self
-        }
-    }
+    headers: HeaderMap,
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
@@ -34,12 +28,22 @@ impl ClientBuilder {
     pub fn new(url: &str) -> Self {
         Self {
             url: url.to_string(),
-            reqwest_client: None,
+            headers: HeaderMap::default(),
         }
     }
 
+    /// Sets `Authorization` header
+    pub fn with_authorization(mut self, token: &str) -> Result<Self, PremErr> {
+        self.headers
+            .insert("Authorization", HeaderValue::from_str(token)?);
+
+        Ok(self)
+    }
+
     pub fn build(self) -> Result<Client, PremErr> {
-        let reqwest_client = self.reqwest_client.unwrap_or_default();
+        let reqwest_client = reqwest::Client::builder()
+            .default_headers(self.headers)
+            .build()?;
 
         Ok(Client {
             url: self.url.parse().map_err(PremErr::Parse)?,
