@@ -20,6 +20,7 @@ use crate::error::PremErr;
 pub struct ClientBuilder {
     url: String,
     headers: HeaderMap,
+    query_params: Vec<(String, String)>,
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
@@ -29,6 +30,7 @@ impl ClientBuilder {
         Self {
             url: url.to_string(),
             headers: HeaderMap::default(),
+            query_params: vec![],
         }
     }
 
@@ -36,6 +38,17 @@ impl ClientBuilder {
     pub fn with_authorization(mut self, token: &str) -> Result<Self, PremErr> {
         self.headers
             .insert("Authorization", HeaderValue::from_str(token)?);
+
+        Ok(self)
+    }
+
+    /// Sets query parameter
+    pub fn with_query(mut self, key: &str, value: &str) -> Result<Self, PremErr> {
+        if key == "nonce" {
+            return Err(PremErr::ForbiddenQueryParam);
+        }
+
+        self.query_params.push((key.to_string(), value.to_string()));
 
         Ok(self)
     }
@@ -48,6 +61,7 @@ impl ClientBuilder {
         Ok(Client {
             url: self.url.parse().map_err(PremErr::Parse)?,
             reqwest_client,
+            query_params: self.query_params,
         })
     }
 }
@@ -56,6 +70,7 @@ impl ClientBuilder {
 pub struct Client {
     url: Url,
     reqwest_client: reqwest::Client,
+    query_params: Vec<(String, String)>
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
@@ -64,7 +79,7 @@ impl Client {
     pub async fn request_modules(&self) -> Result<libattest::Modules, PremErr> {
         let url = self.url.join("/attestation/modules").unwrap();
 
-        let response: Modules = self.reqwest_client.get(url).send().await?.json().await?;
+        let response: Modules = self.reqwest_client.get(url).query(&self.query_params).send().await?.json().await?;
 
         // check whether the modules are enough to attest a device (a gpu and a cpu)
         Ok(response)
@@ -83,6 +98,7 @@ impl Client {
         let response = self
             .reqwest_client
             .get(url)
+            .query(&self.query_params)
             .query(&[("nonce", nonce.to_hex())])
             .send()
             .await?;
@@ -108,6 +124,7 @@ impl Client {
         let response = self
             .reqwest_client
             .get(url)
+            .query(&self.query_params)
             .query(&[("nonce", nonce.to_hex())])
             .send()
             .await?;

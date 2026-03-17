@@ -17,6 +17,8 @@ pub enum PremErr {
 
     #[error("supplied a string that could not be safely put into a header")]
     InvalidHeaderValue(#[from] InvalidHeaderValue),
+    #[error("supplied a forbidden query parameters")]
+    ForbiddenQueryParam,
 
     #[error(
         "attestation server reported less modules than what's required to attest a full system"
