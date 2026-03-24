@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use crate::{
     ca::INTEL_CA,
     error::{Context, TdxError},
@@ -13,7 +15,9 @@ use crate::certificates::CertificateChain;
 pub struct SignedResponse<T> {
     chain: CertificateChain,
     signature: Signature,
-    data: T,
+
+    data: serde_json::Value,
+    _data_type: PhantomData<T>,
 }
 
 impl<T> SignedResponse<T> {
@@ -25,7 +29,7 @@ impl<T> SignedResponse<T> {
     /// - the expected data of the
     pub fn verify_signature(self) -> Result<T, TdxError>
     where
-        T: Serialize,
+        T: DeserializeOwned,
     {
         // message is re-compacted json. Intel documentation explicitly states
         // that the signature must be checked upon this format of data.
@@ -37,8 +41,9 @@ impl<T> SignedResponse<T> {
             .verify(&msg, &self.signature)
             .context("signed response has a bad signature")?;
 
-        // let data = T::deserialize(&self.data).context("response data is in the wrong format")?;
-        Ok(self.data)
+        let data = T::deserialize(&self.data).context("response data is in the wrong format")?;
+
+        Ok(data)
     }
 }
 
@@ -83,14 +88,11 @@ impl ParseSignedResponse for reqwest::Response {
             .remove(data_field)
             .context("invalid data object does not contain specified data field")?;
 
-        // we deserialize the data here and seal it in the signed response
-        // it will be available only upon signature verification
-        let data = T::deserialize(data).context("failed to deserialize signed data")?;
-
         Ok(SignedResponse {
             chain,
             signature,
             data,
+            _data_type: PhantomData,
         })
     }
 }

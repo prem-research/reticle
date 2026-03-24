@@ -1,4 +1,4 @@
-use tdx_attest::{Quote, pcs::Pcs};
+use tdx_attest::{Quote, dcap::parser::ParseErrorExt, pcs::Pcs};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -23,10 +23,19 @@ async fn main() -> anyhow::Result<()> {
     // let fmspc = quote.certification().sgx_extensions()?.fmspc().unwrap();
     // dbg!(fmspc);
 
-    let pcs = Pcs::new("https://pccs.phala.network")?;
-    let identity = pcs.fetch_qe_identity().await?;
+    let fmspc = quote
+        .certification()
+        .sgx_extensions()?
+        .fmspc()
+        .context("context")?;
 
-    println!("{identity:?}");
+    let pcs = Pcs::new("https://pccs.phala.network")?;
+    let tcb = pcs.fetch_tcb_info(fmspc).await?;
+
+    pcs.fetch_crl(tdx_attest::certificates::IntermediateCa::Platform)
+        .await?;
+
+    // println!("{identity:?}");
 
     Ok(())
 }

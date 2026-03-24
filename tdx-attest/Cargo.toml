@@ -17,7 +17,7 @@ der = { version = "0.8.0-rc.10", features = ["derive", "oid"] }
 # x509-verify = { version = "0.4.8", features = ["ed25519", "p256", "sha2", "x509"], default-features = false }
 signature = "2.2.0"
 sec1 = "0.7.3"
-reqwest = { version = "0.13.2", features = ["json"] }
+reqwest = { version = "0.13.2", features = ["json", "query"] }
 chrono = { version = "0.4.44", features = ["serde"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.149", features = ["preserve_order"] }

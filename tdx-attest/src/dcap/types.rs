@@ -1,5 +1,6 @@
 use der::Decode;
 use hex::ToHex;
+use serde::Serialize;
 use zerocopy::{FromBytes, Immutable, KnownLayout, Unaligned};
 
 #[repr(transparent)]

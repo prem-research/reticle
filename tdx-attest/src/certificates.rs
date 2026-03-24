@@ -18,7 +18,7 @@ use p256::{
 use spki::{DecodePublicKey, ObjectIdentifier};
 use thiserror::Error;
 use x509_cert::{
-    anchor::CertPolicies, certificate::TbsCertificateInner, crl::TbsCertList,
+    Certificate, anchor::CertPolicies, certificate::TbsCertificateInner, crl::TbsCertList,
     serial_number::SerialNumber,
 };
 
@@ -170,6 +170,12 @@ impl Verifier<Signature> for CertificateChain {
     fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
         let certificate = self.chain.last().or(self.anchor).unwrap();
         certificate.verify(msg, signature)
+    }
+}
+
+impl Verifier<Signature> for &CertificateChain {
+    fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
+        (*self).verify(msg, signature)
     }
 }
 

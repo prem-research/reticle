@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::pcs::tcb::TcbLevel;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EnclaveIdentity {
@@ -14,29 +16,18 @@ pub struct EnclaveIdentity {
     pub attributes_mask: String,
     pub mrsigner: String,
     pub isvprodid: u16,
-    pub tcb_levels: Vec<TcbLevel>,
+    pub tcb_levels: Vec<QeTcbLevel>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TcbLevel {
-    pub tcb: Tcb,
+pub struct QeTcbLevel {
+    pub tcb: QeTcb,
     pub tcb_date: String,
     pub tcb_status: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Tcb {
+pub struct QeTcb {
     pub isvsvn: u16,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum TcbStatus {
-    UpToDate,
-    OutOfDate,
-    Revoked,
-    ConfigurationNeeded,
-    OutOfDateConfigurationNeeded,
-    SWHardeningNeeded,
 }
