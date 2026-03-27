@@ -13,7 +13,7 @@ zerocopy = { version = "0.8.39", features = ["derive"] }
 p256 = "0.13.2"
 x509-cert = { version = "0.3.0-rc.4", features = ["pem"] }
 spki = "0.8.0-rc.4"
-der = { version = "0.8.0-rc.10", features = ["derive", "oid"] }
+der = { version = "0.8.0-rc.10", features = ["derive", "oid", "std"] }
 # x509-verify = { version = "0.4.8", features = ["ed25519", "p256", "sha2", "x509"], default-features = false }
 signature = "2.2.0"
 sec1 = "0.7.3"

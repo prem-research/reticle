@@ -1,14 +1,20 @@
+use std::str::FromStr;
+
 use der::Decode;
 use hex::ToHex;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 
-#[repr(transparent)]
-#[derive(FromBytes, KnownLayout, Clone, Copy, Immutable, IntoBytes, Unaligned, Debug)]
-pub struct SVN([u8; 16]);
+pub type SVNs = [u8; 16];
 
-#[derive(Debug, Clone, Copy)]
-pub struct Fmspc(pub [u8; 6]);
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+pub struct Fmspc(#[serde(with = "hex::serde")] pub [u8; 6]);
+
+impl From<[u8; 6]> for Fmspc {
+    fn from(value: [u8; 6]) -> Self {
+        Self(value)
+    }
+}
 
 impl Fmspc {
     pub fn hex(&self) -> String {
@@ -37,10 +43,12 @@ pub struct QuoteHeader {
 
 pub type Sha384 = [u8; 48];
 
+pub type ReportData = [u8; 64];
+
 #[repr(C, packed)]
 #[derive(FromBytes, KnownLayout, Immutable, Unaligned, Debug, IntoBytes, Clone)]
 pub struct QuoteBody {
-    pub tee_tcb_svn: SVN,
+    pub tee_tcb_svn: SVNs,
     pub mrseam: Sha384,
     pub mrsignerseam: Sha384,
     pub seamsttributes: [u8; 8],
@@ -51,14 +59,14 @@ pub struct QuoteBody {
     pub mrowner: [u8; 48],
     pub mrownerconfig: [u8; 48],
     pub rtmr: [Sha384; 4],
-    pub report_data: [u8; 64],
+    pub report_data: ReportData,
 }
 
 #[repr(C, packed)]
 #[derive(FromBytes, Immutable, KnownLayout, Unaligned, Debug, Clone, IntoBytes)]
 pub struct EnclaveReport {
-    pub cpu_svn: SVN,
-    pub miscselect: u32,
+    pub cpu_svn: SVNs,
+    pub miscselect: [u8; 4],
     pub reserved: [u8; 28],
     pub attributes: [u8; 16],
     pub mrenclave: [u8; 32],

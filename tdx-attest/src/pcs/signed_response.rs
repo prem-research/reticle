@@ -70,7 +70,7 @@ impl<T> SignedResponse<T> {
 
 /// Helper method for [`reqwest::Response`] to parse a signed response off of pcs
 pub(super) trait ParseSignedResponse {
-    async fn parse_signed_response<T: Serialize + DeserializeOwned>(
+    async fn parse_signed_response<T: DeserializeOwned>(
         self,
         chain_header: &str,
         data_field: &str,
@@ -78,7 +78,7 @@ pub(super) trait ParseSignedResponse {
 }
 
 impl ParseSignedResponse for reqwest::Response {
-    async fn parse_signed_response<T: Serialize + DeserializeOwned>(
+    async fn parse_signed_response<T: DeserializeOwned>(
         self,
         chain_header: &str,
         data_field: &str,

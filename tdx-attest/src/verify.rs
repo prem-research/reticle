@@ -5,9 +5,13 @@ use zerocopy::IntoBytes;
 use crate::{
     Certification, Quote,
     certificates::crl::VerifyCrl,
-    dcap::{parser::ParseErrorExt, types::QuoteBody},
-    error::TdxError,
-    pcs::Collateral,
+    dcap::types::{QuoteBody, ReportData},
+    error::{Context, TdxError},
+    pcs::{
+        Collateral,
+        qe::QeTcbLevel,
+        tcb::{self, Tcb, TcbLevel},
+    },
 };
 
 /// Verifies:
@@ -71,7 +75,12 @@ fn verify_isv_signature(quote: &Quote, collateral: &Collateral) -> Result<(), Td
     Ok(())
 }
 
-fn verify_qe_identity_policy(quote: &Quote, collateral: &Collateral) -> Result<(), TdxError> {
+/// Verifies all Quoting Enclave policies and returns
+/// the TCB level for this quoting enclave if succesfull
+fn verify_qe_identity_policy(
+    quote: &Quote,
+    collateral: &Collateral,
+) -> Result<QeTcbLevel, TdxError> {
     let enclave_report = &quote
         .certification
         .data
@@ -92,21 +101,125 @@ fn verify_qe_identity_policy(quote: &Quote, collateral: &Collateral) -> Result<(
         return TdxError::msg("qe debug mode is active");
     }
 
-    let expected_miscelect = u32::from_le_bytes(qe_identity.miscselect);
-    let miscelect_mask = u32::from_le_bytes(qe_identity.miscselect_mask);
+    // verify miscselect by applying mask
+    verify_mask(
+        &enclave_report.miscselect,
+        &qe_identity.miscselect,
+        &qe_identity.miscselect_mask,
+    )
+    .then_some(())
+    .context("failed verifying miscselect")?;
 
-    if (expected_miscelect & miscelect_mask) != (enclave_report.miscselect & miscelect_mask) {
-        return TdxError::msg("mismatched miscelect from qe identity");
-    }
+    // verify attributes by applying mask
+    verify_mask(
+        &enclave_report.attributes,
+        &qe_identity.attributes,
+        &qe_identity.attributes_mask,
+    )
+    .then_some(())
+    .context("failed verifying attributes")?;
 
-    todo!()
+    // Tmatch quoting enclave tcb level
+    let tcb = qe_identity
+        .tcb_levels
+        .iter()
+        .find(|level| level.tcb.isvsvn <= enclave_report.isv_svn)
+        .cloned()
+        .context("TCB level not supported")?;
+
+    // all checks ok
+    Ok(tcb)
 }
 
-pub fn verify(quote: &Quote, collateral: &Collateral) -> Result<(), TdxError> {
-    let certification = quote.certification();
+fn verify_platform_tcb(quote: &Quote, collateral: &Collateral) -> Result<TcbLevel, TdxError> {
+    // verify fmspc match
+    let fmspc = quote
+        .certification()
+        .sgx_extensions()?
+        .fmspc()
+        .context("failed to get fmspc from sgx extensions")?;
 
-    verify_qe_report(quote, collateral)?;
-    verify_isv_signature(quote, collateral)?;
+    if fmspc != collateral.tcb_info.fmspc {
+        return TdxError::msg("fmspc mismatch");
+    }
+
+    let sgx_extensions = quote.certification().sgx_extensions()?;
+    let pck_tcb = sgx_extensions
+        .tcb()
+        .context("failed to get tcb from sgx extension")?;
+
+    for tcb_level in &collateral.tcb_info.tcb_levels {
+        let comp_svn_check = tcb_level
+            .tcb
+            .sgxtcbcomponents
+            .iter()
+            .zip(pck_tcb.cpu_svn.into_iter())
+            .all(|(collateral, quote)| quote >= collateral.svn);
+
+        if !comp_svn_check {
+            continue;
+        }
+
+        if pck_tcb.pce_svn < u32::from(tcb_level.tcb.pcesvn) {
+            continue;
+        }
+
+        let tdxtcbcomponents = tcb_level
+            .tcb
+            .tdxtcbcomponents
+            .as_ref()
+            .context("missing tdx tcb components")?;
+
+        let comp_tee_svn_check = tdxtcbcomponents
+            .iter()
+            .zip(quote.body().tee_tcb_svn.into_iter())
+            .all(|(collateral, quote)| u32::from(quote) >= collateral.svn);
+
+        if !comp_tee_svn_check {
+            continue;
+        }
+
+        // we found our tcb level
+        return Ok(tcb_level.clone());
+    }
+
+    TdxError::msg("Could not find an appropriate TCB Level for this quote")
+}
+
+fn verify_report_data(quote: &Quote, report_data: &ReportData) -> Result<(), TdxError> {
+    if &quote.body.report_data != report_data {
+        return TdxError::msg("quote report data does not match expected report data");
+    }
 
     Ok(())
 }
+
+pub fn verify(
+    quote: &Quote,
+    collateral: &Collateral,
+    report_data: &ReportData,
+) -> Result<(), TdxError> {
+    let certification = quote.certification();
+
+    verify_qe_report(quote, collateral).context("error while verifying qe report")?;
+    verify_isv_signature(quote, collateral).context("error while verifying isv signature")?;
+    let qe_tcb = verify_qe_identity_policy(quote, collateral)
+        .context("error while verifying qe identity policy")?;
+    let isv_tcb = verify_platform_tcb(quote, collateral)
+        .context("failed to match a tcb level for this quote")?;
+
+    verify_report_data(quote, report_data).context("error while matching report data")?;
+
+    Ok(())
+}
+
+fn verify_mask<const N: usize>(quote: &[u8; N], expected: &[u8; N], mask: &[u8; N]) -> bool {
+    quote
+        .iter()
+        .zip(expected)
+        .zip(mask)
+        .map(|((quote, expected), mask)| (quote, expected, mask))
+        .all(|(quote, expected, mask)| (quote & mask) == (expected & mask))
+}
+
+// fn match_tcb_level() {}

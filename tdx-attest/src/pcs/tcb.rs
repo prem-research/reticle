@@ -1,13 +1,15 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+use crate::dcap::types::Fmspc;
+
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TcbInfo {
     pub id: String,
     pub version: u32,
     pub issue_date: String,
     pub next_update: String,
-    pub fmspc: String,
+    pub fmspc: Fmspc,
     pub pce_id: String,
     pub tcb_type: u32,
     pub tcb_evaluation_data_number: u64,
@@ -18,7 +20,7 @@ pub struct TcbInfo {
     pub tcb_levels: Vec<TcbLevel>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TdxModule {
     pub mrsigner: String,
@@ -26,7 +28,7 @@ pub struct TdxModule {
     pub attributes_mask: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TdxModuleIdentity {
     pub id: String,
@@ -36,7 +38,7 @@ pub struct TdxModuleIdentity {
     pub tcb_levels: Vec<TdxModuleTcbLevel>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TdxModuleTcbLevel {
     pub tcb: TdxModuleTcb,
@@ -51,15 +53,16 @@ pub struct TdxModuleTcb {
     pub isvsvn: u32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub enum TdxModuleTcbStatus {
     UpToDate,
     OutOfDate,
     Revoked,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[must_use]
 pub struct TcbLevel {
     pub tcb: Tcb,
     pub tcb_date: String,
@@ -68,15 +71,14 @@ pub struct TcbLevel {
     pub advisory_ids: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Tcb {
-    pub sgxtcbcomponents: Vec<TcbComponent>,
     pub pcesvn: u16,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sgxtcbcomponents: Vec<TcbComponent>,
     pub tdxtcbcomponents: Option<Vec<TcbComponent>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct TcbComponent {
     pub svn: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -85,7 +87,7 @@ pub struct TcbComponent {
     pub component_type: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub enum TcbStatus {
     UpToDate,
     SWHardeningNeeded,

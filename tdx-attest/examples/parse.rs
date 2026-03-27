@@ -2,7 +2,7 @@ use tdx_attest::{Quote, dcap::parser::ParseErrorExt, pcs::Pcs, verify};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let input = std::fs::read("./examples/tdx_quote").unwrap();
+    let input = std::fs::read("./examples/quote.dat").unwrap();
     let quote = Quote::from_bytes(&input)?;
 
     // let quote = TdQuote::parse(&input[..]).unwrap();
@@ -29,12 +29,12 @@ async fn main() -> anyhow::Result<()> {
     //     .fmspc()
     //     .context("context")?;
 
-    let pcs = Pcs::new("https://pccs.phala.network")?;
+    let pcs = Pcs::new("https://pccs.prem.io/")?;
     // let tcb = pcs.fetch_tcb_info(fmspc).await?;
 
     let collateral = pcs.fetch_collateral(&quote).await?;
 
-    verify::verify(&quote, &collateral)?;
+    verify::verify(&quote, &collateral, &[0x00; 64])?;
 
     println!("Verification success");
     // println!("{identity:?}");
