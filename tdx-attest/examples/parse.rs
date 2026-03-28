@@ -1,40 +1,23 @@
+use libattest::ByteNonce;
 use tdx_attest::{Quote, dcap::parser::ParseErrorExt, pcs::Pcs, verify};
+
+static DATA: [u8; 64] = [
+    0x05, 0x4b, 0x92, 0x85, 0x48, 0x40, 0x2f, 0x64, 0x97, 0xaa, 0xe4, 0xf4, 0x81, 0x4e, 0xab, 0x16,
+    0x77, 0x47, 0x30, 0x71, 0xa2, 0x26, 0xcf, 0x4c, 0x06, 0xc9, 0x6b, 0x21, 0x36, 0x55, 0x49, 0x3b,
+    0xa1, 0xdc, 0xc0, 0xe9, 0x1c, 0xf0, 0x4e, 0xb4, 0x9a, 0x32, 0xa8, 0x1c, 0x81, 0x54, 0x32, 0xf8,
+    0x9b, 0x62, 0x6a, 0x3e, 0x89, 0x39, 0x8a, 0x8f, 0x02, 0xf5, 0xb0, 0x38, 0x4b, 0xfa, 0x73, 0xec,
+];
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let input = std::fs::read("./examples/quote.dat").unwrap();
-    let quote = Quote::from_bytes(&input)?;
-
-    // let quote = TdQuote::parse(&input[..]).unwrap();
-    // let quote_data = quote.certification.quote_data;
-    // let QeCertificationData::QeReportCertificationData(data) = quote_data else {
-    //     panic!()
-    // };
-
-    // let QeCertificationData::PckChain(chain) = data.certification_data else {
-    //     panic!()
-    // };
-
-    // let chain = CertificateChain::parse_pem_chain(chain).unwrap();
-    // // let chain = String::from_utf8_lossy(chain);
-
-    // println!("{quote:?}");
-
-    // let fmspc = quote.certification().sgx_extensions()?.fmspc().unwrap();
-    // dbg!(fmspc);
-
-    // let fmspc = quote
-    //     .certification()
-    //     .sgx_extensions()?
-    //     .fmspc()
-    //     .context("context")?;
-
     let pcs = Pcs::new("https://pccs.prem.io/")?;
-    // let tcb = pcs.fetch_tcb_info(fmspc).await?;
 
+    let quote = Quote::from_bytes(&input)?;
     let collateral = pcs.fetch_collateral(&quote).await?;
 
-    verify::verify(&quote, &collateral, &[0x00; 64])?;
+    let nonce = ByteNonce::from(DATA).into();
+    verify::verify(&quote, &collateral, &nonce)?;
 
     println!("Verification success");
     // println!("{identity:?}");

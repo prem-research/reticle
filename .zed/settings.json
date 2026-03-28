@@ -9,7 +9,7 @@
                 "cargo": {
                     "target": "wasm32-unknown-unknown",
                     "features": [
-                        "sev"
+                        // "sev"
                         // "kds_async"
                     ]
                 }

@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use sha2::{Digest, Sha256, digest::Update};
 use signature::Verifier;
 use zerocopy::IntoBytes;
@@ -7,6 +9,7 @@ use crate::{
     certificates::crl::VerifyCrl,
     dcap::types::{QuoteBody, ReportData},
     error::{Context, TdxError},
+    nonce::TdxNonce,
     pcs::{
         Collateral,
         qe::QeTcbLevel,
@@ -210,8 +213,8 @@ fn verify_platform_tcb(quote: &Quote, collateral: &Collateral) -> Result<TcbLeve
     TdxError::msg("Could not find an appropriate TCB Level for this quote")
 }
 
-fn verify_report_data(quote: &Quote, report_data: &ReportData) -> Result<(), TdxError> {
-    if &quote.body.report_data != report_data {
+fn verify_report_data(quote: &Quote, report_data: &TdxNonce) -> Result<(), TdxError> {
+    if quote.body.report_data != report_data.as_bytes() {
         return TdxError::msg("quote report data does not match expected report data");
     }
 
@@ -221,7 +224,7 @@ fn verify_report_data(quote: &Quote, report_data: &ReportData) -> Result<(), Tdx
 pub fn verify(
     quote: &Quote,
     collateral: &Collateral,
-    report_data: &ReportData,
+    report_data: &TdxNonce,
 ) -> Result<(), TdxError> {
     let certification = quote.certification();
 

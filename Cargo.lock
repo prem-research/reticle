@@ -175,6 +175,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
+ "configfs-tsm",
  "env_logger",
  "hex",
  "libattest",
@@ -460,6 +461,12 @@ dependencies = [
  "bytes",
  "memchr",
 ]
+
+[[package]]
+name = "configfs-tsm"
+version = "0.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "187437900921c8172f33316ad51a3267df588e99a2aebfa5ca1a2ed44df9e703"
 
 [[package]]
 name = "const-oid"
@@ -3337,6 +3344,7 @@ dependencies = [
  "const-oid 0.10.2",
  "der 0.8.0",
  "hex",
+ "libattest",
  "p256",
  "reqwest 0.13.2",
  "sec1",

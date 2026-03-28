@@ -8,7 +8,6 @@ use crate::response::ApiError;
 pub type SharedFirmware = Mutex<Firmware>;
 
 #[rocket::get("/cpu?<nonce>")]
-#[cfg(feature = "sev")]
 pub async fn cpu_attestation(
     nonce: NonceParam<libattest::ByteNonce<64>, 64>,
     firmware: &State<SharedFirmware>,

@@ -3,6 +3,12 @@ use rocket::form::{self, FromFormField};
 
 pub struct NonceParam<T: From<Box<[u8; N]>>, const N: usize>(pub T);
 
+impl<T: From<Box<[u8; N]>>, const N: usize> NonceParam<T, N> {
+    pub(crate) fn inner(&self) -> &T {
+        &self.0
+    }
+}
+
 impl<'a, const N: usize, T: From<Box<[u8; N]>> + Send + Sync> FromFormField<'a>
     for NonceParam<T, N>
 {

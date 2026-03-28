@@ -7,6 +7,7 @@ edition = "2024"
 # dcap-qvl = "0.3"
 # tdx-quote = "0.0.5"
 wasm-bindgen.workspace = true
+libattest = { path = "../libattest" }
 wasm-bindgen-futures.workspace = true
 thiserror = "2"
 zerocopy = { version = "0.8.39", features = ["derive"] }

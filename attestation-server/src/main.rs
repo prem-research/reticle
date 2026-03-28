@@ -5,6 +5,8 @@ mod nonce;
 mod nvidia_api;
 #[cfg(feature = "sev")]
 mod sev_api;
+#[cfg(feature = "tdx")]
+mod tdx_api;
 
 use std::ops::Deref;
 
@@ -14,7 +16,6 @@ use libattest::{
 };
 use log::LevelFilter;
 use rocket::{State, routes};
-use tokio::sync::Mutex;
 
 use anyhow::Context;
 
@@ -24,6 +25,9 @@ use crate::response::ApiJsonResult;
 fn modules(modules: &State<Modules>) -> ApiJsonResult<&Modules> {
     response::ok(modules.deref())
 }
+
+#[cfg(all(feature = "sev", feature = "tdx"))]
+compile_error!("Cannot have an attestation-server have both sev and tdx enabled");
 
 fn get_modules() -> anyhow::Result<Modules> {
     #[cfg(feature = "sev")]
@@ -61,6 +65,7 @@ async fn main() -> Result<(), anyhow::Error> {
     #[cfg(feature = "sev")]
     let rocket = {
         use sev::firmware::guest::Firmware;
+        use tokio::sync::Mutex;
 
         let firmware: Mutex<Firmware> = Firmware::open()
             .context("failed to open sev-snp firmware")?
@@ -68,6 +73,12 @@ async fn main() -> Result<(), anyhow::Error> {
 
         routes.extend(routes![sev_api::cpu_attestation]);
         rocket.manage(firmware)
+    };
+
+    #[cfg(feature = "tdx")]
+    let rocket = {
+        routes.extend(routes![tdx_api::tdx_attestation]);
+        rocket
     };
 
     #[cfg(feature = "nvidia")]

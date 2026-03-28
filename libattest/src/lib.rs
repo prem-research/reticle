@@ -27,6 +27,12 @@ impl<const N: usize> ByteNonce<N> {
     }
 }
 
+impl<const N: usize> From<[u8; N]> for ByteNonce<N> {
+    fn from(value: [u8; N]) -> Self {
+        Self(Box::new(value))
+    }
+}
+
 impl<const N: usize> From<Box<[u8; N]>> for ByteNonce<N> {
     fn from(value: Box<[u8; N]>) -> Self {
         Self(value)

@@ -20,6 +20,7 @@ pub mod certificates;
 pub mod dcap;
 pub mod error;
 pub mod keychain;
+pub mod nonce;
 pub mod pcs;
 pub mod verify;
 

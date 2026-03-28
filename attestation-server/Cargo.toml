@@ -6,8 +6,8 @@ edition = "2024"
 [features]
 sev = ["dep:sev"]
 nvidia = ["dep:nvat"]
-tdx = []
-default = ["sev", "nvidia"]
+tdx = ["dep:configfs-tsm"]
+default = ["nvidia", "tdx"]
 
 [dependencies]
 serde = "1.0.228"
@@ -25,3 +25,4 @@ libattest = { path = "../libattest" }
 snp-attest = { path = "../snp-attest", default-features = false }
 env_logger = "0.11.8"
 log = "0.4.29"
+configfs-tsm = { version = "0.0.2", optional = true }
