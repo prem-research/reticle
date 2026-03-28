@@ -1,64 +1,282 @@
-on: ["push"]
+on: ["push", "workflow_dispatch"]
+
+env:
+    "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER": "/usr/bin/x86_64-linux-gnu-gcc"
+    "PKG_CONFIG_ALLOW_CROSS": "1"
+    "PKG_CONFIG_PATH": "/x86_64-sysroot/lib/pkgconfig:/x86_64-sysroot/share/pkgconfig"
+    "PKG_CONFIG_SYSROOT_DIR": "/x86_64-sysroot"
+    "SYSROOT": "/x86_64-sysroot"
+
 
 jobs:
+    build-image:
+        if: ${{ !endsWith(github.event.head_commit.message, '[skip-ci]') }}
+        name: Build build-env Docker image
+        runs-on: &x-runs-on
+            group: arc-runners
+        permissions:
+            contents: read
+            packages: write
+        env:
+            IMAGE_NAME: ${{ vars.REPOSITORY_URL }}/premai-io/pcci-rs
+        outputs:
+            image: "${{ env.IMAGE_NAME }}:latest-build"
+        steps:
+            - uses: actions/checkout@v5
+            # - name: Set up Docker
+            #   uses: docker/setup-docker-action@v4
+            #   with:
+            #     daemon-config: |
+            #       {
+            #         "features": {
+            #           "containerd-snapshotter": true
+            #         }
+            #       }
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ${{ vars.REPOSITORY_URL }}
+                  username: ${{ secrets.REPOSITORY_USER }}
+                  password: ${{ secrets.REPOSITORY_PASSWORD }}
+            - name: Build and push
+              uses: docker/build-push-action@v6
+              with:
+                  context: .devcontainer
+                  file: .devcontainer/Dockerfile
+                  push: true
+                  pull: true
+                  cache-from: |
+                    type=registry,ref=${{ env.IMAGE_NAME }}:cache-build
+                  cache-to: |
+                    type=registry,ref=${{ env.IMAGE_NAME }}:cache-build,compression=zstd
+                  tags: |
+                    ${{ env.IMAGE_NAME }}:latest-build
+                    ${{ env.IMAGE_NAME }}:${{ github.sha }}-build
+
+    libnvat:
+        name: build libnvat
+        needs: [build-image]
+        runs-on: *x-runs-on
+        container: &x-container
+            image: ${{ needs.build-image.outputs.image }}
+            credentials:
+                username: ${{ secrets.REPOSITORY_USER }}
+                password: ${{ secrets.REPOSITORY_PASSWORD }}
+        steps:
+        - uses: actions/checkout@v5
+        - uses: actions/cache@v5
+          id: cache
+          with:
+            path: |
+              ${{ env.SYSROOT }}
+            key: ${{ runner.os }}-${{ hashFiles('./attestation-sdk/.git/HEAD', './.devcontainer/Dockerfile') }}
+        - name: build libnvat
+          if: steps.cache.outputs.cache-hit != 'true'
+          env:
+            "CMAKE_FIND_ROOT_PATH_MODE_INCLUDE": "BOTH"
+          run: make nvidia-cpp-sdk
+        - uses: actions/upload-artifact@v4
+          with:
+            name: x86_64-sysroot
+            path: ${{ env.SYSROOT }}
+        - name: list sysroot
+          run: apt update && apt install -y tree && tree ${{ env.SYSROOT }}
+
     clippy:
         name: Run cargo check/clippy on all targets
+        needs: [build-image, libnvat]
         strategy:
             matrix:
                 package: ["nvidia-attest", "prem-rs"]
                 target: ["wasm32-unknown-unknown", "x86_64-unknown-linux-gnu"]
-                include:
-                    - package: snp-attest
-                      target: wasm32-unknown-unknown
-                      features: snp-attest/kds_async
-                    - package: snp-attest
-                      target: x86_64-unknown-linux-gnu
-                      features: snp-attest/kds_async
-                    # - package: snp-attest
-                    #   target: x86_64-unknown-linux-gnu
-                    #   features: snp-attest/kds_sync
-                    - include: attestation-server
-                      target: x86_64-unknown-linux-gnu
-        runs-on: ubuntu-latest
+        runs-on: *x-runs-on
+        container: *x-container
         permissions:
             contents: read
+            packages: read
         steps:
             - uses: actions/checkout@v5
-            - uses: actions-rust-lang/setup-rust-toolchain@v1
+            - uses: actions/download-artifact@v4
               with:
-                  target: ${{ matrix.target }}
+                name: x86_64-sysroot
+                path: ${{ env.SYSROOT }}
+            - uses: actions/create-github-app-token@v2
+              id: app-token
+              with:
+                app-id: ${{ secrets.APP_ID }}
+                private-key: ${{ secrets.APP_SECRET }}
+                repositories: nvat-rs
+            - name: access token git setup
+              run: |
+                git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "ssh://git@github.com/"
             - name: Run Clippy
-              run: cargo clippy --package=${{ matrix.package }} --target=${{ matrix.target }} --features="${{ matrix.features }}"
+              run: |
+                rustup target add ${{ matrix.target }}
+                env -u SYSROOT -u PKG_CONFIG_SYSROOT_DIR \
+                RUSTFLAGS="-L${{ env.SYSROOT }}/lib" cargo clippy \
+                    --package=${{ matrix.package }} \
+                    --target=${{ matrix.target }}
+
     test:
-        needs: [clippy]
+        needs: [build-image, libnvat, clippy]
         name: Run unit tests
-        runs-on: ubuntu-latest
+        runs-on: *x-runs-on
+        container: *x-container
         permissions:
             contents: read
+            packages: read
         steps:
             - uses: actions/checkout@v5
+            - uses: actions/download-artifact@v4
+              with:
+                name: x86_64-sysroot
+                path: ${{ env.SYSROOT }}
+            - uses: actions/create-github-app-token@v2
+              id: app-token
+              with:
+                app-id: ${{ secrets.APP_ID }}
+                private-key: ${{ secrets.APP_SECRET }}
+                repositories: nvat-rs
+            - name: access token git setup
+              run: |
+                git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "ssh://git@github.com/"
+            - name: Set shared libraries load path
+              run: echo "LD_LIBRARY_PATH=${{ env.SYSROOT }}/lib" >> "$GITHUB_ENV"
             - name: Run cargo test
-              run: cargo test
+              run: env -u SYSROOT RUSTFLAGS="-L${{ env.SYSROOT }}/lib" cargo test
+
     wasm:
         name: Run wasm-pack on prem-rs
-        needs: [test]
-        runs-on: ubuntu-latest
+        needs: [build-image, libnvat, test]
+        runs-on: *x-runs-on
+        container: *x-container
         permissions:
             contents: read
             packages: write
         steps:
             - uses: actions/checkout@v5
+            - uses: actions/download-artifact@v4
+              with:
+                name: x86_64-sysroot
+                path: ${{ env.SYSROOT }}
+            - uses: actions/create-github-app-token@v2
+              id: app-token
+              with:
+                app-id: ${{ secrets.APP_ID }}
+                private-key: ${{ secrets.APP_SECRET }}
+                repositories: nvat-rs
+            - name: access token git setup
+              run: |
+                git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "ssh://git@github.com/"
             - name: Install wasm-pack
               run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+            - name: Run wasm-pack build
+              # fix: https://github.com/drager/wasm-pack/issues/313#issuecomment-441163923
+              # pkg-node/package.json
+              # pkg-node/prem_rs.js
+
+              # pkg/package.json
+              # pkg/prem_rs.js
+              # pkg/prem_rs_bg.js
+
+              run: |
+                wasm-pack build --target nodejs --scope ${{ github.repository_owner }} -d pkg-node prem-rs
+                wasm-pack build --target bundler --scope ${{ github.repository_owner }} -d pkg prem-rs
+                cd prem-rs
+                PKG_NAME=$(jq -r .name pkg/package.json | cut -d'/' -f2- | sed 's/\-/_/g')
+
+                # Merge nodejs & browser packages
+                cp "pkg-node/${PKG_NAME}.js" "pkg/${PKG_NAME}_main.js"
+                jq ".files += [\"${PKG_NAME}_bg.js\"] | \
+                    .main = \"${PKG_NAME}_main.js\" | \
+                    .types = \"${PKG_NAME}.d.ts\" | \
+                    .exports = {
+                      \".\": {
+                        \"browser\": {
+                          \"types\": \"./${PKG_NAME}.d.ts\",
+                          \"default\": \"./${PKG_NAME}.js\"
+                        },
+                        \"default\": {
+                          \"types\": \"./${PKG_NAME}.d.ts\",
+                          \"default\": \"./${PKG_NAME}_main.js\"
+                        }
+                      }
+                    }" pkg/package.json > pkg/temp.json
+                mv pkg/temp.json pkg/package.json
+                rm -rf pkg-node
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
                   node-version: "20"
                   registry-url: "https://npm.pkg.github.com/"
-                  scope: "@PremAI-io"
-            - name: Run wasm-pack build
-              run: wasm-pack build --scope ${{ github.repository_owner }} prem-rs
+                  scope: ${{ github.repository_owner }}
             - name: Publish the npm package
+              if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
               run: npm publish --registry=https://npm.pkg.github.com prem-rs/pkg/
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    attestation-server:
+         name: Build attestation-server docker container
+         needs: [build-image, libnvat, clippy, test]
+         runs-on: *x-runs-on
+         container: *x-container
+         env:
+          IMAGE_NAME: ${{ vars.REPOSITORY_URL }}/premai-io/attestation-server
+         steps:
+              - name: Set up Docker Buildx
+                uses: docker/setup-buildx-action@v3
+              - uses: actions/checkout@v5
+              - uses: actions/download-artifact@v4
+                with:
+                    name: x86_64-sysroot
+                    path: ${{ env.SYSROOT }}
+              - uses: actions/create-github-app-token@v2
+                id: app-token
+                with:
+                  app-id: ${{ secrets.APP_ID }}
+                  private-key: ${{ secrets.APP_SECRET }}
+                  repositories: nvat-rs
+              - name: access token git setup
+                run: |
+                  git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "ssh://git@github.com/"
+              - name: Set shared libraries load path
+                run: echo "LD_LIBRARY_PATH=${{ env.SYSROOT }}/lib" >> "$GITHUB_ENV"
+              - name: build attestation-server
+                run: |
+                  env -u SYSROOT \
+                  RUSTFLAGS="-L${{ env.SYSROOT }}/lib -lssl -lcrypto" \
+                  cargo build --release -p attestation-server --no-default-features --features sev,nvidia
+              - name: Link sysroot
+                run: |
+                  mv ${{ env.SYSROOT }} ./sysroot
+              - name: Log in to GitHub Container Registry
+                uses: docker/login-action@v3
+                with:
+                    registry: ${{ vars.REPOSITORY_URL }}
+                    username: ${{ secrets.REPOSITORY_USER }}
+                    password: ${{ secrets.REPOSITORY_PASSWORD }}
+              - name: Docker meta
+                id: meta
+                uses: docker/metadata-action@v5
+                env:
+                  DOCKER_METADATA_SHORT_SHA_LENGTH: 7
+                with:
+                    images: ${{ env.IMAGE_NAME }}
+                    tags: |
+                      type=sha,prefix=
+                      type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+                      type=ref,event=branch,enable=${{ github.ref != 'refs/heads/main' }}
+              - uses: docker/build-push-action@v6
+                name: Build and push
+                with:
+                    context: ./
+                    file: ./attestation-server/Dockerfile
+                    push: true
+                    tags: ${{ steps.meta.outputs.tags }}
+                    labels: ${{ steps.meta.outputs.labels }}
+                    build-args: |
+                      SYSROOT=./sysroot
+                      FEATURES=sev nvidia

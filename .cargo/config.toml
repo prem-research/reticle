@@ -1,0 +1,12 @@
+[env]
+OPENSSL_STATIC = "1"
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+    "-C", "link-arg=-Wl,-Bstatic",
+    "-C", "link-arg=-Wl,-Bdynamic",
+    "-lxml2",
+    "-lssl",
+    "-lcrypto",
+    "-lz",
+]

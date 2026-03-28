@@ -1,0 +1,15 @@
+name: 'Build Environment'
+description: 'Run commands inside the project build environment container'
+
+inputs:
+  run:
+    description: 'Shell command to execute inside the container'
+    required: true
+
+runs:
+  using: 'docker'
+  image: '../../../.devcontainer/Dockerfile'
+  entrypoint: /bin/bash
+  args:
+  - -c
+  - ${{ inputs.run }}

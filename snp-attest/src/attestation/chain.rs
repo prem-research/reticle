@@ -18,6 +18,7 @@ fn parse_pem_to_cert(pem: &str) -> Result<Certificate, AttestationError> {
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen(js_namespace = "sev"))]
+#[derive(Debug, Clone)]
 /// A chain which has been cryptographically verified
 pub struct VerifiedChain(Chain);
 

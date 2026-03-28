@@ -1,9 +1,11 @@
 // const EAT_EXAMPLE: &'static str = include_str!("./eat_example.json");
 
-// #[tokio::test]
-// async fn get_chain() {
-//     let _ = KeyChain::fetch_keychain().await.unwrap();
-// }
+// const EAT_EXAMPLE: &'static str = include_str!("./eat_example.json");
+
+#[tokio::test]
+async fn get_chain() {
+    let _ = KeyChain::fetch_keychain().await.unwrap();
+}
 
 // #[tokio::test]
 // async fn test_validation() {

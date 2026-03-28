@@ -3,11 +3,10 @@ name = "snp-attest"
 version = "0.1.0"
 edition = "2024"
 
-[lib]
-crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-sev = { version = "7.1.1", default-features = false, features = ["crypto_nossl", "snp"] }
+sev = { version = "7.1.0", default-features = false, features = ["crypto_nossl", "snp"] }
+libattest = { path = "../libattest" }
 tss-esapi = { version= "7.2", optional=true }
 anyhow = "1.0.69"
 serde = { version = "1.0", features = ["derive"] }
@@ -31,16 +30,15 @@ version = "=0.2.16"
 features = ["js"]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-wasm-bindgen.workspace = true
-wasm-bindgen-futures.workspace = true
+wasm-bindgen = "0.2.105"
+wasm-bindgen-futures = "0.4.55"
 wasm-log = { version = "0.3.1", optional = true }
 
 [features]
-default = ["attestation", "kds_async"]
+default = ["attestation", "kds", "serde"]
 logger = ["dep:wasm-log"]
 hyperv = ["dep:tss-esapi"]
+serde = ["sev/serde"]
 kds = ["dep:reqwest"]
 attestation = []
-kds_sync = ["kds"]
-kds_async = ["kds"]
 bin = ["dep:clap"]

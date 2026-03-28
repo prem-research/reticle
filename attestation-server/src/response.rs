@@ -22,6 +22,10 @@ impl From<anyhow::Error> for ApiError {
     }
 }
 
+pub fn ok<T>(ok: T) -> ApiJsonResult<T> {
+    ApiJsonResult::Ok(Json(ok))
+}
+
 pub type ApiJsonResult<T> = Result<Json<T>, ApiError>;
 
 // impl<T: std::error::Error> From<T> {}

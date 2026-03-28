@@ -6,13 +6,13 @@
     "lsp": {
         "rust-analyzer": {
             "initialization_options": {
-                // "cargo": {
-                //     "target": "wasm32-unknown-unknown",
-                //     "features": [
-                //         "sev",
-                //         "kds_async"
-                //     ]
-                // }
+                "cargo": {
+                    "target": "wasm32-unknown-unknown",
+                    "features": [
+                        "sev"
+                        // "kds_async"
+                    ]
+                }
             }
         }
     }

@@ -1,6 +1,6 @@
 [package]
 name = "prem-rs"
-version = "0.1.0"
+version = "0.1.6"
 edition = "2024"
 
 [lib]
@@ -10,10 +10,11 @@ crate-type = ["cdylib", "rlib"]
 bytes = "1.11.0"
 nvidia-attest = { path = "../nvidia-attest" }
 reqwest = "0.12.25"
-snp-attest = { path = "../snp-attest", features = ["kds_async"] }
+snp-attest = { path = "../snp-attest" }
 thiserror = "2.0.17"
 wasm-bindgen = "0.2.106"
 wasm-bindgen-futures = "0.4.56"
+libattest = { path = "../libattest" }
 
 [dev-dependencies]
 tokio = {version = "*", features = ["full"]}

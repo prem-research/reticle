@@ -1,0 +1,20 @@
+{
+  "name": "my-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vite": "^8.0.0"
+  },
+  "dependencies": {
+    "@premAI-io/prem-rs": "^0.1.3",
+    "node-emoji": "^2.2.0",
+    "vite-plugin-wasm": "^3.5.0"
+  }
+}
