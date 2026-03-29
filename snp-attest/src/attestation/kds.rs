@@ -16,7 +16,7 @@ pub async fn fetch_certificates(
     let chain = crate::kds_util::get_chain(
         &attestation.report.chip_id,
         attestation.report.reported_tcb,
-        &attestation.generation.titlecase(),
+        attestation.generation,
     )
     .await
     .map_err(|_| AttestationError::KdsRequest)?;
