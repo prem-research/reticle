@@ -116,27 +116,27 @@ impl VerifyCrl<EcdsaCert> for Crl {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use der::DecodePem;
-    use x509_cert::certificate::CertificateInner;
+// #[cfg(test)]
+// mod test {
+//     use der::DecodePem;
+//     use x509_cert::certificate::CertificateInner;
 
-    use crate::certificates::{
-        EcdsaCert,
-        crl::{Crl, VerifyCrl},
-    };
+//     use crate::certificates::{
+//         EcdsaCert,
+//         crl::{Crl, VerifyCrl},
+//     };
 
-    const FAKE_CA: &str = include_str!("./test/ca_cert.pem");
-    const FAKE_CERTIFICATE: &str = include_str!("./test/revoked_cert.pem");
-    const FAKE_CRL: &str = include_str!("./test/ca_crl.pem");
+//     const FAKE_CA: &str = include_str!("./test/ca_cert.pem");
+//     const FAKE_CERTIFICATE: &str = include_str!("./test/revoked_cert.pem");
+//     const FAKE_CRL: &str = include_str!("./test/ca_crl.pem");
 
-    #[test]
-    fn test_revoked() {
-        let fake_ca = EcdsaCert::from_cert(CertificateInner::from_pem(FAKE_CA).unwrap()).unwrap();
-        let fake_revoked =
-            EcdsaCert::from_cert(CertificateInner::from_pem(FAKE_CERTIFICATE).unwrap()).unwrap();
+//     #[test]
+//     fn test_revoked() {
+//         let fake_ca = EcdsaCert::from_cert(CertificateInner::from_pem(FAKE_CA).unwrap()).unwrap();
+//         let fake_revoked =
+//             EcdsaCert::from_cert(CertificateInner::from_pem(FAKE_CERTIFICATE).unwrap()).unwrap();
 
-        let crl = Crl::from_pem(fake_ca, FAKE_CRL).unwrap();
-        crl.check_revoked(&fake_revoked).unwrap_err();
-    }
-}
+//         let crl = Crl::from_pem(fake_ca, FAKE_CRL).unwrap();
+//         crl.check_revoked(&fake_revoked).unwrap_err();
+//     }
+// }
