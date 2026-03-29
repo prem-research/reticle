@@ -6,10 +6,12 @@ use snp_attest::{ParsedAttestation, nonce::SevNonce};
 
 pub use nvidia_attest;
 use reqwest::{
-    Url, header::{HeaderMap, HeaderValue}
+    Url,
+    header::{HeaderMap, HeaderValue},
 };
 pub use snp_attest;
 
+use tdx_attest::nonce::TdxNonce;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
@@ -19,7 +21,7 @@ use crate::error::PremErr;
 #[derive(Clone)]
 pub struct AttestHeaders {
     cpu: Option<ResponseHeaders>,
-    gpu: Option<ResponseHeaders>
+    gpu: Option<ResponseHeaders>,
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
@@ -61,8 +63,8 @@ impl ResponseHeaders {
         self.0.get(name)?.to_str().ok().map(String::from)
     }
 
-    pub fn keys(&self) -> Vec<String> {                                                                                                           
-        self.0.keys().map(|k| k.to_string()).collect()                                                                                            
+    pub fn keys(&self) -> Vec<String> {
+        self.0.keys().map(|k| k.to_string()).collect()
     }
 }
 
@@ -147,7 +149,10 @@ pub struct Client {
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl Client {
     /// Gather available attestable modules from remote attestation endpoint
-    pub async fn request_modules(&self, query: Option<QueryParams>) -> Result<libattest::Modules, PremErr> {
+    pub async fn request_modules(
+        &self,
+        query: Option<QueryParams>,
+    ) -> Result<libattest::Modules, PremErr> {
         let url = self.url.join("/attestation/modules").unwrap();
 
         let response = self
@@ -168,7 +173,11 @@ impl Client {
     /// This method exposes core functionality and does not perform cryptographic
     /// or measurement checks on the attestation. If you want to perform end-to-end attestation
     /// please refer to [`Self::attest_sev`]
-    pub async fn request_sev(&self, nonce: &SevNonce, query: &QueryParams) -> Result<ParsedAttestation, PremErr> {
+    pub async fn request_sev(
+        &self,
+        nonce: &SevNonce,
+        query: &QueryParams,
+    ) -> Result<ParsedAttestation, PremErr> {
         let url = self.url.join("/attestation/cpu").unwrap();
 
         let response = self
@@ -191,7 +200,11 @@ impl Client {
     /// This method exposes core functionality and does not perform cryptographic
     /// or measurement checks on the attestation. If you want to perform end-to-end attestation
     /// please refer to [`Self::attest_nvidia`]
-    pub async fn request_nvidia(&self, nonce: &NvidiaNonce, query: &QueryParams) -> Result<NvidiaAttestResult, PremErr> {
+    pub async fn request_nvidia(
+        &self,
+        nonce: &NvidiaNonce,
+        query: &QueryParams,
+    ) -> Result<NvidiaAttestResult, PremErr> {
         let url = self.url.join("/attestation/nvidia").unwrap();
 
         let response = self
@@ -206,8 +219,29 @@ impl Client {
         let response_text = response.error_for_status()?.text().await?;
         let eat_token = EATToken::parse(&response_text)?;
 
-        Ok(NvidiaAttestResult{ eat_token: eat_token, headers: ResponseHeaders(headers) })
+        Ok(NvidiaAttestResult {
+            eat_token: eat_token,
+            headers: ResponseHeaders(headers),
+        })
     }
+
+    // pub async fn request_tdx(&self, nonce: &TdxNonce, query: &QueryParams) -> Result<, PremErr> {
+    //         let url = self.url.join("/attestation/nvidia").unwrap();
+
+    //         let response = self
+    //             .reqwest_client
+    //             .get(url)
+    //             .query(&query.0)
+    //             .query(&[("nonce", nonce.to_hex())])
+    //             .send()
+    //             .await?;
+
+    //         let headers = response.headers().clone();
+    //         let response_text = response.error_for_status()?.text().await?;
+    //         let eat_token = EATToken::parse(&response_text)?;
+
+    //         Ok(NvidiaAttestResult{ eat_token: eat_token, headers: ResponseHeaders(headers) })
+    //     }
 
     /// Performs end-to-end sev-snp attestation. Generates nonce and validates claims all in one
     pub async fn attest_sev(&self, query: Option<QueryParams>) -> Result<(), PremErr> {
@@ -224,11 +258,16 @@ impl Client {
     }
 
     /// Completes end-to-end nvidia attestation. Generates nonce and validates claims all in one
-    pub async fn attest_nvidia(&self, query: Option<QueryParams>) -> Result<ResponseHeaders, PremErr> {
+    pub async fn attest_nvidia(
+        &self,
+        query: Option<QueryParams>,
+    ) -> Result<ResponseHeaders, PremErr> {
         let nonce = NvidiaNonce::generate();
         let keychain = KeyChain::fetch_keychain().await?;
 
-        let attest_result = self.request_nvidia(&nonce, &query.unwrap_or_default()).await?;
+        let attest_result = self
+            .request_nvidia(&nonce, &query.unwrap_or_default())
+            .await?;
         let claims = attest_result.eat_token.verify(&keychain)?;
 
         claims.validate(&nonce)?;
@@ -254,6 +293,12 @@ impl Client {
             _ => unimplemented!(),
         };
 
-        Ok(AttestResult { modules, headers: AttestHeaders { cpu: None, gpu: gpu_headers } })
+        Ok(AttestResult {
+            modules,
+            headers: AttestHeaders {
+                cpu: None,
+                gpu: gpu_headers,
+            },
+        })
     }
 }

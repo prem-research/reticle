@@ -30,7 +30,7 @@ impl ToString for Fmspc {
 
 #[repr(C, packed)]
 #[derive(FromBytes, KnownLayout, IntoBytes, Immutable, Unaligned, Debug, Clone)]
-pub struct QuoteHeader {
+pub struct TdxQuoteHeader {
     pub version: u16,
     pub attestation_type: u16,
     pub tee_type: u32,
@@ -47,7 +47,7 @@ pub type ReportData = [u8; 64];
 
 #[repr(C, packed)]
 #[derive(FromBytes, KnownLayout, Immutable, Unaligned, Debug, IntoBytes, Clone)]
-pub struct QuoteBody {
+pub struct TdxQuoteBody {
     pub tee_tcb_svn: SVNs,
     pub mrseam: Sha384,
     pub mrsignerseam: Sha384,

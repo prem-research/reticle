@@ -2324,6 +2324,7 @@ dependencies = [
  "nvidia-attest",
  "reqwest 0.12.28",
  "snp-attest",
+ "tdx-attest",
  "thiserror 2.0.18",
  "tokio",
  "wasm-bindgen",

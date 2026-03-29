@@ -1,7 +1,7 @@
 use crate::{
     dcap::{
         parser::{CursorExt, Parse, ParseError, ParseErrorExt},
-        types::{EnclaveReport, QuoteBody, QuoteHeader},
+        types::{EnclaveReport, TdxQuoteBody, TdxQuoteHeader},
     },
     parse_bail,
 };
@@ -168,8 +168,8 @@ impl<'d> Parse<'d> for Certification<'d> {
 
 #[derive(Debug)]
 pub struct TdQuote<'a> {
-    pub quote_header: &'a QuoteHeader,
-    pub quote_body: &'a QuoteBody,
+    pub quote_header: &'a TdxQuoteHeader,
+    pub quote_body: &'a TdxQuoteBody,
     pub certification: Certification<'a>,
 }
 
@@ -182,7 +182,7 @@ impl<'d> Parse<'d> for TdQuote<'d> {
     where
         'a: 'd,
     {
-        let quote_header: &QuoteHeader = cursor
+        let quote_header: &TdxQuoteHeader = cursor
             .zerocopy_ref()
             .context("failed to parse quote_header")?;
 
@@ -203,7 +203,7 @@ impl<'d> Parse<'d> for TdQuote<'d> {
         }
 
         let quote_body = cursor
-            .zerocopy_ref::<QuoteBody>()
+            .zerocopy_ref::<TdxQuoteBody>()
             .context("failed to parse quote_body")?;
 
         let certification = cursor.parse::<Certification>()?;

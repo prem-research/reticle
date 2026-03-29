@@ -5,9 +5,9 @@ use signature::Verifier;
 use zerocopy::IntoBytes;
 
 use crate::{
-    Certification, Quote,
+    TdxCertification, TdxQuote,
     certificates::crl::VerifyCrl,
-    dcap::types::{QuoteBody, ReportData},
+    dcap::types::{ReportData, TdxQuoteBody},
     error::{Context, TdxError},
     nonce::TdxNonce,
     pcs::{
@@ -26,7 +26,7 @@ use wasm_bindgen::prelude::*;
 ///
 /// After this function the ISV report key can be used to verify
 /// the ISV report signature
-fn verify_qe_report(quote: &Quote, collateral: &Collateral) -> Result<(), TdxError> {
+fn verify_qe_report(quote: &TdxQuote, collateral: &Collateral) -> Result<(), TdxError> {
     let certification = quote.certification();
 
     // Certificate revocation check
@@ -70,7 +70,7 @@ fn verify_qe_report(quote: &Quote, collateral: &Collateral) -> Result<(), TdxErr
 
 /// Verifies:
 /// 1. ISV report signature using ISV report key
-fn verify_isv_signature(quote: &Quote, collateral: &Collateral) -> Result<(), TdxError> {
+fn verify_isv_signature(quote: &TdxQuote, collateral: &Collateral) -> Result<(), TdxError> {
     let mut signed_data = vec![];
     signed_data.extend_from_slice(quote.header.as_bytes());
     signed_data.extend_from_slice(quote.body.as_bytes());
@@ -86,7 +86,7 @@ fn verify_isv_signature(quote: &Quote, collateral: &Collateral) -> Result<(), Td
 /// Verifies all Quoting Enclave policies and returns
 /// the TCB level for this quoting enclave if succesfull
 fn verify_qe_identity_policy(
-    quote: &Quote,
+    quote: &TdxQuote,
     collateral: &Collateral,
 ) -> Result<QeTcbLevel, TdxError> {
     let enclave_report = &quote
@@ -139,7 +139,7 @@ fn verify_qe_identity_policy(
     Ok(tcb)
 }
 
-fn verify_platform_tcb(quote: &Quote, collateral: &Collateral) -> Result<TcbLevel, TdxError> {
+fn verify_platform_tcb(quote: &TdxQuote, collateral: &Collateral) -> Result<TcbLevel, TdxError> {
     // verify fmspc match
     // 1. Retrieve FMSPC value from SGX PCK Certificate assigned to a given platform.
     let fmspc = quote
@@ -216,7 +216,7 @@ fn verify_platform_tcb(quote: &Quote, collateral: &Collateral) -> Result<TcbLeve
     TdxError::msg("Could not find an appropriate TCB Level for this quote")
 }
 
-fn verify_report_data(quote: &Quote, report_data: &TdxNonce) -> Result<(), TdxError> {
+fn verify_report_data(quote: &TdxQuote, report_data: &TdxNonce) -> Result<(), TdxError> {
     if quote.body.report_data != report_data.as_bytes() {
         return TdxError::msg("quote report data does not match expected report data");
     }
@@ -232,7 +232,7 @@ pub struct TcbLevels {
 
 // #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 fn verify(
-    quote: &Quote,
+    quote: &TdxQuote,
     collateral: &Collateral,
     report_data: &TdxNonce,
 ) -> Result<TcbLevels, TdxError> {
@@ -263,14 +263,14 @@ fn verify_mask<const N: usize>(quote: &[u8; N], expected: &[u8; N], mask: &[u8; 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 pub struct QuoteVerifier {
     collateral: Collateral,
-    quote: Quote,
+    quote: TdxQuote,
     minimum_tcb_level: TcbStatus,
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl QuoteVerifier {
     #[wasm_bindgen(constructor)]
-    pub fn new(collateral: Collateral, quote: Quote) -> Self {
+    pub fn new(collateral: Collateral, quote: TdxQuote) -> Self {
         Self {
             collateral,
             quote,

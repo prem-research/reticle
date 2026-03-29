@@ -10,7 +10,7 @@ use serde::Deserialize;
 use x509_cert::Certificate;
 
 use crate::{
-    Quote,
+    TdxQuote,
     certificates::{CertificateChain, IntermediateCa, ca::INTEL_CA, crl::Crl},
     dcap::types::Fmspc,
     error::{Context, TdxError},
@@ -118,7 +118,7 @@ impl Pcs {
         Ok(tcb_info)
     }
 
-    pub async fn fetch_collateral(&self, quote: &Quote) -> Result<Collateral, TdxError> {
+    pub async fn fetch_collateral(&self, quote: &TdxQuote) -> Result<Collateral, TdxError> {
         // extract fmspc from quote
         let fmspc = quote
             .certification()

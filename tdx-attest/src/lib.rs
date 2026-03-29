@@ -13,7 +13,7 @@ use crate::error::{Context, TdxError};
 
 use crate::{
     certificates::CertificateChain,
-    dcap::types::{EnclaveReport, QuoteBody, QuoteHeader},
+    dcap::types::{EnclaveReport, TdxQuoteBody, TdxQuoteHeader},
 };
 
 pub(crate) mod certificates;

@@ -5,7 +5,7 @@ use crate::{
     dcap::{
         self, TdQuote,
         parser::Parse,
-        types::{EnclaveReport, QuoteBody, QuoteHeader},
+        types::{EnclaveReport, TdxQuoteBody, TdxQuoteHeader},
     },
     error::{Context, TdxError},
 };
@@ -53,13 +53,13 @@ impl CertificationData {
 }
 
 #[derive(Debug)]
-pub struct Certification {
+pub struct TdxCertification {
     pub(crate) attestation_signature: Signature,
     pub(crate) attestation_key: VerifyingKey,
     pub(crate) data: CertificationData,
 }
 
-impl Certification {
+impl TdxCertification {
     /// Retrieves the SGX extensions from the leaf pck certificate.
     /// # Errors
     /// Returns error if no pck certificate could be found or if there was
@@ -84,31 +84,31 @@ impl Certification {
 
 #[derive(Debug)]
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
-pub struct Quote {
-    pub(crate) header: QuoteHeader,
-    pub(crate) body: QuoteBody,
-    pub(crate) certification: Certification,
+pub struct TdxQuote {
+    pub(crate) header: TdxQuoteHeader,
+    pub(crate) body: TdxQuoteBody,
+    pub(crate) certification: TdxCertification,
 }
 
-impl Quote {
+impl TdxQuote {
     #[must_use]
-    pub fn header(&self) -> &QuoteHeader {
+    pub fn header(&self) -> &TdxQuoteHeader {
         &self.header
     }
 
     #[must_use]
-    pub fn body(&self) -> &QuoteBody {
+    pub fn body(&self) -> &TdxQuoteBody {
         &self.body
     }
 
     #[must_use]
-    pub fn certification(&self) -> &Certification {
+    pub fn certification(&self) -> &TdxCertification {
         &self.certification
     }
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
-impl Quote {
+impl TdxQuote {
     /// Attempts to parse a quote from DCAP bytes.
     pub fn from_bytes(quote: &[u8]) -> Result<Self, TdxError> {
         let quote = TdQuote::parse(quote)?;
@@ -128,7 +128,7 @@ fn decode_public_key(public_key: &[u8; 64]) -> Result<VerifyingKey, p256::ecdsa:
     VerifyingKey::from_sec1_bytes(&sec1)
 }
 
-impl TryFrom<dcap::TdQuote<'_>> for Quote {
+impl TryFrom<dcap::TdQuote<'_>> for TdxQuote {
     type Error = TdxError;
     fn try_from(value: dcap::TdQuote<'_>) -> Result<Self, Self::Error> {
         let header = value.quote_header.clone();
@@ -143,7 +143,7 @@ impl TryFrom<dcap::TdQuote<'_>> for Quote {
     }
 }
 
-impl TryFrom<dcap::Certification<'_>> for Certification {
+impl TryFrom<dcap::Certification<'_>> for TdxCertification {
     type Error = TdxError;
     fn try_from(value: dcap::Certification<'_>) -> Result<Self, Self::Error> {
         // let attestation_key = VerifyingKey::from_sec1_bytes(value.attestation_key)?;

@@ -1,5 +1,5 @@
 use libattest::ByteNonce;
-use tdx_attest::{Quote, dcap::parser::ParseErrorExt, pcs::Pcs, verify};
+use tdx_attest::{TdxQuote, dcap::parser::ParseErrorExt, pcs::Pcs, verify};
 
 // static DATA: [u8; 64] = [
 //     0x05, 0x4b, 0x92, 0x85, 0x48, 0x40, 0x2f, 0x64, 0x97, 0xaa, 0xe4, 0xf4, 0x81, 0x4e, 0xab, 0x16,
@@ -15,7 +15,7 @@ async fn main() -> anyhow::Result<()> {
     let input = std::fs::read("./examples/quote.test").unwrap();
     let pcs = Pcs::new("https://pccs.prem.io/")?;
 
-    let quote = Quote::from_bytes(&input)?;
+    let quote = TdxQuote::from_bytes(&input)?;
     let collateral = pcs.fetch_collateral(&quote).await?;
 
     let nonce = ByteNonce::from(DATA).into();
