@@ -315,6 +315,7 @@ impl Client {
 
         let gpu_headers = match modules.gpu() {
             Some(GpuModule::Nvidia) => Some(self.attest_nvidia(query.clone()).await?),
+            None => None,
             _ => unimplemented!(),
         };
 
