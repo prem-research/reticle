@@ -1,5 +1,5 @@
 use anyhow::Context;
-use sev::firmware::host::TcbVersion;
+use sev::{Generation, firmware::host::TcbVersion};
 use x509_cert::certificate::{CertificateInner, Rfc5280};
 
 const KDS_CERT_SITE: &str = "https://kdsintf.amd.com";
@@ -13,18 +13,14 @@ fn get_base_url(product_name: String) -> String {
     )
 }
 
-fn encode_hw_id(chip_id: &[u8; 64]) -> String {
+fn encode_hw_id(chip_id: &[u8; 64], generation: Generation) -> String {
+    let chip_id = match generation {
+        Generation::Milan | Generation::Genoa => &chip_id[..],
+        _ => &chip_id[..8], // newer generations have smaller chip ids truncated to 8 bytes
+    };
+
     hex::encode(chip_id)
 }
-
-// pub fn decode_stepping(
-//     stepping: std::string::String,
-// ) -> std::option::Option<(std::string::String, std::string::String)> {
-//     stepping
-//         .chars()
-//         .next()
-//         .map(|rev| (rev.to_string(), stepping[1..].to_string()))
-// }
 
 pub fn decode_product_name(
     product_name: Vec<u8>,
@@ -59,14 +55,14 @@ use reqwest::Client;
 pub async fn get_vcek_tcb(
     chip_id: &[u8; 64],
     tcb: TcbVersion,
-    product_name: &str,
+    generation: Generation,
 ) -> anyhow::Result<sev::certs::snp::Certificate> {
     let client = Client::new();
     let req = client
         .get(format!(
             "{}/{}",
-            get_base_url(product_name.to_string()),
-            encode_hw_id(chip_id)
+            get_base_url(generation.titlecase()),
+            encode_hw_id(chip_id, generation)
         ))
         .query(&[
             get_query_tuple("blSPL", tcb.bootloader),
@@ -86,11 +82,11 @@ pub async fn get_vcek_tcb(
     sev::certs::snp::Certificate::from_der(&resp).context("could not parse kds chain")
 }
 
-pub async fn get_cert_chain(product_name: &str) -> anyhow::Result<sev::certs::snp::ca::Chain> {
+pub async fn get_cert_chain(generation: Generation) -> anyhow::Result<sev::certs::snp::ca::Chain> {
     let client = Client::new();
     let url = format!(
         "{}/{}",
-        get_base_url(product_name.to_string()),
+        get_base_url(generation.titlecase()),
         KDS_CERT_CHAIN,
     );
     let req = client.get(&url);
@@ -112,10 +108,11 @@ pub async fn get_cert_chain(product_name: &str) -> anyhow::Result<sev::certs::sn
 pub async fn get_chain(
     chip_id: &[u8; 64],
     tcb: TcbVersion,
-    product_name: &str,
+    generation: Generation,
 ) -> anyhow::Result<sev::certs::snp::Chain> {
-    let vcek = get_vcek_tcb(chip_id, tcb, product_name).await?;
-    let cert_chain = get_cert_chain(product_name).await?;
+    let vcek = get_vcek_tcb(chip_id, tcb, generation).await?;
+    let cert_chain = get_cert_chain(generation).await?;
+
     Ok(sev::certs::snp::Chain {
         ca: cert_chain,
         vek: vcek,
