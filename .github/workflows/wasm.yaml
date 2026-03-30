@@ -248,7 +248,7 @@ jobs:
                 run: |
                   env -u SYSROOT \
                   RUSTFLAGS="-L${{ env.SYSROOT }}/lib -lssl -lcrypto" \
-                  cargo build --release -p attestation-server --no-default-features --features sev,nvidia
+                  cargo build --release -p attestation-server
               - name: Link sysroot
                 run: |
                   mv ${{ env.SYSROOT }} ./sysroot
@@ -279,4 +279,3 @@ jobs:
                     labels: ${{ steps.meta.outputs.labels }}
                     build-args: |
                       SYSROOT=./sysroot
-                      FEATURES=sev nvidia

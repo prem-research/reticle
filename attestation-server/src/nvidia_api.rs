@@ -3,11 +3,9 @@ use nvat::{AttestationBuilder, SdkHandle, nonce::NvatNonce};
 use rocket::State;
 
 use crate::nonce::NonceParam;
-#[cfg(feature = "nvidia")]
 use crate::response::ApiError;
 
 #[rocket::get("/nvidia?<nonce>")]
-#[cfg(feature = "nvidia")]
 pub async fn nvidia_attestation(
     nonce: NonceParam<libattest::ByteNonce<32>, 32>,
     sdk: &State<SdkHandle>,
