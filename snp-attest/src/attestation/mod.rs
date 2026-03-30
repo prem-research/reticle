@@ -4,6 +4,9 @@ pub mod chain;
 pub mod error;
 /// Methods for interacting with AMD's keyserver
 pub mod kds;
+
+use crate::kds_util::chipid_from_gen;
+
 // pub mod nonce;
 
 #[cfg(target_family = "wasm")]
@@ -82,7 +85,9 @@ impl ParsedAttestation {
 
         /* Compare HWID */
         if let Some(hwid) = exts_map.get(&oid::HWID) {
-            oid::compare_bytes(hwid, self.report.chip_id.as_ref())
+            oid::compare_bytes(
+                hwid,
+                chipid_from_gen(&self.report.chip_id, self.generation()))
                 .then_some(())
                 .ok_or(VerificationReason::ChipId)?;
         }

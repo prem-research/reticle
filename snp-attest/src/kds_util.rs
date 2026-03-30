@@ -1,4 +1,3 @@
-use anyhow::Context;
 use sev::{Generation, firmware::host::TcbVersion};
 use x509_cert::certificate::{CertificateInner, Rfc5280};
 
@@ -13,13 +12,15 @@ fn get_base_url(product_name: String) -> String {
     )
 }
 
-fn encode_hw_id(chip_id: &[u8; 64], generation: Generation) -> String {
-    let chip_id = match generation {
+pub fn chipid_from_gen(chip_id: &[u8; 64], generation: Generation) -> &[u8] {
+    match generation {
         Generation::Milan | Generation::Genoa => &chip_id[..],
         _ => &chip_id[..8], // newer generations have smaller chip ids truncated to 8 bytes
-    };
+    }
+}
 
-    hex::encode(chip_id)
+fn encode_hw_id(chip_id: &[u8; 64], generation: Generation) -> String {
+    hex::encode(chipid_from_gen(chip_id, generation))
 }
 
 pub fn decode_product_name(
