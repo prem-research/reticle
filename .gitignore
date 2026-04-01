@@ -10,3 +10,7 @@ CLAUDE.local.[mM][dD]
 AGENTS.local.[mM][dD]
 settings.local.json
 .DS_STORE
+
+# editors
+.zed/
+.vscode/
