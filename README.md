@@ -1,4 +1,8 @@
-# pcci-attestation-stack
+<img src="/.github/assets/reticle.png" width="400px" align="right"></img>
+
+### reticle
+
+
 
 Hardware attestation stack for confidential computing environments. Verifies the integrity of CPUs (AMD SEV-SNP, Intel TDX) and GPUs (NVIDIA) through cryptographic attestation, exposed via a REST API and a browser-compatible WASM SDK.
 
@@ -6,8 +10,8 @@ Hardware attestation stack for confidential computing environments. Verifies the
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                  attestation-server                  │  REST API
-│              runtime module detection                │
+│                  attestation-server                 │  REST API
+│              runtime module detection               │
 └──────┬──────────────┬──────────────┬────────────────┘
        │              │              │
 ┌──────▼─────┐ ┌──────▼─────┐ ┌─────▼──────────┐  ┌───────────┐
