@@ -14,7 +14,7 @@ Hardware attestation stack for confidential computing environments. Verifies the
 │              runtime module detection               │
 └──────┬──────────────┬──────────────┬────────────────┘
        │              │              │
-┌──────▼─────┐ ┌──────▼─────┐ ┌─────▼──────────┐  ┌───────────┐
+┌──────▼─────┐ ┌──────▼─────┐ ┌──────▼─────────┐  ┌───────────┐
 │ snp-attest │ │ tdx-attest │ │ nvidia-attest  │  │ libattest │ (Core primitives)
 │  AMD SNP   │ │ Intel TDX  │ │  GPU (EAT/JWT) │  └───────────┘
 └──────┬─────┘ └──────┬─────┘ └──────┬─────────┘
