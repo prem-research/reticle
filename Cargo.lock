@@ -1984,7 +1984,7 @@ dependencies = [
 [[package]]
 name = "nvat"
 version = "0.1.0"
-source = "git+ssh://git@github.com/premAI-io/nvat-rs.git?branch=main#173a1362525d8894537ebcd02b75274069cf5a8c"
+source = "git+ssh://git@github.com/prem-research/nvat-rs.git?branch=main#71f28a1ec33b71ef9538e5935b29edf8d331d153"
 dependencies = [
  "log",
  "nvat_sys",
@@ -1994,7 +1994,7 @@ dependencies = [
 [[package]]
 name = "nvat_sys"
 version = "1.0.0"
-source = "git+ssh://git@github.com/premAI-io/nvat-rs.git?branch=main#173a1362525d8894537ebcd02b75274069cf5a8c"
+source = "git+ssh://git@github.com/prem-research/nvat-rs.git?branch=main#71f28a1ec33b71ef9538e5935b29edf8d331d153"
 dependencies = [
  "bindgen",
  "pkg-config",
@@ -2317,7 +2317,7 @@ dependencies = [
 
 [[package]]
 name = "prem-rs"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "bytes",
  "libattest",

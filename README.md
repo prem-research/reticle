@@ -73,7 +73,7 @@ make bins PACKAGE=snp-attest FEATURES=hyperv
 make wasm
 ```
 
-Produces the `@premAI-io/prem-rs` npm package in `prem-rs/pkg/`.
+Produces the `@premai/prem-rs` npm package in `prem-rs/pkg/`.
 
 ### Docker (attestation-server)
 
@@ -93,7 +93,7 @@ The attestation server ships as a Docker image built via the CI pipeline. See [`
    ```
 3. Use it in an [example](./examples):
    ```bash
-   cd examples/bun && bun link @premAI-io/prem-rs
+   cd examples/bun && bun link @premai/prem-rs
    ```
 
 ### Running the attestation server

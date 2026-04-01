@@ -1,6 +1,6 @@
 # prem-rs
 
-Hardware attestation SDK for JavaScript and TypeScript. Cryptographically verifies AMD SEV-SNP, Intel TDX, and NVIDIA GPU attestations from an [attestation server](https://github.com/premAI-io/pcci-attestation-stack) — runs in Node.js, Bun, Deno and the browser via WASM.
+Hardware attestation SDK for JavaScript and TypeScript. Cryptographically verifies AMD SEV-SNP, Intel TDX, and NVIDIA GPU attestations from an [attestation server](https://github.com/prem-research/reticle) — runs in Node.js, Bun, Deno and the browser via WASM.
 
 ## Install
 

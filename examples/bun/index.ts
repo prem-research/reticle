@@ -1,4 +1,4 @@
-import * as prem_rs from "@premAI-io/prem-rs";
+import * as prem_rs from "@premai/prem-rs";
 
 const {
     ATTESTATION_SERVER

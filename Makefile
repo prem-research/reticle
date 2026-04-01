@@ -35,7 +35,7 @@ bins:
 	#cp $${SYSROOT:-/usr/local}/lib/libnvat.so.1.1.0 $(CURDIR)
 
 wasm:
-	wasm-pack build --scope premai-io prem-rs
+	wasm-pack build prem-rs
 
 clean:
 	rm -rf \

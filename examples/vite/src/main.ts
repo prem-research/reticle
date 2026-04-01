@@ -1,5 +1,5 @@
 import './style.css'
-import * as prem_rs from "@premAI-io/prem-rs"
+import * as prem_rs from "@premai/prem-rs"
 import { get as getEmoji } from "node-emoji";
 
 const boolMoji = (b: boolean) => b ? getEmoji(':ok:') : getEmoji(':x:');
