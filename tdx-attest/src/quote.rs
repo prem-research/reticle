@@ -1,3 +1,4 @@
+use libattest::error::Context;
 use p256::ecdsa::{Signature, VerifyingKey};
 
 use crate::{
@@ -7,7 +8,7 @@ use crate::{
         parser::Parse,
         types::{EnclaveReport, TdxQuoteBody, TdxQuoteHeader},
     },
-    error::{Context, TdxError},
+    error::TdxError,
 };
 
 #[cfg(target_family = "wasm")]

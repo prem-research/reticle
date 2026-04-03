@@ -1,8 +1,11 @@
 use prem_rs::ClientBuilder;
+use snp_attest::kds::Kds;
 
 #[tokio::main]
 async fn main() {
+    let kds = Kds::new("http://localhost:8443").unwrap();
     let client = ClientBuilder::new("http://localhost:8000/")
+        .with_kds(kds)
         .build()
         .unwrap();
 
@@ -21,5 +24,6 @@ async fn main() {
     // let parsed = attestation.verify(&keychain).unwrap();
     // parsed.validate(&nonce).unwrap();
 
-    client.attest(None).await.unwrap();
+    let result = client.attest(None).await.unwrap();
+    // println!("{result}");
 }

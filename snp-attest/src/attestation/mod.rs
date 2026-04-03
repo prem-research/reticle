@@ -1,12 +1,11 @@
 /// Certificate chain structures and methods
 pub mod chain;
-/// Error structure
-pub mod error;
 /// Methods for interacting with AMD's keyserver
 pub mod kds;
 
 // pub mod nonce;
 
+use libattest::error::{AttestationError, Context, Expose};
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
@@ -17,10 +16,7 @@ use sev::{
 };
 use x509_parser::prelude::*;
 
-use self::{
-    chain::VerifiedChain,
-    error::{AttestationError, ParseReason, VerificationReason},
-};
+use self::chain::VerifiedChain;
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen(js_namespace = "sev"))]
 /// Represents a parsed attestation report with some already
@@ -39,17 +35,17 @@ impl ParsedAttestation {
     /// Parses and constructs a new attestation report from a stream of binary data
     pub fn new(bytes: &[u8]) -> Result<Self, AttestationError> {
         let report =
-            AttestationReport::from_bytes(bytes).map_err(|_| ParseReason::BadAttestationData)?;
+            AttestationReport::from_bytes(bytes).context("failed parsing attestation report")?;
 
         let cpu_fam_id = report
             .cpuid_fam_id
-            .ok_or(ParseReason::MissingAttestationField)?;
+            .context("missing cpuid_fam_id from attestation report")?;
         let cpu_mod_id = report
             .cpuid_mod_id
-            .ok_or(ParseReason::MissingAttestationField)?;
+            .context("missing cpuid_mod_id from attestation report")?;
 
         let generation = sev::Generation::identify_cpu(cpu_fam_id, cpu_mod_id)
-            .map_err(|_| ParseReason::IdentifyCpu)?;
+            .context("could not identify cpu from attestation report")?;
 
         Ok(ParsedAttestation {
             cpu_fam_id,
@@ -79,7 +75,9 @@ impl ParsedAttestation {
         /* Check TCB */
         let exts_map = vek.extensions_map()?;
 
-        oid::check_spl(self.report.reported_tcb, &exts_map).map_err(|_| VerificationReason::Spl)?;
+        oid::check_spl(self.report.reported_tcb, &exts_map)
+            .context("failed to check spl from attestation report")
+            .expose_error()?;
 
         /* Compare HWID */
         if let Some(hwid) = exts_map.get(&oid::HWID) {
@@ -88,15 +86,17 @@ impl ParsedAttestation {
                 chipid_from_gen(&self.report.chip_id, self.generation()),
             )
             .then_some(())
-            .ok_or(VerificationReason::ChipId)?;
+            .context("mismatched chip id")?
         }
 
         let product_name_ext = exts_map.get(&oid::PRODUCT_NAME).unwrap();
         let (product_name, _) = kds::decode_product_name(product_name_ext.value.to_vec())
-            .map_err(|_| ParseReason::DecodeProductName)?;
+            .context("could not get product name")?;
 
         if product_name != self.generation.titlecase() {
-            Err(VerificationReason::BadProductName)?;
+            return AttestationError::internal(
+                "mismatched product name from one gathered from kds",
+            );
         }
 
         /* check for revocation */
@@ -108,8 +108,9 @@ impl ParsedAttestation {
 
         let nonce: &[u8; 64] = nonce.as_ref();
         if &self.report.report_data != nonce {
-            log::error!("wrong nonce in reported data");
-            return Err(AttestationError::WrongNonce);
+            return AttestationError::exposed(
+                "attestation report nonce does not match with provided nonce",
+            );
         }
 
         log::info!("Verification ok!");

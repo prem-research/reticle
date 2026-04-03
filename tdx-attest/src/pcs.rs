@@ -4,6 +4,7 @@ pub mod tcb;
 
 use std::str::FromStr;
 
+use libattest::error::Context;
 use p256::ecdsa::Signature;
 use reqwest::{Client, IntoUrl, Url};
 use serde::Deserialize;
@@ -13,7 +14,7 @@ use crate::{
     TdxQuote,
     certificates::{CertificateChain, IntermediateCa, ca::INTEL_CA, crl::Crl},
     dcap::types::Fmspc,
-    error::{Context, TdxError},
+    error::TdxError,
     pcs::{qe::EnclaveIdentity, signed_response::ParseSignedResponse, tcb::TcbInfo},
 };
 
@@ -148,7 +149,8 @@ pub struct Collateral {
 
 #[cfg(test)]
 mod test {
-    use crate::{error::Context, pcs::Pcs};
+    use crate::pcs::Pcs;
+    use libattest::error::Context;
 
     const QUOTE: &[u8] = include_bytes!("../tests/tdx_quote");
 

@@ -1,3 +1,4 @@
+use libattest::error::{AttestationError, Context};
 use reqwest::{Client, Url};
 use sev::{Generation, firmware::host::TcbVersion};
 use x509_cert::certificate::{CertificateInner, Rfc5280};
@@ -8,7 +9,6 @@ use wasm_bindgen::prelude::*;
 use crate::{
     ParsedAttestation,
     chain::{CRL, VerifiedChain},
-    error::AttestationError,
 };
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen(js_namespace = "sev"))]
@@ -41,7 +41,7 @@ impl Kds {
     async fn get_cert_chain(
         &self,
         generation: Generation,
-    ) -> anyhow::Result<sev::certs::snp::ca::Chain> {
+    ) -> libattest::Result<sev::certs::snp::ca::Chain> {
         let client = Client::new();
         let url = format!("{}/cert_chain", self.get_base_url(generation));
         let req = client.get(&url);
@@ -50,9 +50,9 @@ impl Kds {
         log::debug!("Requesting {url}");
 
         let cert = CertificateInner::<Rfc5280>::load_pem_chain(&resp)?;
-        let [ask, ark]: [CertificateInner; 2] = cert
-            .try_into()
-            .map_err(|_| anyhow::format_err!("missing ask or ark from certificate chain"))?;
+        let Ok([ask, ark]): Result<[CertificateInner; 2], _> = cert.try_into() else {
+            return AttestationError::internal("missing ask or ark certificate from kds response");
+        };
 
         Ok(sev::certs::snp::ca::Chain {
             ask: ask.into(),
@@ -65,7 +65,7 @@ impl Kds {
         chip_id: &[u8; 64],
         tcb: TcbVersion,
         generation: Generation,
-    ) -> anyhow::Result<sev::certs::snp::Certificate> {
+    ) -> libattest::Result<sev::certs::snp::Certificate> {
         let client = Client::new();
         let mut query = vec![
             get_query_tuple("blSPL", tcb.bootloader),
@@ -95,7 +95,7 @@ impl Kds {
         chip_id: &[u8; 64],
         tcb: TcbVersion,
         generation: Generation,
-    ) -> anyhow::Result<sev::certs::snp::Chain> {
+    ) -> libattest::Result<sev::certs::snp::Chain> {
         let vcek = self.get_vcek_tcb(chip_id, tcb, generation).await?;
         let cert_chain = self.get_cert_chain(generation).await?;
 
@@ -116,8 +116,7 @@ impl Kds {
                 attestation.report.reported_tcb,
                 attestation.generation,
             )
-            .await
-            .map_err(|_| AttestationError::KdsRequest)?;
+            .await?;
 
         log::info!("Cryptographically verifying the fetched chain");
         let chain = VerifiedChain::verify(chain)?;
@@ -135,13 +134,7 @@ impl Kds {
             self.get_base_url(attestation.generation())
         ));
 
-        let resp = req
-            .send()
-            .await
-            .map_err(|_| AttestationError::KdsRequest)?
-            .bytes()
-            .await
-            .map_err(|_| AttestationError::KdsRequest)?;
+        let resp = req.send().await?.bytes().await?;
 
         CRL::from_der(&resp)
     }
@@ -166,7 +159,7 @@ fn encode_hw_id(chip_id: &[u8; 64], generation: Generation) -> String {
 
 pub fn decode_product_name(
     product_name: Vec<u8>,
-) -> anyhow::Result<(
+) -> libattest::Result<(
     std::string::String,
     std::option::Option<std::string::String>,
 )> {
@@ -179,12 +172,10 @@ pub fn decode_product_name(
         .map(|e: &str| std::string::String::from(e))
         .collect::<Vec<std::string::String>>();
 
-    match decoded.len() {
-        1 => Ok((decoded.first().unwrap().to_string(), None)),
-        _ => {
-            let [name, stepping]: [std::string::String; 2] = decoded.try_into().unwrap();
-            Ok((name, Some(stepping)))
-        }
+    match &decoded[..] {
+        [decoded] => Ok((decoded.clone(), None)),
+        [name, stepping] => Ok((name.clone(), Some(stepping.clone()))),
+        _ => AttestationError::internal("unhandled number of parameters"),
     }
 }
 

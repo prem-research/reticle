@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use libattest::error::{AttestationError, Context};
 use sev::firmware::host::TcbVersion;
 use std::collections::HashMap;
 use x509_parser::{der_parser::asn1_rs, prelude::X509Certificate};
@@ -43,7 +43,7 @@ pub static HWID: asn1_rs::Oid = asn1_rs::oid!(1.3.6.1.4.1.3704.1.4);
 pub fn check_cert_ext_byte(
     ext: &x509_parser::extensions::X509Extension,
     value: u8,
-) -> anyhow::Result<std::cmp::Ordering> {
+) -> libattest::Result<std::cmp::Ordering> {
     /*
     if ext.value.len() > 3 {
         return Err(anyhow!("invalid OID values."));
@@ -51,11 +51,11 @@ pub fn check_cert_ext_byte(
     */
 
     if ext.value.first() != Some(&0x02) {
-        return Err(anyhow!("invalid OID Type"));
+        return AttestationError::internal("invalid OID");
     }
 
     let Some(_) = ext.value.get(1) else {
-        return Err(anyhow!("invalid OID Length"));
+        return AttestationError::internal("invalid OID length");
     };
 
     if let Some(byte_value) = ext.value.last() {
@@ -67,13 +67,13 @@ pub fn check_cert_ext_byte(
         return Ok(value.cmp(byte_value));
     }
 
-    Err(anyhow!("invalid OID Value"))
+    AttestationError::internal("invalid oid data")
 }
 
 pub fn check_spl_byte_ver(
     ext: &x509_parser::extensions::X509Extension,
     value: u8,
-) -> anyhow::Result<bool> {
+) -> libattest::Result<bool> {
     Ok(check_cert_ext_byte(ext, value)?.is_ge())
 }
 
@@ -84,49 +84,55 @@ pub fn compare_bytes(ext: &x509_parser::extensions::X509Extension, val: &[u8]) -
 pub fn check_spl(
     tcb: TcbVersion,
     exts: &std::collections::HashMap<asn1_rs::Oid, &x509_parser::extensions::X509Extension>,
-) -> anyhow::Result<bool, anyhow::Error> {
+) -> libattest::Result<bool> {
     if !check_spl_byte_ver(
-        exts.get(&BOOTLOADER).expect("missing BOOTLOADER version"),
+        exts.get(&BOOTLOADER)
+            .context("missing BOOTLOADER version")?,
         tcb.bootloader,
     )
-    .expect("invalid bootloader version")
+    .context("invalid bootloader version")?
     {
-        return Err(anyhow!("false"));
+        return AttestationError::internal("invalid bootloader spl value");
     }
 
-    if !check_spl_byte_ver(exts.get(&TEE).expect("missing TEE version"), tcb.tee)
-        .expect("invalid TEE version")
+    if !check_spl_byte_ver(exts.get(&TEE).context("missing TEE version")?, tcb.tee)
+        .context("invalid TEE version")?
     {
-        return Err(anyhow!("false"));
+        return AttestationError::internal("invalid TEE spl value");
     }
 
-    if !check_spl_byte_ver(exts.get(&SNP).expect("missing SNP version"), tcb.snp)
-        .expect("invalid SNP version")
+    if !check_spl_byte_ver(exts.get(&SNP).context("missing SNP version")?, tcb.snp)
+        .context("invalid SNP version")?
     {
-        return Err(anyhow!("false"));
+        return AttestationError::internal("invalid SNP version spl value");
     }
 
     if !check_spl_byte_ver(
-        exts.get(&UCODE).expect("missing uCODE version"),
+        exts.get(&UCODE).context("missing uCODE version")?,
         tcb.microcode,
     )
-    .expect("invalid uCODE version")
+    .context("invalid uCODE version")?
     {
-        return Err(anyhow!("false"));
+        return AttestationError::internal("invalid ucode version spl value");
     }
 
     // todo: add FMC for TURIN and beyond
     // check struct version is 1 || panic
     // TODO: add cmp order to check_cert_ext_byte
 
-    if check_cert_ext_byte(exts.get(&STRUCT_VERSION).expect(""), 0x1)?.is_le()
+    if check_cert_ext_byte(
+        exts.get(&STRUCT_VERSION)
+            .context("missing struct version value")?,
+        0x1,
+    )?
+    .is_le()
         && !check_spl_byte_ver(
-            exts.get(&FMC).expect("missing FMC version"),
-            tcb.fmc.unwrap(),
+            exts.get(&FMC).context("missing FMC version")?,
+            tcb.fmc.context("could not get fmc from tbc")?,
         )
-        .expect("invalid FMC version")
+        .context("invalid FMC version")?
     {
-        return Err(anyhow!("false"));
+        return AttestationError::internal("invalid FMC version spl value");
     }
 
     Ok(true)
@@ -152,20 +158,22 @@ pub fn check_spl(
 
 pub fn get_exts<'a>(
     vek: &'a X509Certificate,
-) -> anyhow::Result<HashMap<asn1_rs::Oid<'a>, &'a x509_parser::extensions::X509Extension<'a>>> {
+) -> libattest::Result<HashMap<asn1_rs::Oid<'a>, &'a x509_parser::extensions::X509Extension<'a>>> {
     vek.extensions_map().map_err(Into::into)
 }
 
 pub fn get_key_usage<'a>(
     exts: &'a std::collections::HashMap<asn1_rs::Oid, x509_parser::extensions::X509Extension>,
-) -> anyhow::Result<&'a x509_parser::extensions::ExtendedKeyUsage<'a>> {
+) -> libattest::Result<&'a x509_parser::extensions::ExtendedKeyUsage<'a>> {
     let Some(key_usage) = exts.get(&EXT_KEY_USAGE) else {
-        return Err(anyhow!("missing Extended Key Usage"));
+        // return Err(anyhow!("missing Extended Key Usage"));
+        return AttestationError::internal("missing Extended key usage");
     };
     let x509_parser::extensions::ParsedExtension::ExtendedKeyUsage(parsed_key_usage) =
         key_usage.parsed_extension()
     else {
-        return Err(anyhow!("invalid ExtendedKeyUsage Extension"));
+        // return Err(anyhow!("invalid ExtendedKeyUsage Extension"));
+        return AttestationError::internal("invalid Extended key usage extension");
     };
 
     Ok(parsed_key_usage)

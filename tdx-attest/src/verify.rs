@@ -1,5 +1,6 @@
 use std::ops::Deref;
 
+use libattest::error::Context;
 use sha2::{Digest, Sha256, digest::Update};
 use signature::Verifier;
 use zerocopy::IntoBytes;
@@ -8,7 +9,7 @@ use crate::{
     TdxCertification, TdxQuote,
     certificates::crl::VerifyCrl,
     dcap::types::{ReportData, TdxQuoteBody},
-    error::{Context, TdxError},
+    error::TdxError,
     nonce::TdxNonce,
     pcs::{
         Collateral,
@@ -62,7 +63,7 @@ fn verify_qe_report(quote: &TdxQuote, collateral: &Collateral) -> Result<(), Tdx
     let report_data = &qe_report.qe_report.report_data[..32]; // hash is found only in first 32 bytes as per dcap documentation
 
     if sha.as_bytes() != report_data {
-        return TdxError::msg("qe report_data hash mismatch");
+        return TdxError::internal("qe report_data hash mismatch");
     }
 
     Ok(())
@@ -98,15 +99,15 @@ fn verify_qe_identity_policy(
     let qe_identity = &collateral.qe_identity;
 
     if enclave_report.mrsigner != qe_identity.mrsigner {
-        return TdxError::msg("mrsigner mismatch between qe identity and enclave report");
+        return TdxError::internal("mrsigner mismatch between qe identity and enclave report");
     }
 
     if enclave_report.isv_prod_id != qe_identity.isvprodid {
-        return TdxError::msg("isv_prod_id mismatch between qe identity and enclave report");
+        return TdxError::internal("isv_prod_id mismatch between qe identity and enclave report");
     }
 
     if enclave_report.attributes[0] & 0x02 != 0x00 {
-        return TdxError::msg("qe debug mode is active");
+        return TdxError::internal("qe debug mode is active");
     }
 
     // verify miscselect by applying mask
@@ -152,7 +153,7 @@ fn verify_platform_tcb(quote: &TdxQuote, collateral: &Collateral) -> Result<TcbL
     // > collateral.tcb_info
 
     if fmspc != collateral.tcb_info.fmspc {
-        return TdxError::msg("fmspc mismatch");
+        return TdxError::internal("fmspc mismatch");
     }
 
     let sgx_extensions = quote.certification().sgx_extensions()?;
@@ -213,12 +214,12 @@ fn verify_platform_tcb(quote: &TdxQuote, collateral: &Collateral) -> Result<TcbL
         return Ok(tcb_level.clone());
     }
 
-    TdxError::msg("Could not find an appropriate TCB Level for this quote")
+    TdxError::internal("Could not find an appropriate TCB Level for this quote")
 }
 
 fn verify_report_data(quote: &TdxQuote, report_data: &TdxNonce) -> Result<(), TdxError> {
     if quote.body.report_data != report_data.as_bytes() {
-        return TdxError::msg("quote report data does not match expected report data");
+        return TdxError::internal("quote report data does not match expected report data");
     }
 
     Ok(())
@@ -284,13 +285,13 @@ impl QuoteVerifier {
 
         if tcb_levels.qe_tcb.tcb_status < self.minimum_tcb_level {
             let tcb_status = tcb_levels.qe_tcb.tcb_status;
-            return TdxError::msg("minimum qe_tcb not matched")
+            return TdxError::internal("minimum qe_tcb not matched")
                 .with_context(|| format!("expected {minimum_tcb} got {tcb_status}"));
         }
 
         if tcb_levels.isv_tcb.tcb_status < self.minimum_tcb_level {
             let tcb_status = tcb_levels.isv_tcb.tcb_status;
-            return TdxError::msg("minimum isv_tcb not matched")
+            return TdxError::internal("minimum isv_tcb not matched")
                 .with_context(|| format!("expected {minimum_tcb} got {tcb_status}"));
         }
 

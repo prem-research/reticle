@@ -7,8 +7,10 @@ edition = "2024"
 getrandom = "0.4.1"
 hex = "0.4.3"
 serde = { version = "1.0.228", features = ["derive"] }
+anyhow = "1.0"
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 getrandom = { version = "0.4.1", features = ["wasm_js"] }
+js-sys = "0.3.93"

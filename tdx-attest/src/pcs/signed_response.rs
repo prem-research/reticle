@@ -1,11 +1,9 @@
 use std::marker::PhantomData;
 
-use crate::{
-    ca::INTEL_CA,
-    error::{Context, TdxError},
-};
+use crate::{ca::INTEL_CA, error::TdxError};
 use anyhow::bail;
 use chrono::Utc;
+use libattest::error::Context;
 use p256::ecdsa::Signature;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -45,11 +43,11 @@ impl<T> SignedResponse<T> {
         let now = chrono::Utc::now();
 
         if self.header.issue_date > now {
-            return TdxError::msg("pcs response signature has a later issue_date than now");
+            return TdxError::internal("pcs response signature has a later issue_date than now");
         }
 
         if self.header.next_update < now {
-            return TdxError::msg("pcs response signature has expired content");
+            return TdxError::internal("pcs response signature has expired content");
         }
 
         // message is re-compacted json. Intel documentation explicitly states
@@ -102,7 +100,7 @@ impl ParseSignedResponse for reqwest::Response {
         // Since data was a flatten map over the remaining fields (except signature)
         // we now have to extract the contents of the actual data field we specified
         let Value::Object(mut map) = data else {
-            return TdxError::msg("invalid data object in response does not contain a map");
+            return TdxError::internal("invalid data object in response does not contain a map");
         };
 
         let data = map

@@ -9,7 +9,7 @@ use crate::certificates::ca;
 use crate::certificates::extensions::{SgxExtension, SgxExtensions};
 use crate::dcap::TdQuote;
 use crate::dcap::parser::Parse;
-use crate::error::{Context, TdxError};
+use crate::error::TdxError;
 
 use crate::{
     certificates::CertificateChain,

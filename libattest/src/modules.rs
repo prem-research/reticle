@@ -16,7 +16,7 @@ pub enum GpuModule {
     Nvidia,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 pub struct Modules {
     cpu: CpuModule,

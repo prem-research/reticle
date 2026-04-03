@@ -1,6 +1,7 @@
-pub mod error;
-
-use libattest::{CpuModule, GpuModule, Modules};
+use libattest::{
+    CpuModule, GpuModule, Modules,
+    error::{AttestationError, Context, Expose},
+};
 use nvidia_attest::{EATToken, keychain::KeyChain, nonce::NvidiaNonce};
 use snp_attest::{ParsedAttestation, kds::Kds, nonce::SevNonce};
 
@@ -11,14 +12,12 @@ use reqwest::{
 };
 pub use snp_attest;
 
-use tdx_attest::{TdxQuote, nonce::TdxNonce, pcs::Pcs, verify::QuoteVerifier};
+use tdx_attest::{TdxQuote, error::TdxError, nonce::TdxNonce, pcs::Pcs, verify::QuoteVerifier};
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::error::PremErr;
-
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AttestHeaders {
     cpu: Option<ResponseHeaders>,
     gpu: Option<ResponseHeaders>,
@@ -36,7 +35,7 @@ impl AttestHeaders {
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AttestResult {
     modules: Modules,
     headers: AttestHeaders,
@@ -53,7 +52,7 @@ impl AttestResult {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 pub struct ResponseHeaders(HeaderMap);
 
@@ -89,9 +88,9 @@ impl QueryParams {
     }
 
     /// Appends a query parameter. Returns `Err` if `key` is `"nonce"` (reserved).
-    pub fn with(mut self, key: &str, value: &str) -> Result<Self, PremErr> {
+    pub fn with(mut self, key: &str, value: &str) -> Result<Self, AttestationError> {
         if key == "nonce" {
-            return Err(PremErr::ForbiddenQueryParam);
+            return TdxError::exposed("cannot use nonce as a query parameter as it's reserved");
         }
         self.0.push((key.to_string(), value.to_string()));
         Ok(self)
@@ -131,7 +130,7 @@ impl ClientBuilder {
     }
 
     /// Sets `Authorization` header
-    pub fn with_authorization(mut self, token: &str) -> Result<Self, PremErr> {
+    pub fn with_authorization(mut self, token: &str) -> Result<Self, AttestationError> {
         self.headers
             .insert("Authorization", HeaderValue::from_str(token)?);
 
@@ -150,13 +149,17 @@ impl ClientBuilder {
         self
     }
 
-    pub fn build(self) -> Result<Client, PremErr> {
+    pub fn build(self) -> Result<Client, AttestationError> {
         let reqwest_client = reqwest::Client::builder()
             .default_headers(self.headers)
             .build()?;
 
         Ok(Client {
-            url: self.url.parse().map_err(PremErr::Parse)?,
+            url: self
+                .url
+                .parse::<Url>()
+                .context("cannot build client with supplied url because it is invalid")
+                .expose_error()?,
             kds: self.kds,
             pcs: self.pcs,
             reqwest_client,
@@ -178,7 +181,7 @@ impl Client {
     pub async fn request_modules(
         &self,
         query: Option<QueryParams>,
-    ) -> Result<libattest::Modules, PremErr> {
+    ) -> Result<libattest::Modules, AttestationError> {
         let url = self.url.join("/attestation/modules").unwrap();
 
         let response = self
@@ -203,7 +206,7 @@ impl Client {
         &self,
         nonce: &SevNonce,
         query: &QueryParams,
-    ) -> Result<ParsedAttestation, PremErr> {
+    ) -> Result<ParsedAttestation, AttestationError> {
         let url = self.url.join("/attestation/sev").unwrap();
 
         let response = self
@@ -230,7 +233,7 @@ impl Client {
         &self,
         nonce: &NvidiaNonce,
         query: &QueryParams,
-    ) -> Result<NvidiaAttestResult, PremErr> {
+    ) -> Result<NvidiaAttestResult, AttestationError> {
         let url = self.url.join("/attestation/nvidia").unwrap();
 
         let response = self
@@ -261,7 +264,7 @@ impl Client {
         &self,
         nonce: &TdxNonce,
         query: &QueryParams,
-    ) -> Result<TdxQuote, PremErr> {
+    ) -> Result<TdxQuote, AttestationError> {
         let url = self.url.join("/attestation/tdx").unwrap();
 
         let response = self
@@ -273,13 +276,14 @@ impl Client {
             .await?;
 
         let response = response.error_for_status()?.bytes().await?;
-        let quote = TdxQuote::from_bytes(&response).map_err(PremErr::Tdx)?;
+        let quote =
+            TdxQuote::from_bytes(&response).context("error while parsing tdx attestation")?;
 
         Ok(quote)
     }
 
     /// Performs end-to-end sev-snp attestation. Generates nonce and validates claims all in one
-    pub async fn attest_sev(&self, query: Option<QueryParams>) -> Result<(), PremErr> {
+    pub async fn attest_sev(&self, query: Option<QueryParams>) -> Result<(), AttestationError> {
         let nonce = SevNonce::generate();
 
         let attestation = self.request_sev(&nonce, &query.unwrap_or_default()).await?;
@@ -294,7 +298,7 @@ impl Client {
     }
 
     /// Performs end-to-end tdx attestation. Generates nonce and validates claims all in one
-    pub async fn attest_tdx(&self, query: Option<QueryParams>) -> Result<(), PremErr> {
+    pub async fn attest_tdx(&self, query: Option<QueryParams>) -> Result<(), AttestationError> {
         let nonce = TdxNonce::generate();
 
         let quote = self.request_tdx(&nonce, &query.unwrap_or_default()).await?;
@@ -302,10 +306,14 @@ impl Client {
             .pcs
             .fetch_collateral(&quote)
             .await
-            .map_err(PremErr::Tdx)?;
+            .context("failed fetching collateral from pcs server")
+            .expose_error()?;
 
         let verifier = QuoteVerifier::new(collateral, quote);
-        verifier.verify(&nonce).map_err(PremErr::Tdx)?;
+        verifier
+            .verify(&nonce)
+            .context("TDX quote verification has failed")
+            .expose_error()?;
 
         // TODO: measurement verification
 
@@ -316,7 +324,7 @@ impl Client {
     pub async fn attest_nvidia(
         &self,
         query: Option<QueryParams>,
-    ) -> Result<ResponseHeaders, PremErr> {
+    ) -> Result<ResponseHeaders, AttestationError> {
         let nonce = NvidiaNonce::generate();
         let keychain = KeyChain::fetch_keychain().await?;
 
@@ -334,17 +342,37 @@ impl Client {
     /// - Gathers modules to attest from attestation server
     /// - Iterates through each module and performs end-to-end attestation
     /// - Returns the list of attested modules
-    pub async fn attest(&self, query: Option<QueryParams>) -> Result<AttestResult, PremErr> {
+    pub async fn attest(
+        &self,
+        query: Option<QueryParams>,
+    ) -> Result<AttestResult, AttestationError> {
         // get modules
-        let modules = self.request_modules(query.clone()).await?;
+        let modules = self
+            .request_modules(query.clone())
+            .await
+            .context("failed to request modules from attestation server")
+            .expose_error()?;
 
         match modules.cpu() {
-            CpuModule::Sev => self.attest_sev(query.clone()).await?,
-            CpuModule::Tdx => self.attest_tdx(query.clone()).await?,
+            CpuModule::Sev => self
+                .attest_sev(query.clone())
+                .await
+                .context("failed to attest sev module")
+                .expose_error()?,
+            CpuModule::Tdx => self
+                .attest_tdx(query.clone())
+                .await
+                .context("failed to attest tdx module")
+                .expose_error()?,
         }
 
         let gpu_headers = match modules.gpu() {
-            Some(GpuModule::Nvidia) => Some(self.attest_nvidia(query.clone()).await?),
+            Some(GpuModule::Nvidia) => Some(
+                self.attest_nvidia(query.clone())
+                    .await
+                    .context("failed to attest nvidia module")
+                    .expose_error()?,
+            ),
             None => None,
             _ => unimplemented!(),
         };

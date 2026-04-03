@@ -1,6 +1,7 @@
 use std::ops::Deref;
 
 use der::{Decode, DecodePem};
+use libattest::error::{AttestationError, Context, Expose};
 use sev::{
     certs::snp::{Certificate, Chain, Verifiable, ca},
     firmware::guest::AttestationReport,
@@ -9,8 +10,6 @@ use x509_cert::crl::{CertificateList, RevokedCert};
 
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
-
-use super::error::AttestationError;
 
 fn parse_pem_to_cert(pem: &str) -> Result<Certificate, AttestationError> {
     let certificate = x509_cert::Certificate::from_pem(pem)?;
@@ -31,7 +30,10 @@ impl Deref for VerifiedChain {
 
 impl VerifiedChain {
     pub(crate) fn verify(chain: Chain) -> Result<VerifiedChain, AttestationError> {
-        chain.verify().map_err(|_| AttestationError::Signature)?;
+        chain
+            .verify()
+            .context("could not verify certificate chain signature")
+            .expose_error()?;
 
         Ok(Self(chain))
     }
@@ -42,7 +44,8 @@ impl VerifiedChain {
     ) -> Result<(), AttestationError> {
         (&self.0, report)
             .verify()
-            .map_err(|_| AttestationError::Signature)
+            .context("could not verify certificate chain signature")
+            .expose_error()
     }
 
     /// returns true if one of the certificates matches this serial number
@@ -119,6 +122,7 @@ impl CRL {
         revoked
             .is_none()
             .then_some(())
-            .ok_or(AttestationError::RevokedCertificate)
+            .context("certificate from certificate chain has been revoked")
+            .expose_error()
     }
 }
