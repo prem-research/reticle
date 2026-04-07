@@ -8,7 +8,8 @@ use std::{collections::HashMap, ops::Deref};
 use jsonwebtoken::{DecodingKey, Validation};
 use libattest::{
     AddRule, VerificationBuilder, bail,
-    error::{AttestationError, Context},
+    error::{AttestationError, Context, Expose},
+    verification_new::AssignedPolicy,
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -21,7 +22,6 @@ use crate::{
     keychain::KeyChain,
     nonce::NvidiaNonce,
     types::{GpuClaims, OverallClaims},
-    verifiers::{CheckValidator, NonceValidator},
 };
 
 #[derive(Debug)]
@@ -32,24 +32,9 @@ pub struct DecodedClaims {
     gpu_claims: HashMap<String, GpuClaims>,
 }
 
-#[cfg_attr(target_family = "wasm", wasm_bindgen)]
-impl DecodedClaims {
-    pub fn validate(&self, nonce: &NvidiaNonce) -> Result<(), AttestationError> {
-        // validate gpu claims
-        let gpu_validator = VerificationBuilder::new()
-            .add_rule(CheckValidator)
-            .add_rule(NonceValidator::from(nonce));
-
-        gpu_validator.verify_all(self.gpu_claims.values())?;
-
-        // validate overall claims
-        let overall_validator = VerificationBuilder::new()
-            .add_rule(CheckValidator)
-            .add_rule(NonceValidator::from(nonce));
-
-        overall_validator.verify(&self.overall_claims)?;
-
-        Ok(())
+impl AssignedPolicy for DecodedClaims {
+    fn policy(&self) -> std::borrow::Cow<'static, str> {
+        "nvidia.allow".into()
     }
 }
 
@@ -115,7 +100,7 @@ impl EATToken {
         for (gpu, digest) in &overall_claims.submods {
             let hash = gpu_hashes.get(gpu.deref()).context(
                 "overall jwt claims require a submodule that was not found in the detached claims",
-            )?;
+            ).expose_error()?;
 
             if hash.deref() != digest.digest() {
                 return AttestationError::exposed(
@@ -136,7 +121,8 @@ impl EATToken {
             let key = DecodingKey::from_jwk(key)?;
 
             let decoded =
-                jsonwebtoken::decode::<GpuClaims>(&gpu_jwt, &key, &Validation::new(header.alg))?;
+                jsonwebtoken::decode::<GpuClaims>(&gpu_jwt, &key, &Validation::new(header.alg))
+                    .context("gpu module signature error")?;
 
             gpu_claims.insert(gpu, decoded.claims);
         }

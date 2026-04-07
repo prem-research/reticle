@@ -1,6 +1,11 @@
+pub mod rego;
+
+use std::borrow::Cow;
+
 use libattest::{
     CpuModule, GpuModule, Modules,
     error::{AttestationError, Context, Expose},
+    verification_new::{SerdeClaims, Validator},
 };
 use nvidia_attest::{EATToken, keychain::KeyChain, nonce::NvidiaNonce};
 use snp_attest::{ParsedAttestation, kds::Kds, nonce::SevNonce};
@@ -15,6 +20,8 @@ pub use snp_attest;
 use tdx_attest::{TdxQuote, error::TdxError, nonce::TdxNonce, pcs::Pcs, verify::QuoteVerifier};
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
+
+use crate::rego::PoliciesClient;
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 #[derive(Clone, Debug)]
@@ -111,11 +118,15 @@ pub struct ClientBuilder {
     pcs: Pcs,
     // amd collateral server
     kds: Kds,
+    // prem OPA policies url
+    policies: Cow<'static, str>,
+
     headers: HeaderMap,
 }
 
 const PREM_PCCS: &str = "https://pccs.prem.io/";
 const PREM_KCDS: &str = "https://kcds.prem.io";
+const PREM_POLCIES: &str = "https://policies.prem.io";
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl ClientBuilder {
@@ -125,6 +136,7 @@ impl ClientBuilder {
             url: url.to_string(),
             pcs: Pcs::new(PREM_PCCS).unwrap(),
             kds: Kds::new(PREM_KCDS).unwrap(),
+            policies: PREM_POLCIES.into(),
             headers: HeaderMap::default(),
         }
     }
@@ -149,10 +161,21 @@ impl ClientBuilder {
         self
     }
 
-    pub fn build(self) -> Result<Client, AttestationError> {
+    /// sets custom url for OPA policies index
+    pub fn with_policies_url(mut self, url: &str) -> Self {
+        self.policies = url.to_string().into();
+        self
+    }
+
+    pub async fn build(self) -> Result<Client, AttestationError> {
         let reqwest_client = reqwest::Client::builder()
             .default_headers(self.headers)
             .build()?;
+
+        let validator = PoliciesClient::new(self.policies.as_ref())?
+            .fetch_validator()
+            .await
+            .context("failed fetching OPA policies from url")?;
 
         Ok(Client {
             url: self
@@ -162,6 +185,7 @@ impl ClientBuilder {
                 .expose_error()?,
             kds: self.kds,
             pcs: self.pcs,
+            policy_validator: validator,
             reqwest_client,
         })
     }
@@ -169,10 +193,13 @@ impl ClientBuilder {
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 pub struct Client {
+    /// base url
     url: Url,
+    reqwest_client: reqwest::Client,
+
     kds: Kds,
     pcs: Pcs,
-    reqwest_client: reqwest::Client,
+    policy_validator: Validator,
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
@@ -332,9 +359,14 @@ impl Client {
             .request_nvidia(&nonce, &query.unwrap_or_default())
             .await?;
 
-        attest_result.eat_token.verify(&keychain, &nonce)?;
+        let claims = attest_result.eat_token.verify(&keychain, &nonce)?;
+        dbg!(&claims);
+        let claims = SerdeClaims(claims);
 
-        // claims.validate(&nonce)?;
+        self.policy_validator
+            .verify_claim(claims)?
+            .or_err("nvidia claims did not match specified OPA policy")
+            .expose_error()?;
 
         Ok(attest_result.headers)
     }

@@ -1,6 +1,7 @@
 pub mod error;
 pub mod modules;
 pub mod verification;
+pub mod verification_new;
 
 pub use modules::*;
 pub use verification::*;

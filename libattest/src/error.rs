@@ -87,7 +87,7 @@ impl AttestationError {
         self
     }
 
-    fn from_anyhow(error: anyhow::Error) -> Self {
+    pub(crate) fn from_anyhow(error: anyhow::Error) -> Self {
         AttestationError {
             error,
             kind: ErrorKind::Internal,
