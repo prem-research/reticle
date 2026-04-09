@@ -4,7 +4,11 @@
 
 
 
-Hardware attestation stack for confidential computing environments. Verifies the integrity of CPUs (AMD SEV-SNP, Intel TDX) and GPUs (NVIDIA) through cryptographic attestation, exposed via a REST API and a browser-compatible WASM SDK.
+Hardware attestation stack for confidential computing environments.
+
+Verifies the integrity of CPUs (AMD SEV-SNP, Intel TDX) and GPUs (NVIDIA) through cryptographic attestation.
+
+Includes an attestation server serving REST APIs and a portable SDK with support for Node.js, Bun, Deno, and browser runtimes.
 
 ## Architecture
 
