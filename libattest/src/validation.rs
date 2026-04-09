@@ -1,17 +1,20 @@
 use std::borrow::Cow;
 
-use regorus::Engine;
+use regorus::{Engine, Value};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{AttestationError, Context};
 
 pub trait Claim: AssignedPolicy {
+    /// Converts this set of claims into a rego engine compatible format
     fn rego(&self) -> Result<regorus::Value, AttestationError>;
 }
 
 pub trait AssignedPolicy {
     /// specifies which package and rule dictates whether
     /// this set of claims is valid or not
+    ///
+    /// NOTE: must return a bool value or else an error will be thrown
     ///
     /// Example return value: `nvidia.allow`
     /// Which internally will try to query: `data.nvidia.allow`
@@ -29,7 +32,6 @@ where
     fn rego(&self) -> Result<regorus::Value, AttestationError> {
         let value = serde_value::to_value(&self.0)?;
         let rego = regorus::Value::deserialize(value)?;
-        dbg!(&rego);
         Ok(rego)
     }
 }
@@ -40,19 +42,13 @@ impl<S: Serialize + AssignedPolicy> AssignedPolicy for SerdeClaims<S> {
     }
 }
 
+#[derive(Default)]
 pub struct ValidationBuilder {
     policy: Vec<String>,
     data: Vec<regorus::Value>,
 }
 
 impl ValidationBuilder {
-    pub fn new() -> ValidationBuilder {
-        ValidationBuilder {
-            policy: vec![],
-            data: vec![],
-        }
-    }
-
     /// adds json data to the rego engine
     pub fn add_data_json(mut self, data: &str) -> Result<Self, AttestationError> {
         let reg_data = regorus::Value::from_json_str(data)
@@ -63,6 +59,7 @@ impl ValidationBuilder {
         Ok(self)
     }
 
+    /// adds multiple json objects to data at a single time
     pub fn add_datas_json(
         self,
         data: impl IntoIterator<Item = impl AsRef<str>>,
@@ -110,17 +107,36 @@ pub struct Validator {
 }
 
 impl Validator {
-    pub fn verify_claim(&self, claims: impl Claim) -> Result<ValidationResult, AttestationError> {
-        let claims_value = claims
-            .rego()
-            .context("failed converting claims into rego compatible format")?;
+    pub fn builder() -> ValidationBuilder {
+        ValidationBuilder::default()
+    }
 
+    /// gets the rego query and input from `impl Claim` and then
+    /// drives the engine to verify the query
+    pub fn verify_claim(&self, claims: impl Claim) -> Result<ValidationResult, AttestationError> {
         // avois polluting the engine for further verifications
         // and allows us to have this method &self
         let mut engine = self.engine.clone();
 
+        // convert claims to rego compatible format
+        let claims_value = claims
+            .rego()
+            .context("failed converting claims into rego compatible format")?;
+
+        // here we set what input. will be in rego
         engine.set_input(claims_value);
-        let result = engine.eval_allow_query(claims.policy().into_owned(), false);
+
+        let query = format!("data.{}", claims.policy());
+        let result = engine
+            .eval_rule(query)
+            .map_err(AttestationError::from_anyhow)
+            .context("error running rego query")?;
+
+        // we are expecting a bool value from our query
+        let result = match result {
+            Value::Bool(result) => result,
+            _ => return AttestationError::internal("rego policy returned a non boolean result"),
+        };
 
         Ok(ValidationResult(result))
     }

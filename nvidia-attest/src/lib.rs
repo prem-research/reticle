@@ -1,15 +1,14 @@
 pub mod keychain;
 pub mod nonce;
 pub mod types;
-pub mod verifiers;
 
 use std::{collections::HashMap, ops::Deref};
 
 use jsonwebtoken::{DecodingKey, Validation};
 use libattest::{
-    AddRule, VerificationBuilder, bail,
+    bail,
     error::{AttestationError, Context, Expose},
-    verification_new::AssignedPolicy,
+    validation::AssignedPolicy,
 };
 use serde::Serialize;
 use serde_json::Value;

@@ -5,7 +5,7 @@ use std::borrow::Cow;
 use libattest::{
     CpuModule, GpuModule, Modules,
     error::{AttestationError, Context, Expose},
-    verification_new::{SerdeClaims, Validator},
+    validation::{SerdeClaims, Validator},
 };
 use nvidia_attest::{EATToken, keychain::KeyChain, nonce::NvidiaNonce};
 use snp_attest::{ParsedAttestation, kds::Kds, nonce::SevNonce};
@@ -360,7 +360,6 @@ impl Client {
             .await?;
 
         let claims = attest_result.eat_token.verify(&keychain, &nonce)?;
-        dbg!(&claims);
         let claims = SerdeClaims(claims);
 
         self.policy_validator
@@ -400,14 +399,13 @@ impl Client {
         }
 
         let gpu_headers = match modules.gpu() {
+            None => None,
             Some(GpuModule::Nvidia) => Some(
                 self.attest_nvidia(query.clone())
                     .await
                     .context("failed to attest nvidia module")
                     .expose_error()?,
             ),
-            None => None,
-            _ => unimplemented!(),
         };
 
         Ok(AttestResult {

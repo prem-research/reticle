@@ -1,10 +1,8 @@
 pub mod error;
 pub mod modules;
-pub mod verification;
-pub mod verification_new;
+pub mod validation;
 
 pub use modules::*;
-pub use verification::*;
 
 pub type Result<T> = std::result::Result<T, error::AttestationError>;
 

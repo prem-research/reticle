@@ -1,7 +1,7 @@
 use libattest::{
-    VerificationBuilder, bail,
+    bail,
     error::{AttestationError, Context},
-    verification_new::{ValidationBuilder, Validator},
+    validation::Validator,
 };
 use reqwest::{IntoUrl, Url};
 use serde::Deserialize;
@@ -73,7 +73,7 @@ impl PoliciesClient {
         let policies = self.fetch_multiple(index.policies).await?;
         let data = self.fetch_multiple(index.data).await?;
 
-        let validator = ValidationBuilder::new()
+        let validator = Validator::builder()
             .add_policies(policies)
             .add_datas_json(data)?
             .build()

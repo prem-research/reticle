@@ -60,7 +60,10 @@ impl From<AttestationError> for JsValue {
 
 impl Display for AttestationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.error.fmt(f)
+        match self.kind {
+            ErrorKind::Internal => self.error.fmt(f),
+            ErrorKind::Exposed(ref exp) => f.write_str(&format_exposed(exp.iter().cloned())),
+        }
     }
 }
 
