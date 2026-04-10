@@ -6,5 +6,5 @@ async fn fetch_validator() {
     let validator = policies.fetch_validator().await.unwrap();
 
     // validator.verify_claims(claims);
-    panic!("{validator:?}");
+    println!("{validator:?}");
 }

@@ -126,7 +126,7 @@ pub struct ClientBuilder {
 
 const PREM_PCCS: &str = "https://pccs.prem.io/";
 const PREM_KCDS: &str = "https://kcds.prem.io";
-const PREM_POLCIES: &str = "https://policies.prem.io";
+const PREM_POLICIES: &str = "https://policies.prem.io";
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl ClientBuilder {
@@ -136,7 +136,7 @@ impl ClientBuilder {
             url: url.to_string(),
             pcs: Pcs::new(PREM_PCCS).unwrap(),
             kds: Kds::new(PREM_KCDS).unwrap(),
-            policies: PREM_POLCIES.into(),
+            policies: PREM_POLICIES.into(),
             headers: HeaderMap::default(),
         }
     }

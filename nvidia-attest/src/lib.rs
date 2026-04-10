@@ -8,7 +8,7 @@ use jsonwebtoken::{DecodingKey, Validation};
 use libattest::{
     bail,
     error::{AttestationError, Context, Expose},
-    validation::AssignedPolicy,
+    // validation::AssignedPolicy,
 };
 use serde::Serialize;
 use serde_json::Value;
