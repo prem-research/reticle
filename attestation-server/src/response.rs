@@ -3,8 +3,8 @@ use serde::Serialize;
 
 #[derive(Serialize)]
 pub struct ErrorInner {
-    error: bool,
-    message: String,
+    failed: bool,
+    error: String,
 }
 
 #[derive(Responder)]
@@ -14,8 +14,8 @@ pub struct ApiError(Json<ErrorInner>);
 impl From<anyhow::Error> for ApiError {
     fn from(value: anyhow::Error) -> Self {
         let inner = ErrorInner {
-            error: true,
-            message: value.to_string(),
+            failed: true,
+            error: value.to_string(),
         };
 
         ApiError(inner.into())

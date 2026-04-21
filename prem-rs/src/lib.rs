@@ -1,6 +1,7 @@
+// pub mod client;
 pub mod rego;
 
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::HashMap, convert::Infallible};
 
 use libattest::{
     CpuModule, GpuModule, Modules,
@@ -8,16 +9,18 @@ use libattest::{
     validation::{Validator, WithPolicy},
 };
 use nvidia_attest::{EATToken, keychain::KeyChain, nonce::NvidiaNonce};
+use serde::{Deserialize, Serialize};
 use snp_attest::{ParsedAttestation, kds::Kds, nonce::SevNonce};
 
 pub use nvidia_attest;
 use reqwest::{
-    Url,
+    IntoUrl, Response, Url,
     header::{HeaderMap, HeaderValue},
 };
 pub use snp_attest;
 
-use tdx_attest::{TdxQuote, error::TdxError, nonce::TdxNonce, pcs::Pcs, verify::QuoteVerifier};
+use tdx_attest::{TdxQuote, nonce::TdxNonce, pcs::Pcs, verify::QuoteVerifier};
+
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
@@ -84,23 +87,23 @@ pub struct NvidiaAttestResult {
 ///
 /// The `nonce` key is reserved and will be rejected.
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
-#[derive(Clone)]
-pub struct QueryParams(Vec<(String, String)>);
+#[derive(Clone, Serialize)]
+#[serde(transparent)]
+pub struct QueryParams(HashMap<String, String>);
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl QueryParams {
     #[cfg_attr(target_family = "wasm", wasm_bindgen(constructor))]
     pub fn new() -> Self {
-        Self(vec![])
+        Self(Default::default())
     }
 
-    /// Appends a query parameter. Returns `Err` if `key` is `"nonce"` (reserved).
-    pub fn with(mut self, key: &str, value: &str) -> Result<Self, AttestationError> {
-        if key == "nonce" {
-            return TdxError::exposed("cannot use nonce as a query parameter as it's reserved");
-        }
-        self.0.push((key.to_string(), value.to_string()));
-        Ok(self)
+    /// Appends a query parameter.
+    ///
+    /// Reserved keywords for specific queries will get overwritten
+    pub fn with(mut self, key: &str, value: &str) -> Self {
+        self.0.insert(key.to_string(), value.to_string());
+        self
     }
 }
 
@@ -202,20 +205,50 @@ pub struct Client {
     policy_validator: Validator,
 }
 
+#[derive(Deserialize)]
+struct GatewayError {
+    error: String,
+}
+
+async fn response_to_error(response: Response) -> Result<Infallible, AttestationError> {
+    let error: GatewayError = response.json().await?;
+
+    return AttestationError::internal("an error was returned by the attestation server")
+        .context(error.error)
+        .expose_error();
+}
+
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl Client {
+    async fn request(
+        &self,
+        url: impl IntoUrl,
+        query: &impl Serialize,
+    ) -> Result<Response, AttestationError> {
+        let response = self
+            .reqwest_client
+            .get(url)
+            .query(query)
+            // .timeout(Duration::from_secs(5))
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            response_to_error(response).await?;
+            unreachable!()
+        }
+
+        Ok(response)
+    }
+
     /// Gather available attestable modules from remote attestation endpoint
     pub async fn request_modules(
         &self,
         query: Option<QueryParams>,
     ) -> Result<libattest::Modules, AttestationError> {
         let url = self.url.join("/attestation/modules").unwrap();
-
         let response = self
-            .reqwest_client
-            .get(url)
-            .query(&query.unwrap_or_default().0)
-            .send()
+            .request(url, &query.unwrap_or_default().0)
             .await?
             .json()
             .await?;
@@ -234,18 +267,11 @@ impl Client {
         nonce: &SevNonce,
         query: &QueryParams,
     ) -> Result<ParsedAttestation, AttestationError> {
-        let url = self.url.join("/attestation/sev").unwrap();
+        let url = self.url.join("/attestationasev").unwrap();
 
-        let response = self
-            .reqwest_client
-            .get(url)
-            .query(&query.0)
-            .query(&[("nonce", nonce.to_hex())])
-            .send()
-            .await?;
-
-        let attestation = response.error_for_status()?.bytes().await?;
-        let attestation = ParsedAttestation::new(&attestation)?;
+        let query = query.clone().with("nonce", &nonce.to_hex());
+        let response = self.request(url, &query).await?.bytes().await?;
+        let attestation = ParsedAttestation::new(&response)?;
 
         Ok(attestation)
     }
@@ -263,16 +289,11 @@ impl Client {
     ) -> Result<NvidiaAttestResult, AttestationError> {
         let url = self.url.join("/attestation/nvidia").unwrap();
 
-        let response = self
-            .reqwest_client
-            .get(url)
-            .query(&query.0)
-            .query(&[("nonce", nonce.to_hex())])
-            .send()
-            .await?;
+        let query = query.clone().with("nonce", &nonce.to_hex());
+        let response = self.request(url, &query).await?;
 
         let headers = response.headers().clone();
-        let response_text = response.error_for_status()?.text().await?;
+        let response_text = response.text().await?;
         let eat_token = EATToken::parse(&response_text)?;
 
         Ok(NvidiaAttestResult {
@@ -293,16 +314,9 @@ impl Client {
         query: &QueryParams,
     ) -> Result<TdxQuote, AttestationError> {
         let url = self.url.join("/attestation/tdx").unwrap();
+        let query = query.clone().with("nonce", &nonce.to_hex());
 
-        let response = self
-            .reqwest_client
-            .get(url)
-            .query(&query.0)
-            .query(&[("nonce", nonce.to_hex())])
-            .send()
-            .await?;
-
-        let response = response.error_for_status()?.bytes().await?;
+        let response = self.request(url, &query).await?.bytes().await?;
         let quote =
             TdxQuote::from_bytes(&response).context("error while parsing tdx attestation")?;
 

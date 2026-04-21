@@ -17,6 +17,7 @@ wasm-bindgen = "0.2.106"
 wasm-bindgen-futures = "0.4.56"
 libattest = { path = "../libattest" }
 serde = { version = "1.0.228", features = ["derive"] }
+hex = "0.4.3"
 
 [dev-dependencies]
 tokio = {version = "*", features = ["full"]}

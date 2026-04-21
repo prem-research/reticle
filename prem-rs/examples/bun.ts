@@ -1,11 +1,12 @@
 // import a from "../"
 
-import a from "../pkg"
+import a, { QueryParams } from "../pkg";
 
-let client = new a.ClientBuilder("htswtp://localddfewdfeahost:8000").build();
+let client = await new a.ClientBuilder("https://gateway.prem.io/").build();
 
 try {
-    client.attest()
+    let query_params = new QueryParams().with("model", "modelmodel");
+    client.attest(query_params);
 } catch (e) {
-    console.log(a);
+    console.log(e);
 }
