@@ -29,25 +29,26 @@ pub struct AttestationError {
 }
 
 fn format_exposed(errors: impl IntoIterator<Item = String>) -> String {
-    errors
-        .into_iter()
-        .enumerate()
-        .map(|(n, err)| if n == 0 { err } else { format!(" → {err}") })
-        .collect()
+    // errors
+    //     .into_iter()
+    //     .enumerate()
+    //     .map(|(n, err)| if n == 0 { err } else { format!(" → {err}") })
+    //     .collect()
+    errors.into_iter().next().unwrap_or_default()
 }
 
 #[cfg(target_family = "wasm")]
 impl From<AttestationError> for JsValue {
     fn from(value: AttestationError) -> Self {
-        let cause: String = value
+        let cause: Vec<String> = value
             .error
             .chain()
             .enumerate()
-            .map(|(n, cause)| format!("[{n}]: {cause}, "))
+            .map(|(n, cause)| format!("{cause}"))
             .collect();
 
         let error_message = match value.kind {
-            ErrorKind::Internal => "Unhandled error",
+            ErrorKind::Internal => "An internal error occurred",
             ErrorKind::Exposed(exposed) => &format_exposed(exposed),
         };
 
