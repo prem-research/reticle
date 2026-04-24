@@ -3,8 +3,9 @@ pub mod rego;
 
 use std::{borrow::Cow, collections::HashMap, convert::Infallible};
 
+use futures::future::{Either, OptionFuture};
 use libattest::{
-    CpuModule, GpuModule, Modules,
+    CpuModule, GpuModule, Modules, bail,
     error::{AttestationError, Context, Expose},
     validation::{Validator, WithPolicy},
 };
@@ -213,9 +214,9 @@ struct GatewayError {
 async fn response_to_error(response: Response) -> Result<Infallible, AttestationError> {
     let error: GatewayError = response.json().await?;
 
-    return AttestationError::internal("an error was returned by the attestation server")
+    AttestationError::internal("an error was returned by the attestation server")
         .context(error.error)
-        .expose_error();
+        .expose_error()
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
@@ -225,13 +226,7 @@ impl Client {
         url: impl IntoUrl,
         query: &impl Serialize,
     ) -> Result<Response, AttestationError> {
-        let response = self
-            .reqwest_client
-            .get(url)
-            .query(query)
-            // .timeout(Duration::from_secs(5))
-            .send()
-            .await?;
+        let response = self.reqwest_client.get(url).query(query).send().await?;
 
         if !response.status().is_success() {
             response_to_error(response).await?;
@@ -406,28 +401,25 @@ impl Client {
             .context("failed to request modules from attestation server")
             .expose_error()?;
 
-        match modules.cpu() {
-            CpuModule::Sev => self
-                .attest_sev(query.clone())
-                .await
-                .context("failed to attest sev module")
-                .expose_error()?,
-            CpuModule::Tdx => self
-                .attest_tdx(query.clone())
-                .await
-                .context("failed to attest tdx module")
-                .expose_error()?,
-        }
-
-        let gpu_headers = match modules.gpu() {
-            None => None,
-            Some(GpuModule::Nvidia) => Some(
-                self.attest_nvidia(query.clone())
-                    .await
-                    .context("failed to attest nvidia module")
-                    .expose_error()?,
-            ),
+        let cpu_attest = match modules.cpu() {
+            CpuModule::Sev => Either::Left(self.attest_sev(query.clone())),
+            CpuModule::Tdx => Either::Right(self.attest_tdx(query.clone())),
+            _ => bail!("we do not yet support the advertised cpu platform"),
         };
+
+        let gpu_attest = match modules.gpu() {
+            None => None,
+            Some(GpuModule::Nvidia) => Some(self.attest_nvidia(query.clone())),
+            _ => bail!("we do not yet support the advertised gpu platform"),
+        };
+        let gpu_attest = OptionFuture::from(gpu_attest);
+
+        // join futures for concurrent requests and attestation execution
+        let (cpu, gpu) = futures::join!(cpu_attest, gpu_attest);
+
+        // error handling
+        let gpu_headers = gpu.transpose()?;
+        cpu?;
 
         Ok(AttestResult {
             modules,

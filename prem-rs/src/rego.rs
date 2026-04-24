@@ -1,3 +1,4 @@
+use futures::{TryStreamExt, stream::FuturesUnordered};
 use libattest::{
     bail,
     error::{AttestationError, Context},
@@ -41,31 +42,37 @@ impl PoliciesClient {
         S: AsRef<str>,
         I: IntoIterator<Item = S>,
     {
-        let mut fetched = vec![];
+        let fetch_tasks = FuturesUnordered::new();
+
         for path in paths {
-            let path = path.as_ref();
             let url = self
                 .base_url
-                .join(path)
+                .join(path.as_ref())
                 .context("failed parsing url from index")?;
 
             if url.authority() != self.base_url.authority() {
                 bail!("changed authority when joining url!")
             }
 
-            let result = self
-                .client
-                .get(url)
-                .send()
-                .await?
-                .error_for_status()?
-                .text()
-                .await?;
+            let rego_fetch = async move {
+                self.client
+                    .get(url)
+                    .send()
+                    .await?
+                    .error_for_status()?
+                    .text()
+                    .await
+            };
 
-            fetched.push(result);
+            // push all fetch tasks into a joinset
+            fetch_tasks.push(rego_fetch);
         }
 
-        Ok(fetched)
+        // poll that joinset
+        fetch_tasks
+            .try_collect::<Vec<_>>()
+            .await
+            .context("failed fetching one or more rego policies")
     }
 
     pub async fn fetch_validator(&self) -> Result<Validator, AttestationError> {
