@@ -5,6 +5,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Hash, Clone, Copy)]
+#[non_exhaustive]
 pub enum CpuModule {
     Sev,
     Tdx,
@@ -12,6 +13,7 @@ pub enum CpuModule {
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Hash, Clone, Copy)]
+#[non_exhaustive]
 pub enum GpuModule {
     Nvidia,
 }
