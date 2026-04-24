@@ -9,7 +9,7 @@ mod tdx_api;
 
 use std::ops::Deref;
 
-use anyhow::Context;
+use anyhow::{Context, bail};
 use libattest::{CpuModule, GpuModule, modules::Modules};
 use log::LevelFilter;
 use rocket::{State, routes};
@@ -52,6 +52,7 @@ async fn main() -> Result<(), anyhow::Error> {
             routes.extend(routes![tdx_api::tdx_attestation]);
             rocket
         }
+        _ => bail!("cpu module not yet supported by attestation-server"),
     };
 
     if let Some(GpuModule::Nvidia) = modules.gpu() {
@@ -68,6 +69,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // close sdk on shutdown
     match modules.gpu() {
         Some(GpuModule::Nvidia) => nvat::SdkHandle::get_handle()?.shutdown(),
+        Some(_) => todo!(),
         None => (),
     }
 
