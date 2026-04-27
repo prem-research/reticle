@@ -1,7 +1,8 @@
 // pub mod client;
+pub mod gateway;
 pub mod rego;
 
-use std::{borrow::Cow, collections::HashMap, convert::Infallible};
+use std::{borrow::Cow, collections::HashMap};
 
 use futures::future::{Either, OptionFuture};
 use libattest::{
@@ -10,12 +11,12 @@ use libattest::{
     validation::{Validator, WithPolicy},
 };
 use nvidia_attest::{EATToken, keychain::KeyChain, nonce::NvidiaNonce};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use snp_attest::{ParsedAttestation, kds::Kds, nonce::SevNonce};
 
 pub use nvidia_attest;
 use reqwest::{
-    IntoUrl, Response, Url,
+    Url,
     header::{HeaderMap, HeaderValue},
 };
 pub use snp_attest;
@@ -206,36 +207,8 @@ pub struct Client {
     policy_validator: Validator,
 }
 
-#[derive(Deserialize)]
-struct GatewayError {
-    error: String,
-}
-
-async fn response_to_error(response: Response) -> Result<Infallible, AttestationError> {
-    let error: GatewayError = response.json().await?;
-
-    AttestationError::internal("an error was returned by the attestation server")
-        .context(error.error)
-        .expose_error()
-}
-
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl Client {
-    async fn request(
-        &self,
-        url: impl IntoUrl,
-        query: &impl Serialize,
-    ) -> Result<Response, AttestationError> {
-        let response = self.reqwest_client.get(url).query(query).send().await?;
-
-        if !response.status().is_success() {
-            response_to_error(response).await?;
-            unreachable!()
-        }
-
-        Ok(response)
-    }
-
     /// Gather available attestable modules from remote attestation endpoint
     pub async fn request_modules(
         &self,

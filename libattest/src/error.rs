@@ -1,3 +1,6 @@
+#[cfg(target_family = "wasm")]
+pub mod root;
+
 use std::{convert::Infallible, fmt::Display};
 
 #[cfg(target_family = "wasm")]
@@ -15,25 +18,22 @@ macro_rules! bail {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub enum ErrorKind {
+pub enum Exposure {
     #[default]
     Internal,
     Exposed(Vec<String>),
 }
 
-// #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 #[derive(Debug)]
 pub struct AttestationError {
-    kind: ErrorKind,
+    exposure: Exposure,
     error: anyhow::Error,
+
+    #[cfg(target_family = "wasm")]
+    root: Option<JsValue>,
 }
 
 fn format_exposed(errors: impl IntoIterator<Item = String>) -> String {
-    // errors
-    //     .into_iter()
-    //     .enumerate()
-    //     .map(|(n, err)| if n == 0 { err } else { format!(" → {err}") })
-    //     .collect()
     errors.into_iter().next().unwrap_or_default()
 }
 
@@ -43,36 +43,79 @@ impl From<AttestationError> for JsValue {
         let cause: Vec<String> = value
             .error
             .chain()
-            .enumerate()
-            .map(|(n, cause)| format!("{cause}"))
+            .map(|cause| format!("{cause}"))
             .collect();
 
-        let error_message = match value.kind {
-            ErrorKind::Internal => "An internal error occurred",
-            ErrorKind::Exposed(exposed) => &format_exposed(exposed),
+        let error_message = match value.exposure {
+            Exposure::Internal => "An internal error occurred",
+            Exposure::Exposed(exposed) => &format_exposed(exposed),
         };
 
         let error = js_sys::Error::new(error_message);
         error.set_name("AttestationError");
         error.set_cause(&cause.into());
+
+        // expose root to .kind property
+        // if the root error is js representable
+        if let Some(root) = value.root {
+            js_sys::Reflect::set(&error, &"kind".into(), &root).unwrap();
+        }
+
         error.into()
     }
 }
 
 impl Display for AttestationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.kind {
-            ErrorKind::Internal => self.error.fmt(f),
-            ErrorKind::Exposed(ref exp) => f.write_str(&format_exposed(exp.iter().cloned())),
+        match self.exposure {
+            Exposure::Internal => self.error.fmt(f),
+            Exposure::Exposed(ref exp) => f.write_str(&format_exposed(exp.iter().cloned())),
         }
     }
 }
 
 impl AttestationError {
+    pub fn new<E>(error: E) -> Self
+    where
+        E: Send + Display + std::fmt::Debug + Sync + 'static,
+    {
+        let error = anyhow::format_err!(error);
+
+        Self {
+            exposure: Exposure::Internal,
+            error,
+            #[cfg(target_family = "wasm")]
+            root: None,
+        }
+    }
+
+    #[cfg(target_family = "wasm")]
+    pub fn with_root<E>(error: E) -> Self
+    where
+        E: Send + Display + std::fmt::Debug + Send + Sync + 'static,
+        E: Into<JsValue> + Clone,
+    {
+        let value: JsValue = error.clone().into();
+        AttestationError {
+            root: Some(value),
+            ..AttestationError::new(error)
+        }
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    pub fn with_root<E>(error: E) -> Self
+    where
+        E: Send + Display + std::fmt::Debug + Sync + 'static,
+    {
+        Self::new(error)
+    }
+
     pub fn internal<T>(message: &'static str) -> Result<T, Self> {
         Err(Self {
-            kind: ErrorKind::Internal,
+            exposure: Exposure::Internal,
             error: anyhow::Error::msg(message),
+            #[cfg(target_family = "wasm")]
+            root: None,
         })
     }
 
@@ -84,9 +127,9 @@ impl AttestationError {
 
     pub fn expose(mut self) -> Self {
         let last_message = self.error.to_string();
-        match self.kind {
-            ErrorKind::Internal => self.kind = ErrorKind::Exposed(vec![last_message]),
-            ErrorKind::Exposed(ref mut exposed) => exposed.push(last_message),
+        match self.exposure {
+            Exposure::Internal => self.exposure = Exposure::Exposed(vec![last_message]),
+            Exposure::Exposed(ref mut exposed) => exposed.push(last_message),
         }
         self
     }
@@ -94,7 +137,9 @@ impl AttestationError {
     pub(crate) fn from_anyhow(error: anyhow::Error) -> Self {
         AttestationError {
             error,
-            kind: ErrorKind::Internal,
+            exposure: Exposure::Internal,
+            #[cfg(target_family = "wasm")]
+            root: None,
         }
     }
 }
@@ -122,9 +167,9 @@ impl<A> Context<A, AttestationError> for Result<A, AttestationError> {
     where
         C: Display + Send + Sync + 'static,
     {
-        self.map_err(|AttestationError { kind, error }| AttestationError {
-            kind,
-            error: error.context(context),
+        self.map_err(|x| AttestationError {
+            error: x.error.context(context),
+            ..x
         })
     }
 
@@ -133,9 +178,9 @@ impl<A> Context<A, AttestationError> for Result<A, AttestationError> {
         C: Display + Send + Sync + 'static,
         F: FnOnce() -> C,
     {
-        self.map_err(|AttestationError { kind, error }| AttestationError {
-            kind,
-            error: error.context(f()),
+        self.map_err(|c| AttestationError {
+            error: c.error.context(f()),
+            ..c
         })
     }
 }
@@ -177,8 +222,11 @@ impl<A> Context<A, Infallible> for Option<A> {
 impl<T: std::error::Error + Send + Sync + 'static> From<T> for AttestationError {
     fn from(value: T) -> Self {
         Self {
-            kind: ErrorKind::Internal,
+            exposure: Exposure::Internal,
             error: value.into(),
+
+            #[cfg(target_family = "wasm")]
+            root: None,
         }
     }
 }

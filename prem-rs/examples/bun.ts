@@ -1,12 +1,16 @@
 // import a from "../"
 
-import a, { QueryParams } from "../pkg";
+import { ClientBuilder, QueryParams, GatewayError } from "../pkg/prem_rs.js";
 
-let client = await new a.ClientBuilder("https://gateway.prem.io/").build();
 
 try {
+    let client = await new ClientBuilder("https://gateway.prem.io/").build();
     let query_params = new QueryParams().with("model", "modelmodel");
-    client.attest(query_params);
+
+    await client.attest(query_params);
 } catch (e) {
-    console.log(e);
+    if (e.kind instanceof GatewayError)
+        console.log("Gateway error:", e.kind.message);
+    else
+        console.log(e);
 }
