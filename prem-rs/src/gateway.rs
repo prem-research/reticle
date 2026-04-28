@@ -6,9 +6,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::Client;
 
+<<<<<<< Updated upstream
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
+=======
+>>>>>>> Stashed changes
 #[derive(Deserialize, Debug, Clone)]
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 struct GatewayError {
