@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["libattest","nvidia-attest", "prem-rs", "snp-attest", "tdx-attest", "attestation-server"]
+members = ["libattest", "nvidia-attest", "reticle", "snp-attest", "tdx-attest", "attestation-server"]
 
 [patch.crates-io]
 sev = { git = "https://github.com/BRA1L0R/sev", branch = "prem" }

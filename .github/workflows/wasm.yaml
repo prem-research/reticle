@@ -7,7 +7,6 @@ env:
     "PKG_CONFIG_SYSROOT_DIR": "/x86_64-sysroot"
     "SYSROOT": "/x86_64-sysroot"
 
-
 jobs:
     build-image:
         if: ${{ !endsWith(github.event.head_commit.message, '[skip-ci]') }}
@@ -39,12 +38,12 @@ jobs:
                   push: true
                   pull: true
                   cache-from: |
-                    type=registry,ref=${{ env.IMAGE_NAME }}:cache-build
+                      type=registry,ref=${{ env.IMAGE_NAME }}:cache-build
                   cache-to: |
-                    type=registry,ref=${{ env.IMAGE_NAME }}:cache-build,compression=zstd
+                      type=registry,ref=${{ env.IMAGE_NAME }}:cache-build,compression=zstd
                   tags: |
-                    ${{ env.IMAGE_NAME }}:latest-build
-                    ${{ env.IMAGE_NAME }}:${{ github.sha }}-build
+                      ${{ env.IMAGE_NAME }}:latest-build
+                      ${{ env.IMAGE_NAME }}:${{ github.sha }}-build
 
     libnvat:
         name: build libnvat
@@ -56,31 +55,32 @@ jobs:
                 username: ${{ secrets.REPOSITORY_USER }}
                 password: ${{ secrets.REPOSITORY_PASSWORD }}
         steps:
-        - uses: actions/checkout@v5
-        - uses: actions/cache@v5
-          id: cache
-          with:
-            path: |
-              ${{ env.SYSROOT }}
-            key: ${{ runner.os }}-${{ hashFiles('./attestation-sdk/.git/HEAD', './.devcontainer/Dockerfile') }}
-        - name: build libnvat
-          if: steps.cache.outputs.cache-hit != 'true'
-          env:
-            "CMAKE_FIND_ROOT_PATH_MODE_INCLUDE": "BOTH"
-          run: make nvidia-cpp-sdk
-        - uses: actions/upload-artifact@v4
-          with:
-            name: x86_64-sysroot
-            path: ${{ env.SYSROOT }}
-        - name: list sysroot
-          run: apt update && apt install -y tree && tree ${{ env.SYSROOT }}
+            - uses: actions/checkout@v5
+            - uses: actions/cache@v5
+              id: cache
+              with:
+                  path: |
+                      ${{ env.SYSROOT }}
+                  key: ${{ runner.os }}-${{ hashFiles('./attestation-sdk/.git/HEAD',
+                      './.devcontainer/Dockerfile') }}
+            - name: build libnvat
+              if: steps.cache.outputs.cache-hit != 'true'
+              env:
+                  "CMAKE_FIND_ROOT_PATH_MODE_INCLUDE": "BOTH"
+              run: make nvidia-cpp-sdk
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: x86_64-sysroot
+                  path: ${{ env.SYSROOT }}
+            - name: list sysroot
+              run: apt update && apt install -y tree && tree ${{ env.SYSROOT }}
 
     clippy:
         name: Run cargo check/clippy on all targets
         needs: [build-image, libnvat]
         strategy:
             matrix:
-                package: ["nvidia-attest", "prem-rs"]
+                package: ["nvidia-attest", "reticle"]
                 target: ["wasm32-unknown-unknown", "x86_64-unknown-linux-gnu"]
         runs-on: *x-runs-on
         container: *x-container
@@ -91,24 +91,24 @@ jobs:
             - uses: actions/checkout@v5
             - uses: actions/download-artifact@v4
               with:
-                name: x86_64-sysroot
-                path: ${{ env.SYSROOT }}
+                  name: x86_64-sysroot
+                  path: ${{ env.SYSROOT }}
             - uses: actions/create-github-app-token@v2
               id: app-token
               with:
-                app-id: ${{ secrets.APP_ID }}
-                private-key: ${{ secrets.APP_SECRET }}
-                repositories: nvat-rs
+                  app-id: ${{ secrets.APP_ID }}
+                  private-key: ${{ secrets.APP_SECRET }}
+                  repositories: nvat-rs
             - name: access token git setup
               run: |
-                git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "ssh://git@github.com/"
+                  git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "ssh://git@github.com/"
             - name: Run Clippy
               run: |
-                rustup target add ${{ matrix.target }}
-                env -u SYSROOT -u PKG_CONFIG_SYSROOT_DIR \
-                RUSTFLAGS="-L${{ env.SYSROOT }}/lib" cargo clippy \
-                    --package=${{ matrix.package }} \
-                    --target=${{ matrix.target }}
+                  rustup target add ${{ matrix.target }}
+                  env -u SYSROOT -u PKG_CONFIG_SYSROOT_DIR \
+                  RUSTFLAGS="-L${{ env.SYSROOT }}/lib" cargo clippy \
+                      --package=${{ matrix.package }} \
+                      --target=${{ matrix.target }}
 
     test:
         needs: [build-image, libnvat, clippy]
@@ -122,24 +122,24 @@ jobs:
             - uses: actions/checkout@v5
             - uses: actions/download-artifact@v4
               with:
-                name: x86_64-sysroot
-                path: ${{ env.SYSROOT }}
+                  name: x86_64-sysroot
+                  path: ${{ env.SYSROOT }}
             - uses: actions/create-github-app-token@v2
               id: app-token
               with:
-                app-id: ${{ secrets.APP_ID }}
-                private-key: ${{ secrets.APP_SECRET }}
-                repositories: nvat-rs
+                  app-id: ${{ secrets.APP_ID }}
+                  private-key: ${{ secrets.APP_SECRET }}
+                  repositories: nvat-rs
             - name: access token git setup
               run: |
-                git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "ssh://git@github.com/"
+                  git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "ssh://git@github.com/"
             - name: Set shared libraries load path
               run: echo "LD_LIBRARY_PATH=${{ env.SYSROOT }}/lib" >> "$GITHUB_ENV"
             - name: Run cargo test
               run: env -u SYSROOT RUSTFLAGS="-L${{ env.SYSROOT }}/lib" cargo test
 
     wasm:
-        name: Run wasm-pack on prem-rs
+        name: Run wasm-pack on reticle
         needs: [build-image, libnvat, test]
         runs-on: *x-runs-on
         container: *x-container
@@ -151,17 +151,17 @@ jobs:
             - uses: actions/checkout@v5
             - uses: actions/download-artifact@v4
               with:
-                name: x86_64-sysroot
-                path: ${{ env.SYSROOT }}
+                  name: x86_64-sysroot
+                  path: ${{ env.SYSROOT }}
             - uses: actions/create-github-app-token@v2
               id: app-token
               with:
-                app-id: ${{ secrets.APP_ID }}
-                private-key: ${{ secrets.APP_SECRET }}
-                repositories: nvat-rs
+                  app-id: ${{ secrets.APP_ID }}
+                  private-key: ${{ secrets.APP_SECRET }}
+                  repositories: nvat-rs
             - name: access token git setup
               run: |
-                git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "ssh://git@github.com/"
+                  git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "ssh://git@github.com/"
             - name: Install wasm-pack
               run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
             - name: Run wasm-pack build
@@ -174,129 +174,131 @@ jobs:
               # pkg/prem_rs_bg.js
 
               run: |
-                wasm-pack build --target nodejs -d pkg-node prem-rs
-                wasm-pack build --target bundler -d pkg prem-rs
-                cd prem-rs
-                PKG_NAME=$(jq -r .name pkg/package.json | cut -d'/' -f2- | sed 's/\-/_/g')
+                  wasm-pack build --target nodejs -d pkg-node reticle
+                  wasm-pack build --target bundler -d pkg reticle
+                  cd reticle
+                  PKG_NAME=$(jq -r .name pkg/package.json | cut -d'/' -f2- | sed 's/\-/_/g')
 
-                # Merge nodejs & browser packages
-                cp "pkg-node/${PKG_NAME}.js" "pkg/${PKG_NAME}_main.js"
-                jq ".files += [\"${PKG_NAME}_bg.js\"] | \
-                    .main = \"${PKG_NAME}_main.js\" | \
-                    .types = \"${PKG_NAME}.d.ts\" | \
-                    .exports = {
-                      \".\": {
-                        \"browser\": {
-                          \"types\": \"./${PKG_NAME}.d.ts\",
-                          \"default\": \"./${PKG_NAME}.js\"
-                        },
-                        \"default\": {
-                          \"types\": \"./${PKG_NAME}.d.ts\",
-                          \"default\": \"./${PKG_NAME}_main.js\"
+                  # Merge nodejs & browser packages
+                  cp "pkg-node/${PKG_NAME}.js" "pkg/${PKG_NAME}_main.js"
+                  jq ".files += [\"${PKG_NAME}_bg.js\"] | \
+                      .main = \"${PKG_NAME}_main.js\" | \
+                      .types = \"${PKG_NAME}.d.ts\" | \
+                      .exports = {
+                        \".\": {
+                          \"browser\": {
+                            \"types\": \"./${PKG_NAME}.d.ts\",
+                            \"default\": \"./${PKG_NAME}.js\"
+                          },
+                          \"default\": {
+                            \"types\": \"./${PKG_NAME}.d.ts\",
+                            \"default\": \"./${PKG_NAME}_main.js\"
+                          }
                         }
-                      }
-                    }" pkg/package.json > pkg/temp.json
-                mv pkg/temp.json pkg/package.json
-                rm -rf pkg-node
+                      }" pkg/package.json > pkg/temp.json
+                  mv pkg/temp.json pkg/package.json
+                  rm -rf pkg-node
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
                   node-version: "24"
             - name: fix package.json
-              run: mv prem-rs/pkg/package.json prem-rs/pkg/package.json.tmpl 
+              run: mv reticle/pkg/package.json reticle/pkg/package.json.tmpl
             - name: Publish npm package (gh)
-              if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+              if: github.event_name == 'push' && (github.ref == 'refs/heads/main' ||
+                  startsWith(github.ref, 'refs/tags/v'))
               run: |
-                #!/bin/sh -e
+                  #!/bin/sh -e
 
-                cd prem-rs/pkg
-                rm .npmrc || true
-                npm config set @prem-research:registry https://npm.pkg.github.com -L project
-                echo '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' >> .npmrc 
-                jq --arg name "@prem-research/`jq -r '.name' package.json.tmpl`" '.name = $name' package.json.tmpl > package.json
-                npm publish --registry=https://npm.pkg.github.com
+                  cd reticle/pkg
+                  rm .npmrc || true
+                  npm config set @prem-research:registry https://npm.pkg.github.com -L project
+                  echo '//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}' >> .npmrc
+                  jq --arg name "@prem-research/`jq -r '.name' package.json.tmpl`" '.name = $name' package.json.tmpl > package.json
+                  npm publish --registry=https://npm.pkg.github.com
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             - name: Publish npm package (npmjs)
-              if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+              if: github.event_name == 'push' && (github.ref == 'refs/heads/main' ||
+                  startsWith(github.ref, 'refs/tags/v'))
               run: |
-                #!/bin/sh -e
+                  #!/bin/sh -e
 
-                cd prem-rs/pkg
-                rm .npmrc || true
-                npm config set @premai:registry https://registry.npmjs.org -L project
-                jq --arg name "@premai/`jq -r '.name' package.json.tmpl`" '.name = $name' package.json.tmpl > package.json
-                NPM_CONFIG_PROVENANCE=false npm publish --access public
+                  cd reticle/pkg
+                  rm .npmrc || true
+                  npm config set @premai:registry https://registry.npmjs.org -L project
+                  jq --arg name "@premai/`jq -r '.name' package.json.tmpl`" '.name = $name' package.json.tmpl > package.json
+                  NPM_CONFIG_PROVENANCE=false npm publish --access public
 
     attestation-server:
-         name: Build attestation-server docker container
-         needs: [build-image, libnvat, clippy, test]
-         runs-on: *x-runs-on
-         container: *x-container
-         env:
-          IMAGE_NAME: ${{ vars.REPOSITORY_URL }}/premai-io/attestation-server
-         permissions:
-          contents: read
-          packages: write
-         steps:
-              - name: Set up Docker Buildx
-                uses: docker/setup-buildx-action@v3
-              - uses: actions/checkout@v5
-              - uses: actions/download-artifact@v4
-                with:
-                    name: x86_64-sysroot
-                    path: ${{ env.SYSROOT }}
-              - uses: actions/create-github-app-token@v2
-                id: app-token
-                with:
+        name: Build attestation-server docker container
+        needs: [build-image, libnvat, clippy, test]
+        runs-on: *x-runs-on
+        container: *x-container
+        env:
+            IMAGE_NAME: ${{ vars.REPOSITORY_URL }}/premai-io/attestation-server
+        permissions:
+            contents: read
+            packages: write
+        steps:
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+            - uses: actions/checkout@v5
+            - uses: actions/download-artifact@v4
+              with:
+                  name: x86_64-sysroot
+                  path: ${{ env.SYSROOT }}
+            - uses: actions/create-github-app-token@v2
+              id: app-token
+              with:
                   app-id: ${{ secrets.APP_ID }}
                   private-key: ${{ secrets.APP_SECRET }}
                   repositories: nvat-rs
-              - name: access token git setup
-                run: |
+            - name: access token git setup
+              run: |
                   git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "ssh://git@github.com/"
-              - name: Set shared libraries load path
-                run: echo "LD_LIBRARY_PATH=${{ env.SYSROOT }}/lib" >> "$GITHUB_ENV"
-              - name: build attestation-server
-                run: |
+            - name: Set shared libraries load path
+              run: echo "LD_LIBRARY_PATH=${{ env.SYSROOT }}/lib" >> "$GITHUB_ENV"
+            - name: build attestation-server
+              run: |
                   env -u SYSROOT \
                   RUSTFLAGS="-L${{ env.SYSROOT }}/lib -lssl -lcrypto" \
                   cargo build --release -p attestation-server
-              - name: Link sysroot
-                run: |
+            - name: Link sysroot
+              run: |
                   mv ${{ env.SYSROOT }} ./sysroot
-              - name: Log in to Private Container Registry
-                uses: docker/login-action@v3
-                with:
-                    registry: ${{ vars.REPOSITORY_URL }}
-                    username: ${{ secrets.REPOSITORY_USER }}
-                    password: ${{ secrets.REPOSITORY_PASSWORD }}
-              - name: Log in to GitHub Container Registry
-                uses: docker/login-action@v3
-                with:
-                    registry: ghcr.io
-                    username: ${{ github.actor }}
-                    password: ${{ secrets.GITHUB_TOKEN }}
-              - name: Docker meta
-                id: meta
-                uses: docker/metadata-action@v5
-                env:
+            - name: Log in to Private Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ${{ vars.REPOSITORY_URL }}
+                  username: ${{ secrets.REPOSITORY_USER }}
+                  password: ${{ secrets.REPOSITORY_PASSWORD }}
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+            - name: Docker meta
+              id: meta
+              uses: docker/metadata-action@v5
+              env:
                   DOCKER_METADATA_SHORT_SHA_LENGTH: 7
-                with:
-                    images: |
+              with:
+                  images: |
                       ${{ env.IMAGE_NAME }}
                       ghcr.io/${{ github.repository }}
-                    tags: |
+                  tags: |
                       type=sha,prefix=
                       type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
                       type=ref,event=branch,enable=${{ github.ref != 'refs/heads/main' }}
-              - uses: docker/build-push-action@v6
-                name: Build and push
-                with:
-                    context: ./
-                    file: ./attestation-server/Dockerfile
-                    push: true
-                    tags: ${{ steps.meta.outputs.tags }}
-                    labels: ${{ steps.meta.outputs.labels }}
-                    build-args: |
+            - uses: docker/build-push-action@v6
+              name: Build and push
+              with:
+                  context: ./
+                  file: ./attestation-server/Dockerfile
+                  push: true
+                  tags: ${{ steps.meta.outputs.tags }}
+                  labels: ${{ steps.meta.outputs.labels }}
+                  build-args: |
                       SYSROOT=./sysroot

@@ -2420,6 +2420,7 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "prem-rs"
 version = "0.3.0"
 dependencies = [
@@ -2440,6 +2441,8 @@ dependencies = [
 ]
 
 [[package]]
+=======
+>>>>>>> def4b38 (rename prem-rs to reticle)
 name = "prettyplease"
 version = "0.2.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2803,6 +2806,26 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "reticle"
+version = "0.3.0"
+dependencies = [
+ "bytes",
+ "console_error_panic_hook",
+ "futures",
+ "hex",
+ "libattest",
+ "nvidia-attest",
+ "reqwest 0.12.28",
+ "serde",
+ "snp-attest",
+ "tdx-attest",
+ "thiserror 2.0.18",
+ "tokio",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]

@@ -1,5 +1,5 @@
 [package]
-name = "prem-rs"
+name = "reticle"
 version = "0.3.0"
 edition = "2024"
 

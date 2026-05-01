@@ -1,4 +1,4 @@
-use prem_rs::ClientBuilder;
+use reticle::ClientBuilder;
 
 #[tokio::main]
 async fn main() {
