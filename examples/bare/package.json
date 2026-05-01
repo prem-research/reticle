@@ -10,9 +10,6 @@
     },
     "author": "",
     "license": "ISC",
-    "imports": {
-        "fs": "../examples/bare/node_modules/bare-fs/index.js"
-    },
     "dependencies": {
         "@premai/prem-rs": "^0.3.0",
         "bare-abort-controller": "^1.1.1",
@@ -22,7 +19,6 @@
         "bare-fs": "^2.3.5",
         "bare-process": "^4.4.1",
         "bare-utils": "^1.6.0",
-        "fetch": "npm:bare-node-fetch",
         "fs": "npm:bare-node-fs",
         "util": "npm:bare-node-util@^1.0.0"
     }
