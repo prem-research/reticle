@@ -28,6 +28,13 @@ use wasm_bindgen::prelude::*;
 
 use crate::rego::PoliciesClient;
 
+#[cfg(feature = "debug")]
+#[cfg(target_family = "wasm")]
+#[wasm_bindgen(start)]
+pub fn __prem_rs_start() {
+    console_error_panic_hook::set_once();
+}
+
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 #[derive(Clone, Debug)]
 pub struct AttestHeaders {
