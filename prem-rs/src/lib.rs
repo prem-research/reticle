@@ -1,6 +1,7 @@
 // pub mod client;
 pub mod gateway;
 pub mod rego;
+pub mod requester;
 
 use std::{borrow::Cow, collections::HashMap};
 
