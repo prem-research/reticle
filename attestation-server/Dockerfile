@@ -12,13 +12,13 @@
 # COPY snp-attest/Cargo.toml snp-attest/Cargo.toml
 # COPY libattest/Cargo.toml libattest/Cargo.toml
 # COPY nvidia-attest/Cargo.toml nvidia-attest/Cargo.toml
-# COPY prem-rs/Cargo.toml prem-rs/Cargo.toml
+# COPY reticle/Cargo.toml reticle/Cargo.toml
 
 # COPY attestation-server/src attestation-server/src
 # COPY snp-attest/src snp-attest/src
 # COPY libattest/src libattest/src
 # COPY nvidia-attest/src nvidia-attest/src
-# COPY prem-rs/src prem-rs/src
+# COPY reticle/src reticle/src
 
 # RUN env -u SYSROOT -u PKG_CONFIG_SYSROOT_DIR \
 #     RUSTFLAGS="-L${SYSROOT}/lib" \

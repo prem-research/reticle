@@ -10,6 +10,6 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@premai/prem-rs": "latest"
+    "@premai/reticle": "latest"
   }
 }

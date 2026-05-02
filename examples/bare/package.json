@@ -11,7 +11,7 @@
     "author": "",
     "license": "ISC",
     "dependencies": {
-        "@premai/prem-rs": "^0.3.0",
+        "@premai/reticle": "^0.3.0",
         "bare-abort-controller": "^1.1.1",
         "bare-crypto": "^1.13.4",
         "bare-encoding": "^1.0.3",

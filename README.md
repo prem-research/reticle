@@ -27,7 +27,7 @@ Includes an attestation server serving REST APIs and a portable SDK with support
                       |
                       │
                 ┌─────▼─────┐
-                │  prem-rs  │  Unified WASM SDK
+                │  reticle  │  Unified WASM SDK
                 └───────────┘
 
 ```
@@ -38,7 +38,7 @@ Includes an attestation server serving REST APIs and a portable SDK with support
 | **[snp-attest](./snp-attest)** | AMD SEV-SNP attestation — report generation & verification via X.509 cert chains |
 | **[tdx-attest](./tdx-attest)** | Intel TDX attestation — DCAP quote verification via Intel PCS |
 | **[nvidia-attest](./nvidia-attest)** | NVIDIA GPU attestation — EAT/JWT token parsing & signature verification |
-| **[prem-rs](./prem-rs)** | Unified WASM SDK aggregating all modules, published to npm |
+| **[reticle](./reticle)** | Unified WASM SDK aggregating all modules, published to npm |
 | **[attestation-server](./attestation-server)** | REST server with runtime hardware detection |
 
 ## Prerequisites
@@ -77,7 +77,7 @@ make bins PACKAGE=snp-attest FEATURES=hyperv
 make wasm
 ```
 
-Produces the `@premai/prem-rs` npm package in `prem-rs/pkg/`.
+Produces the `@premai/reticle` npm package in `reticle/pkg/`.
 
 ### Docker (attestation-server)
 
@@ -93,11 +93,11 @@ The attestation server ships as a Docker image built via the CI pipeline. See [`
    ```
 2. Link the local package:
    ```bash
-   cd prem-rs/pkg && npm link
+   cd reticle/pkg && npm link
    ```
 3. Use it in an [example](./examples):
    ```bash
-   cd examples/bun && bun link @premai/prem-rs
+   cd examples/bun && bun link @premai/reticle
    ```
 
 ### Running the attestation server

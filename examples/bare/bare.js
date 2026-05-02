@@ -11,7 +11,7 @@ const {
 
 if (!ATTESTATION_SERVER) throw new Error("missing ATTESTATION_SERVER...");
 
-const prem = await import("@premai/prem-rs", { with: { type: "script" } });
+const prem = await import("@premai/reticle", { with: { type: "script" } });
 
 let client = await new prem.ClientBuilder(ATTESTATION_SERVER).build();
 

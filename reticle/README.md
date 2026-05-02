@@ -1,17 +1,17 @@
-# prem-rs
+# reticle
 
 Hardware attestation SDK for JavaScript and TypeScript. Cryptographically verifies AMD SEV-SNP, Intel TDX, and NVIDIA GPU attestations from an [attestation server](https://github.com/prem-research/reticle) — runs in Node.js, Bun, Deno and the browser via WASM.
 
 ## Install
 
 ```bash
-npm install @premai/prem-rs
+npm install @premai/reticle
 ```
 
 ## Quick start
 
 ```typescript
-import { ClientBuilder } from "@premai/prem-rs";
+import { ClientBuilder } from "@premai/reticle";
 
 const client = new ClientBuilder("https://attestation.example.com")
   .build();
@@ -79,7 +79,7 @@ await client.attest(query);
 Lower-level types from the attestation modules are available under namespaces:
 
 ```typescript
-import { nvidia, sev } from "@premai/prem-rs";
+import { nvidia, sev } from "@premai/reticle";
 
 // NVIDIA: manual token parsing and verification
 const keychain = await nvidia.fetch_keychain();

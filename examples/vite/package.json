@@ -13,7 +13,7 @@
     "vite": "^8.0.0"
   },
   "dependencies": {
-    "@premai/prem-rs": "latest",
+    "@premai/reticle": "latest",
     "node-emoji": "^2.2.0",
     "vite-plugin-wasm": "^3.5.0"
   }
