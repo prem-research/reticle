@@ -1,4 +1,4 @@
-use prem_rs::rego::PoliciesClient;
+use reticle::rego::PoliciesClient;
 
 #[tokio::test]
 async fn fetch_validator() {
