@@ -11,13 +11,13 @@ const {
 
 if (!ATTESTATION_SERVER) throw new Error("missing ATTESTATION_SERVER...");
 
-const prem = await import("@premai/reticle", { with: { type: "script" } });
+const reticle = await import("@premai/reticle", { with: { type: "script" } });
 
-let client = await new prem.ClientBuilder(ATTESTATION_SERVER).build();
+let client = await new reticle.ClientBuilder(ATTESTATION_SERVER).build();
 
 try {
-    let query_params = new prem.QueryParams();
-    await client.attest(query_params);
+    client.set_query(new reticle.QueryParams());
+    await client.attest();
 } catch (e) {
     console.log(e);
 }

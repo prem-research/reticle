@@ -6,6 +6,7 @@ env:
     "PKG_CONFIG_PATH": "/x86_64-sysroot/lib/pkgconfig:/x86_64-sysroot/share/pkgconfig"
     "PKG_CONFIG_SYSROOT_DIR": "/x86_64-sysroot"
     "SYSROOT": "/x86_64-sysroot"
+    "WASM_PACK_VERSION": "0.15.0"
 
 jobs:
     build-image:
@@ -163,7 +164,7 @@ jobs:
               run: |
                   git config --global url."https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/".insteadOf "ssh://git@github.com/"
             - name: Install wasm-pack
-              run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+              run: curl https://wasm-bindgen.github.io/wasm-pack/installer/init.sh -sSf | sh -s -- --version ${{ env.WASM_PACK_VERSION }}
             - name: Run wasm-pack build
               # fix: https://github.com/drager/wasm-pack/issues/313#issuecomment-441163923
               # pkg-node/package.json
@@ -181,7 +182,7 @@ jobs:
 
                   # Merge nodejs & browser packages
                   cp "pkg-node/${PKG_NAME}.js" "pkg/${PKG_NAME}_main.js"
-                  jq ".files += [\"${PKG_NAME}_bg.js\"] | \
+                  jq ".files += [\"${PKG_NAME}_bg.js\", \"${PKG_NAME}_main.js\", \"snippets\"] | \
                       .main = \"${PKG_NAME}_main.js\" | \
                       .types = \"${PKG_NAME}.d.ts\" | \
                       .exports = {

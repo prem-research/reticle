@@ -1,5 +1,5 @@
 import './style.css'
-import * as prem_rs from "@premai/reticle"
+import * as reticle from "@premai/reticle"
 import { get as getEmoji } from "node-emoji";
 
 const boolMoji = (b: boolean) => b ? getEmoji(':ok:') : getEmoji(':x:');
@@ -23,9 +23,9 @@ document.getElementById('attest-btn')!.addEventListener('click', async () => {
   output.textContent = 'Running…';
   (document.getElementById('attest-btn') as HTMLButtonElement).disabled = true;
 
-  let client: prem_rs.Client | undefined;
+  let client: reticle.Client | undefined;
   try {
-    client = await new prem_rs.ClientBuilder(url).build();
+    client = await new reticle.ClientBuilder(url).build();
     const modules = await client.request_modules();
     await client.attest();
     output.textContent = [
