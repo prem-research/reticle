@@ -20,12 +20,6 @@ extern "C" {
     fn js_fetch_with_init(input: &JsValue, init: &JsValue) -> Promise;
 }
 
-#[wasm_bindgen(module = "/src/fetchShim.js")]
-extern "C" {
-    #[wasm_bindgen(catch)]
-    fn realFetch(input: &JsValue, init: Option<JsValue>) -> Result<Promise, JsValue>;
-}
-
 static FETCH_CLIENT: OnceCell<crate::Client> = OnceCell::new();
 
 #[wasm_bindgen(js_name = fetch)]
@@ -44,7 +38,11 @@ pub async fn fetch(input: JsValue, init: Option<JsValue>) -> Result<JsValue, JsV
     client.attest().await?;
 
     // --- Actual fetch ---
-    let promise = realFetch(&input, init)?;
+    let promise = match init {
+        None => js_fetch(&input),
+        Some(init) => js_fetch_with_init(&input, &init),
+    };
+
     JsFuture::from(promise).await
 }
 
