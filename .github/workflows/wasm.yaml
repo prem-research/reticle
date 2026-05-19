@@ -62,7 +62,8 @@ jobs:
               with:
                   path: |
                       ${{ env.SYSROOT }}
-                  key: ${{ runner.os }}-${{ hashFiles('./attestation-sdk/.git/HEAD',
+                  key:
+                      ${{ runner.os }}-${{ hashFiles('./attestation-sdk/.git/HEAD',
                       './.devcontainer/Dockerfile') }}
             - name: build libnvat
               if: steps.cache.outputs.cache-hit != 'true'
@@ -182,7 +183,7 @@ jobs:
 
                   # Merge nodejs & browser packages
                   cp "pkg-node/${PKG_NAME}.js" "pkg/${PKG_NAME}_main.js"
-                  jq ".files += [\"${PKG_NAME}_bg.js\", \"${PKG_NAME}_main.js\", \"snippets\"] | \
+                  jq ".files += [\"${PKG_NAME}_bg.js\", \"${PKG_NAME}_main.js\"] | \
                       .main = \"${PKG_NAME}_main.js\" | \
                       .types = \"${PKG_NAME}.d.ts\" | \
                       .exports = {
@@ -206,7 +207,8 @@ jobs:
             - name: fix package.json
               run: mv reticle/pkg/package.json reticle/pkg/package.json.tmpl
             - name: Publish npm package (gh)
-              if: github.event_name == 'push' && (github.ref == 'refs/heads/main' ||
+              if:
+                  github.event_name == 'push' && (github.ref == 'refs/heads/main' ||
                   startsWith(github.ref, 'refs/tags/v'))
               run: |
                   #!/bin/sh -e
@@ -220,7 +222,8 @@ jobs:
               env:
                   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             - name: Publish npm package (npmjs)
-              if: github.event_name == 'push' && (github.ref == 'refs/heads/main' ||
+              if:
+                  github.event_name == 'push' && (github.ref == 'refs/heads/main' ||
                   startsWith(github.ref, 'refs/tags/v'))
               run: |
                   #!/bin/sh -e
