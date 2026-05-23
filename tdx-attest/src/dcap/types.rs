@@ -43,6 +43,7 @@ pub struct TdxQuoteHeader {
 
 #[derive(Serialize, Debug, FromBytes, Immutable, KnownLayout, IntoBytes, Clone, Copy)]
 #[repr(transparent)]
+#[serde(transparent)]
 pub struct Sha384(#[serde(with = "hex::serde")] [u8; 48]);
 
 pub type ReportData = [u8; 64];
