@@ -1,4 +1,4 @@
-use std::time::SystemTime;
+use crate::certificates::now;
 
 use der::oid::db::rfc5912::ECDSA_WITH_SHA_256;
 use der::{Decode, Encode};
@@ -48,7 +48,7 @@ impl Crl {
         let expired = list
             .tbs_cert_list
             .next_update
-            .is_some_and(|a| a.to_system_time() < SystemTime::now());
+            .is_some_and(|a| a.to_system_time() < now());
 
         if expired {
             return Err(CertificateError::Expired);

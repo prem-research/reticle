@@ -5,7 +5,21 @@ pub mod extensions;
 
 pub use error::CertificateError;
 
-use std::{fmt::Display, time::SystemTime};
+use std::fmt::Display;
+use std::time::SystemTime;
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn now() -> SystemTime {
+    SystemTime::UNIX_EPOCH
+        + web_time::SystemTime::now()
+            .duration_since(web_time::SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn now() -> SystemTime {
+    SystemTime::now()
+}
 
 use der::{
     Encode,
@@ -129,7 +143,7 @@ impl EcdsaCert {
             .not_before
             .to_system_time();
 
-        let now = SystemTime::now();
+        let now = now();
 
         if not_before > now || not_after < now {
             return Err(CertificateError::Expired);
