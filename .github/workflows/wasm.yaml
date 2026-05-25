@@ -182,9 +182,9 @@ jobs:
                   PKG_NAME=$(jq -r .name pkg/package.json | cut -d'/' -f2- | sed 's/\-/_/g')
 
                   # Merge nodejs & browser packages
-                  cp "pkg-node/${PKG_NAME}.js" "pkg/${PKG_NAME}_main.js"
-                  jq ".files += [\"${PKG_NAME}_bg.js\", \"${PKG_NAME}_main.js\"] | \
-                      .main = \"${PKG_NAME}_main.js\" | \
+                  cp "pkg-node/${PKG_NAME}.js" "pkg/${PKG_NAME}_main.cjs"
+                  jq ".files += ([\"${PKG_NAME}_bg.js\", \"${PKG_NAME}_main.cjs\"] - .files) | \
+                      .main = \"${PKG_NAME}_main.cjs\" | \
                       .types = \"${PKG_NAME}.d.ts\" | \
                       .exports = {
                         \".\": {
@@ -194,7 +194,7 @@ jobs:
                           },
                           \"default\": {
                             \"types\": \"./${PKG_NAME}.d.ts\",
-                            \"default\": \"./${PKG_NAME}_main.js\"
+                            \"default\": \"./${PKG_NAME}_main.cjs\"
                           }
                         }
                       }" pkg/package.json > pkg/temp.json
