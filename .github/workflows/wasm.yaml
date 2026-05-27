@@ -196,7 +196,8 @@ jobs:
                             \"types\": \"./${PKG_NAME}.d.ts\",
                             \"default\": \"./${PKG_NAME}_main.cjs\"
                           }
-                        }
+                        },
+                        \"./reticle.wasm\": \"./${PKG_NAME}_bg.wasm\"
                       }" pkg/package.json > pkg/temp.json
                   mv pkg/temp.json pkg/package.json
                   rm -rf pkg-node
