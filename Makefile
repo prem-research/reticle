@@ -7,11 +7,12 @@ nvidia-cpp-sdk:
 		https://github.com/coval3nte/attestation-sdk \
 		attestation-sdk || true \
 	&& cd attestation-sdk \
-	&& git fetch --depth 1 origin 635438db5bede7ae9fb4e178236330e6c50fb48b \
-	&& git checkout 635438db5bede7ae9fb4e178236330e6c50fb48b \
+	&& git fetch --depth 1 origin ddee7b056a3a1a905242e0ee65db8b72e5e170e7 \
+	&& git checkout ddee7b056a3a1a905242e0ee65db8b72e5e170e7 \
 	&& cd nv-attestation-sdk-cpp \
 	&& rm -rf build \
 	&& cmake -S . -B build \
+		-DUSE_SYSTEM_DEPS=ON \
 		-DCMAKE_TOOLCHAIN_FILE=$(CURDIR)/toolchain-x86_64-linux-gnu.cmake \
 		-DCMAKE_INSTALL_PREFIX=$${SYSROOT:-/usr/local} \
 		-DCMAKE_FIND_LIBRARY_SUFFIXES=".a" \
