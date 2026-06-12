@@ -1,5 +1,7 @@
 .PHONY: nvidia-cpp-sdk bins wasm
 
+CMAKE_JOBS ?= $$(nproc)
+
 nvidia-cpp-sdk:
 	git clone \
 		-b main \
@@ -7,8 +9,8 @@ nvidia-cpp-sdk:
 		https://github.com/coval3nte/attestation-sdk \
 		attestation-sdk || true \
 	&& cd attestation-sdk \
-	&& git fetch --depth 1 origin ddee7b056a3a1a905242e0ee65db8b72e5e170e7 \
-	&& git checkout ddee7b056a3a1a905242e0ee65db8b72e5e170e7 \
+	&& git fetch --depth 1 origin 539c381561a07b3a3cff9ed3949316c330878e92 \
+	&& git checkout 539c381561a07b3a3cff9ed3949316c330878e92 \
 	&& cd nv-attestation-sdk-cpp \
 	&& rm -rf build \
 	&& cmake -S . -B build \
@@ -17,7 +19,7 @@ nvidia-cpp-sdk:
 		-DCMAKE_INSTALL_PREFIX=$${SYSROOT:-/usr/local} \
 		-DCMAKE_FIND_LIBRARY_SUFFIXES=".a" \
 		-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=$${CMAKE_FIND_ROOT_PATH_MODE_INCLUDE:-} \
-	&& cmake --build build -j$(nproc) \
+	&& cmake --build build -j$(CMAKE_JOBS) \
 	&& sudo cmake --install build --strip \
 	&& sudo ldconfig
 
