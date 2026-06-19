@@ -83,6 +83,9 @@ pub struct GpuClaims {
     #[serde(rename = "eat_nonce", deserialize_with = "hex::serde::deserialize")]
     pub eat_nonce: [u8; 32],
 
+    /// Universal entity id of the GPU
+    pub ueid: String,
+
     /// Secure boot status.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub secboot: Option<bool>,

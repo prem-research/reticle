@@ -31,6 +31,16 @@ pub struct DecodedClaims {
     gpu_claims: HashMap<String, GpuClaims>,
 }
 
+impl DecodedClaims {
+    pub fn overall_claims(&self) -> &OverallClaims {
+        &self.overall_claims
+    }
+
+    pub fn gpu_claims(&self) -> &HashMap<String, GpuClaims> {
+        &self.gpu_claims
+    }
+}
+
 #[derive(PartialEq, Debug)]
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 pub struct EATToken {

@@ -16,7 +16,7 @@ use rocket::{State, routes};
 use sev::firmware::guest::Firmware;
 use tokio::sync::Mutex;
 
-use crate::{modules::ModuleDetector, response::ApiJsonResult};
+use crate::{modules::ModuleDetector, nvidia_api::SdkFairing, response::ApiJsonResult};
 
 #[rocket::get("/modules")]
 fn get_modules(modules: &State<Modules>) -> ApiJsonResult<&Modules> {
@@ -56,12 +56,12 @@ async fn main() -> Result<(), anyhow::Error> {
     };
 
     if let Some(GpuModule::Nvidia) = modules.gpu() {
-        use nvat::SdkHandle;
-
-        let sdk = SdkHandle::get_handle()?;
+        // attach the nvidia fairing responsible for first attestation
+        // and enable gpus for confidential computing operations
+        let sdk = SdkFairing::init()?;
+        rocket = rocket.attach(sdk);
 
         routes.extend(routes![nvidia_api::nvidia_attestation]);
-        rocket = rocket.manage(sdk);
     };
 
     rocket.mount("/attestation", routes).launch().await?;
