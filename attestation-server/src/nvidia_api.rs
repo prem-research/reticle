@@ -1,13 +1,9 @@
-use std::collections::HashSet;
-use std::ops::Deref;
-
 use anyhow::Context;
 use nvat::{AttestationBuilder, SdkHandle, nonce::NvatNonce};
 use nvidia_attest::EATToken;
 use nvidia_attest::keychain::KeyChain;
 use nvidia_attest::nonce::NvidiaNonce;
 use nvml_wrapper::Nvml;
-use nvml_wrapper::enum_wrappers::device::Brand::Nvidia;
 use rocket::fairing::{Fairing, Info, Kind};
 use rocket::{Build, Rocket, State};
 
@@ -17,23 +13,14 @@ use crate::response::ApiError;
 pub struct SdkFairing {
     handle: SdkHandle,
     nvml: Nvml,
-
-    // set of UUIDs of gpus enabled for confidential computing.
-    // must turn off confidential computing on exit.
-    attestation_enabled: HashSet<String>,
 }
 
 impl SdkFairing {
     pub fn init() -> anyhow::Result<Self> {
         let handle = SdkHandle::get_handle()?;
         let nvml = Nvml::init()?;
-        let attestation_enabled = HashSet::new();
 
-        Ok(SdkFairing {
-            handle,
-            nvml,
-            attestation_enabled,
-        })
+        Ok(SdkFairing { handle, nvml })
     }
 
     async fn attest_and_init(&self) -> anyhow::Result<()> {
@@ -56,16 +43,17 @@ impl SdkFairing {
         // we gather the device uuids from the claims of the attested gpus
         // so we don't accidentally turn on confidential computing for
         // gpus we didn't explicitly verify
-        let uuids: HashSet<String> = claims
-            .gpu_claims()
-            .values()
-            .map(|gpu| &gpu.ueid)
-            .cloned()
-            .collect();
+        let attested_gpus = claims.gpu_claims().values().enumerate();
 
-        for uuid in uuids {
-            let device = self.nvml.device_by_uuid(uuid.deref()).with_context(|| {
-                format!("Device with UUID: {uuid} was attested but not found by nvml")
+        for (idx, gpu) in attested_gpus {
+            log::info!("[{idx}]: Enabling CC for {}", gpu.hwmodel);
+
+            let euid = gpu.ueid.as_str();
+            let device = self.nvml.device_by_uuid(euid).with_context(|| {
+                format!(
+                    "Device {} with UUID: {euid} was attested but not found by nvml",
+                    gpu.hwmodel
+                )
             })?;
 
             // once we attest the device we can activate
@@ -73,7 +61,10 @@ impl SdkFairing {
             device
                 .set_confidential_compute_state(true)
                 .with_context(|| {
-                    format!("cannot activate confidential computing for gpu uuid:{uuid}")
+                    format!(
+                        "cannot activate confidential computing for gpu {} uuid:{euid}",
+                        gpu.hwmodel
+                    )
                 })?;
         }
 

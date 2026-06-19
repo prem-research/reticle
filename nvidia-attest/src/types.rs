@@ -86,6 +86,9 @@ pub struct GpuClaims {
     /// Universal entity id of the GPU
     pub ueid: String,
 
+    // hardware model of the gpu
+    pub hwmodel: String,
+
     /// Secure boot status.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub secboot: Option<bool>,
