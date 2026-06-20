@@ -58,40 +58,14 @@ impl SdkFairing {
             );
         }
 
-        for (idx, gpu) in available_gpus.into_iter().enumerate() {
-            log::info!("[{idx}] Enabling CC for {}", gpu.name()?);
-            gpu.set_confidential_compute_state(true)?;
-        }
+        let gpu = available_gpus
+            .first()
+            .context("No GPUs available in the system for confidential computing workloads")?;
 
-        // for (idx, gpu) in attested_gpus {
-        //     log::info!("[{idx}]: Enabling CC for {}", gpu.hwmodel);
-
-        //     let euid = gpu.ueid.as_str();
-        //     let device = self.nvml.device_by_uuid(euid).with_context(|| {
-        //         format!(
-        //             "Device {} with UUID: {euid} was attested but not found by nvml",
-        //             gpu.hwmodel
-        //         )
-        //     })?;
-
-        //     // once we attest the device we can activate
-        //     // confidential compute state
-        //     device
-        //         .set_confidential_compute_state(true)
-        //         .with_context(|| {
-        //             format!(
-        //                 "cannot activate confidential computing for gpu {} uuid:{euid}",
-        //                 gpu.hwmodel
-        //             )
-        //         })?;
-        // }
-
-        // let count = self.nvml.device_count()? as usize;
-        // if count != claims.gpu_claims().iter().count() {
-        //     log::warn!(
-        //         "there are still devices on this machine for which confidential computing wasn't enabled."
-        //     )
-        // }
+        // nvml wrapper library is broken and calling this method
+        // on the device enables it systemwide. It should be
+        // self.nvml.set_confidential_compute_state(true);
+        gpu.set_confidential_compute_state(true)?;
 
         Ok(())
     }
