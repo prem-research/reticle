@@ -12,11 +12,16 @@ use std::ops::Deref;
 use anyhow::{Context, bail};
 use libattest::{CpuModule, GpuModule, modules::Modules};
 use log::LevelFilter;
-use rocket::{State, routes};
+use rocket::{State, catch, catchers, routes};
 use sev::firmware::guest::Firmware;
 use tokio::sync::Mutex;
 
 use crate::{modules::ModuleDetector, nvidia_api::SdkFairing, response::ApiJsonResult};
+
+#[catch(404)]
+fn not_found() -> &'static str {
+    ""
+}
 
 #[rocket::get("/modules")]
 fn get_modules(modules: &State<Modules>) -> ApiJsonResult<&Modules> {
@@ -64,7 +69,11 @@ async fn main() -> Result<(), anyhow::Error> {
         routes.extend(routes![nvidia_api::nvidia_attestation]);
     };
 
-    rocket.mount("/attestation", routes).launch().await?;
+    rocket
+        .mount("/attestation", routes)
+        .register("/", catchers![not_found])
+        .launch()
+        .await?;
 
     // close sdk on shutdown
     match modules.gpu() {
