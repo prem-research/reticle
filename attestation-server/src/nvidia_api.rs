@@ -1,8 +1,9 @@
-use anyhow::Context;
+use anyhow::{Context, bail};
 use nvat::{AttestationBuilder, SdkHandle, nonce::NvatNonce};
 use nvidia_attest::EATToken;
 use nvidia_attest::keychain::KeyChain;
 use nvidia_attest::nonce::NvidiaNonce;
+use nvidia_attest::types::GpuClaims;
 use nvml_wrapper::Nvml;
 use rocket::fairing::{Fairing, Info, Kind};
 use rocket::{Build, Rocket, State};
@@ -43,37 +44,54 @@ impl SdkFairing {
         // we gather the device uuids from the claims of the attested gpus
         // so we don't accidentally turn on confidential computing for
         // gpus we didn't explicitly verify
-        let attested_gpus = claims.gpu_claims().values().enumerate();
+        let attested_gpus: Vec<&GpuClaims> = claims.gpu_claims().values().collect();
+        let available_gpus: Vec<nvml_wrapper::Device> = (0..self.nvml.device_count()?)
+            .map(|idx| self.nvml.device_by_index(idx))
+            .collect::<Result<_, _>>()?;
 
-        for (idx, gpu) in attested_gpus {
-            log::info!("[{idx}]: Enabling CC for {}", gpu.hwmodel);
+        if attested_gpus.len() != available_gpus.len() {
+            let attested_gpus = attested_gpus.len();
+            let available_gpus = available_gpus.len();
 
-            let euid = gpu.ueid.as_str();
-            let device = self.nvml.device_by_uuid(euid).with_context(|| {
-                format!(
-                    "Device {} with UUID: {euid} was attested but not found by nvml",
-                    gpu.hwmodel
-                )
-            })?;
-
-            // once we attest the device we can activate
-            // confidential compute state
-            device
-                .set_confidential_compute_state(true)
-                .with_context(|| {
-                    format!(
-                        "cannot activate confidential computing for gpu {} uuid:{euid}",
-                        gpu.hwmodel
-                    )
-                })?;
+            bail!(
+                "there's a mismatch between the number of available gpus {available_gpus} on this machine and the attested number of gpus {attested_gpus}"
+            );
         }
 
-        let count = self.nvml.device_count()? as usize;
-        if count != claims.gpu_claims().iter().count() {
-            log::warn!(
-                "there are still devices on this machine for which confidential computing wasn't enabled."
-            )
+        for (idx, gpu) in available_gpus.into_iter().enumerate() {
+            log::info!("[{idx}] Enabling CC for {}", gpu.name()?);
+            gpu.set_confidential_compute_state(true)?;
         }
+
+        // for (idx, gpu) in attested_gpus {
+        //     log::info!("[{idx}]: Enabling CC for {}", gpu.hwmodel);
+
+        //     let euid = gpu.ueid.as_str();
+        //     let device = self.nvml.device_by_uuid(euid).with_context(|| {
+        //         format!(
+        //             "Device {} with UUID: {euid} was attested but not found by nvml",
+        //             gpu.hwmodel
+        //         )
+        //     })?;
+
+        //     // once we attest the device we can activate
+        //     // confidential compute state
+        //     device
+        //         .set_confidential_compute_state(true)
+        //         .with_context(|| {
+        //             format!(
+        //                 "cannot activate confidential computing for gpu {} uuid:{euid}",
+        //                 gpu.hwmodel
+        //             )
+        //         })?;
+        // }
+
+        // let count = self.nvml.device_count()? as usize;
+        // if count != claims.gpu_claims().iter().count() {
+        //     log::warn!(
+        //         "there are still devices on this machine for which confidential computing wasn't enabled."
+        //     )
+        // }
 
         Ok(())
     }
