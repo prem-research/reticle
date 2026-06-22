@@ -71,9 +71,11 @@ impl AzureTpm {
     }
 
     fn ak_handle(&mut self) -> Result<KeyHandle, tss_esapi::Error> {
+        let handle = Self::VTPM_HCL_AKPUB_PERSISTENT_HANDLE.try_into()?;
+
         let public_key_handle = self
             .context
-            .tr_from_tpm_public(Self::VTPM_HCL_AKPUB_PERSISTENT_HANDLE.try_into()?)?
+            .execute_without_session(|ctx| ctx.tr_from_tpm_public(handle))?
             .into();
 
         Ok(public_key_handle)
@@ -96,7 +98,7 @@ impl AzureTpm {
         Ok(pk)
     }
 
-    pub fn quote(&mut self, nonce: impl Into<Vec<u8>>) -> anyhow::Result<(Attest, Signature)> {
+    pub fn quote(mut self, nonce: impl Into<Vec<u8>>) -> anyhow::Result<(Attest, Signature)> {
         let key_handle = self.ak_handle()?;
 
         let pcr_list = PcrSelectionListBuilder::new()
@@ -105,7 +107,7 @@ impl AzureTpm {
             .build()
             .unwrap();
 
-        let (quote, signature) = self
+        let res = self
             .context
             .quote(
                 key_handle,
@@ -115,7 +117,7 @@ impl AzureTpm {
             )
             .context("unable to request quote from tpm")?;
 
-        todo!()
+        Ok(res)
     }
 }
 
@@ -128,6 +130,9 @@ fn main() {
 
     let mut tpm = AzureTpm::new(context);
 
-    let quote = tpm.quote([1, 2, 3, 4]).unwrap();
-    println!("{quote:?}");
+    let cert = tpm.ak_cert().unwrap();
+    let key = tpm.ak().unwrap();
+
+    let quote = tpm.quote([0u8; 32]).unwrap();
+    println!("{cert:?} {key:?} {quote:?}");
 }
