@@ -1,7 +1,9 @@
+use std::ops::Deref;
+
 use libattest::error::Context;
-use rsa::RsaPublicKey;
+use rsa::{BoxedUint, RsaPublicKey};
 use tss_esapi::{
-    abstraction::nv,
+    abstraction::{nv, public::DecodedKey},
     handles::{KeyHandle, NvIndexTpmHandle},
     interface_types::{
         algorithm::HashingAlgorithm, resource_handles::NvAuth, session_handles::AuthSession,
@@ -86,14 +88,19 @@ impl AzureTpm {
 
     pub fn ak(&mut self) -> anyhow::Result<RsaPublicKey> {
         let public_key_handle = self.ak_handle()?;
-        let (public, _, _) = self.context.read_public(public_key_handle)?;
+        let (public, _, _) = self
+            .context
+            .execute_without_session(|ctx| ctx.read_public(public_key_handle))?;
 
-        let Public::Rsa { parameters, .. } = public else {
+        let Public::Rsa {
+            unique, parameters, ..
+        } = public
+        else {
             anyhow::bail!("received public key that was not rsa");
         };
 
         let pk = rsa::RsaPublicKey::new(
-            u16::from(parameters.key_bits()).into(),
+            BoxedUint::from_be_slice_vartime(unique.deref()),
             parameters.exponent().value().into(),
         )
         .context("unable to decode public key components from tpm")?;
