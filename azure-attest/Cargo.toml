@@ -1,0 +1,25 @@
+[package]
+name = "azure-attest"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+cli = ["dep:tss-esapi", "dep:anyhow"]
+
+[dependencies]
+tpm2-protocol = "0.16.0"
+snp-attest = { path = "../snp-attest" }
+tdx-attest = { path = "../tdx-attest" }
+x509-cert = "0.3.0-rc.4"
+rsa = { version = "0.10.0-rc.18", features = ["serde"] }
+libattest = { path = "../libattest" }
+serde = { version = "1.0.228", features = ["derive"] }
+sha2 = "0.11.0"
+
+tss-esapi = { version = "7.7.0", optional = true }
+anyhow = { version = "*", optional = true }
+
+[[bin]]
+name = "generate-report"
+path = "src/bin/generate.rs"
+required-features = ["cli"]
