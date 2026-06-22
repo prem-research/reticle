@@ -11,7 +11,7 @@ use tss_esapi::{
     },
     tcti_ldr::{DeviceConfig, TctiNameConf},
 };
-use x509_cert::der::Decode;
+use x509_cert::der::{Decode, Reader, SliceReader};
 
 struct AzureTpm {
     context: tss_esapi::Context,
@@ -64,10 +64,13 @@ impl AzureTpm {
             .tpm_read(Self::AK_CERT_IDX)
             .context("unable to read ak_cert from tpm")?;
 
-        let cert = x509_cert::Certificate::from_der(&ak_cert)
+        let mut reader = SliceReader::new(&ak_cert)?;
+        let certificate = x509_cert::Certificate::decode(&mut reader)
             .context("unable to decode certificate from DER")?;
 
-        Ok(cert)
+        reader.finish().ok(); // ignore if there are leading bytes. x509_cert::Certificate::from_der returns error if that's the case
+
+        Ok(certificate)
     }
 
     fn ak_handle(&mut self) -> Result<KeyHandle, tss_esapi::Error> {
