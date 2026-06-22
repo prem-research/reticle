@@ -1,28 +1,15 @@
 pub mod report;
 mod serde_cert;
+mod serde_tpm;
 
 use rsa::signature::Verifier;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use snp_attest::ParsedAttestation;
-use tdx_attest::TdxQuote;
 use tpm2_protocol::{TpmMarshal, TpmUnmarshal, TpmWriter, data::TpmsAttest};
 
-#[derive(Deserialize)]
-enum HardwareReportType {
-    Tdx(Vec<u8>),
-    Sev(Vec<u8>),
-}
+use crate::report::AttestationReport;
 
-#[derive(Deserialize)]
-pub struct AzureQuoteData {
-    quote: Vec<u8>,
-    hardware_report: HardwareReportType,
-
-    trust: AzureTrust,
-}
-
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AzureTrust {
     quote_signature: rsa::pkcs1v15::Signature,
     ak_key: rsa::pkcs1v15::VerifyingKey<Sha256>,
@@ -31,35 +18,48 @@ pub struct AzureTrust {
     ak_cert: x509_cert::Certificate,
 }
 
-pub enum AzureHardwareReport {
-    Tdx(TdxQuote),
-    Sev(ParsedAttestation),
+impl AzureTrust {
+    pub fn new(
+        quote_signature: rsa::pkcs1v15::Signature,
+        ak_key: rsa::pkcs1v15::VerifyingKey<Sha256>,
+        ak_cert: x509_cert::Certificate,
+    ) -> Self {
+        Self {
+            quote_signature,
+            ak_key,
+            ak_cert,
+        }
+    }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AzureQuote {
+    #[serde(with = "serde_tpm")]
     quote: TpmsAttest,
-    hardware_report: AzureHardwareReport,
+
+    hardware_report: AttestationReport,
 
     trust: AzureTrust,
 }
 
 impl AzureQuote {
-    pub fn parse(data: &AzureQuoteData) -> libattest::Result<Self> {
-        let (attestation, _) = TpmsAttest::unmarshal(&data.quote)?;
-
-        let hardware_report = match &data.hardware_report {
-            HardwareReportType::Tdx(data) => AzureHardwareReport::Tdx(TdxQuote::from_bytes(data)?),
-            HardwareReportType::Sev(data) => {
-                AzureHardwareReport::Sev(ParsedAttestation::new(data)?)
-            }
-        };
-
-        Ok(Self {
-            quote: attestation,
+    pub fn new(quote: TpmsAttest, hardware_report: AttestationReport, trust: AzureTrust) -> Self {
+        Self {
+            quote,
             hardware_report,
-            trust: data.trust.clone(),
-        })
+            trust,
+        }
     }
+
+    // pub fn parse(data: &AzureQuoteData) -> libattest::Result<Self> {
+    //     let (attestation, _) = TpmsAttest::unmarshal(&data.quote)?;
+
+    //     Ok(Self {
+    //         quote: attestation,
+    //         hardware_report: data.hardware_report.clone(),
+    //         trust: data.trust.clone(),
+    //     })
+    // }
 
     pub async fn verify(&self) -> libattest::Result<()> {
         let mut buffer = Box::new([0u8; 2048]);
