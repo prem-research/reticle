@@ -61,7 +61,7 @@ impl AzureQuote {
     //     })
     // }
 
-    pub async fn verify(&self) -> libattest::Result<()> {
+    pub fn verify(&self) -> libattest::Result<()> {
         let mut buffer = Box::new([0u8; 2048]);
 
         let mut writer = TpmWriter::new(buffer.as_mut_slice());

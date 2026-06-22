@@ -180,5 +180,7 @@ fn main() {
     let mut tpm = AzureTpm::new(context);
     let attestation = build_azure_attestation(tpm).unwrap();
 
+    let attestation = serde_json::to_string(&attestation).unwrap();
+
     println!("{attestation:?}");
 }
