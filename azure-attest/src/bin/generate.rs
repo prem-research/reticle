@@ -9,7 +9,8 @@ use tss_esapi::{
         algorithm::HashingAlgorithm, resource_handles::NvAuth, session_handles::AuthSession,
     },
     structures::{
-        Attest, PcrSelectSize, PcrSelectionListBuilder, PcrSlot, Public, Signature, SignatureScheme,
+        Attest, PcrSelectSize, PcrSelectionListBuilder, PcrSlot, Public, RsaExponent, Signature,
+        SignatureScheme,
     },
     tcti_ldr::{DeviceConfig, TctiNameConf},
 };
@@ -99,9 +100,14 @@ impl AzureTpm {
             anyhow::bail!("received public key that was not rsa");
         };
 
+        let exponent = match parameters.exponent() {
+            RsaExponent::ZERO_EXPONENT => 65537,
+            exp => exp.value(),
+        };
+
         let pk = rsa::RsaPublicKey::new(
             BoxedUint::from_be_slice_vartime(unique.deref()),
-            parameters.exponent().value().into(),
+            exponent.into(),
         )
         .context("unable to decode public key components from tpm")?;
 
