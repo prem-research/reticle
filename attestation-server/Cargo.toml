@@ -16,9 +16,12 @@ base64 = "0.22.1"
 hex = "0.4.3"
 thiserror = "2"
 nvat = { git = "ssh://git@github.com/prem-research/nvat-rs.git", branch = "main" }
+
 libattest = { path = "../libattest" }
+nvidia-attest = { path = "../nvidia-attest" }
 
 snp-attest = { path = "../snp-attest", default-features = false }
 env_logger = "0.11.8"
 log = "0.4.29"
 configfs-tsm = { version = "0.0.2" }
+nvml-wrapper = "0.12.1"

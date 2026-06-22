@@ -20,7 +20,7 @@ use wasm_bindgen::prelude::*;
 use crate::{
     keychain::KeyChain,
     nonce::NvidiaNonce,
-    types::{GpuClaims, OverallClaims},
+    types::{GpuClaims, MeasuresClaim, OverallClaims},
 };
 
 #[derive(Debug)]
@@ -29,6 +29,16 @@ use crate::{
 pub struct DecodedClaims {
     overall_claims: OverallClaims,
     gpu_claims: HashMap<String, GpuClaims>,
+}
+
+impl DecodedClaims {
+    pub fn overall_claims(&self) -> &OverallClaims {
+        &self.overall_claims
+    }
+
+    pub fn gpu_claims(&self) -> &HashMap<String, GpuClaims> {
+        &self.gpu_claims
+    }
 }
 
 #[derive(PartialEq, Debug)]
@@ -116,6 +126,10 @@ impl EATToken {
             let decoded =
                 jsonwebtoken::decode::<GpuClaims>(&gpu_jwt, &key, &Validation::new(header.alg))
                     .context("gpu module signature error")?;
+
+            if decoded.claims.measres != MeasuresClaim::Success {
+                bail!("gpu claim contained failed measres");
+            }
 
             gpu_claims.insert(gpu, decoded.claims);
         }
