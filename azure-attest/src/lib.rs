@@ -1,3 +1,4 @@
+pub mod report;
 mod serde_cert;
 
 use rsa::signature::Verifier;

@@ -231,15 +231,19 @@ name = "azure-attest"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "jsonwebtoken",
  "libattest",
  "rsa 0.10.0-rc.18",
  "serde",
+ "serde_json",
  "sha2 0.11.0",
  "snp-attest",
  "tdx-attest",
+ "thiserror 2.0.18",
  "tpm2-protocol",
  "tss-esapi",
  "x509-cert 0.3.0-rc.4",
+ "zerocopy",
 ]
 
 [[package]]

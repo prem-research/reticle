@@ -1,5 +1,6 @@
 use std::ops::Deref;
 
+use azure_attest::report::AttestationReport;
 use libattest::error::Context;
 use rsa::{BoxedUint, RsaPublicKey};
 use tss_esapi::{
@@ -27,6 +28,7 @@ impl AzureTpm {
 
     const AK_CERT_IDX: u32 = 0x01C101D0;
     const VTPM_HCL_AKPUB_PERSISTENT_HANDLE: u32 = 0x81000003;
+    const HARDWARE_REPORT_IDX: u32 = 0x01400001;
 
     pub const VTPM_DEFAULT_PCR_SLOTS: [PcrSlot; 24] = [
         PcrSlot::Slot0,
@@ -60,6 +62,13 @@ impl AzureTpm {
         let read = nv::read_full(&mut self.context, NvAuth::Owner, handle)?;
 
         Ok(read)
+    }
+
+    pub fn hardware_report(&mut self) -> anyhow::Result<AttestationReport> {
+        let read = self.tpm_read(Self::HARDWARE_REPORT_IDX)?;
+        let report = azure_attest::report::deserialize_attestation_report(&read)?;
+
+        Ok(report)
     }
 
     pub fn ak_cert(&mut self) -> anyhow::Result<x509_cert::Certificate> {
@@ -148,7 +157,8 @@ fn main() {
 
     let cert = tpm.ak_cert().unwrap();
     let key = tpm.ak().unwrap();
-
+    let report = tpm.hardware_report().unwrap();
     let quote = tpm.quote([0u8; 32]).unwrap();
-    println!("{cert:?} {key:?} {quote:?}");
+
+    println!("{report:?} {cert:?} {key:?} {quote:?}");
 }
