@@ -3,7 +3,9 @@ use rsa::RsaPublicKey;
 use tss_esapi::{
     abstraction::nv,
     handles::{KeyHandle, NvIndexTpmHandle},
-    interface_types::{algorithm::HashingAlgorithm, resource_handles::NvAuth},
+    interface_types::{
+        algorithm::HashingAlgorithm, resource_handles::NvAuth, session_handles::AuthSession,
+    },
     structures::{
         Attest, PcrSelectSize, PcrSelectionListBuilder, PcrSlot, Public, Signature, SignatureScheme,
     },
@@ -119,7 +121,11 @@ impl AzureTpm {
 
 fn main() {
     // ContextGap
-    let context = tss_esapi::Context::new(TctiNameConf::Device(DeviceConfig::default())).unwrap();
+    let mut context =
+        tss_esapi::Context::new(TctiNameConf::Device(DeviceConfig::default())).unwrap();
+
+    context.set_sessions((Some(AuthSession::Password), None, None));
+
     let mut tpm = AzureTpm::new(context);
 
     let quote = tpm.quote([1, 2, 3, 4]).unwrap();
