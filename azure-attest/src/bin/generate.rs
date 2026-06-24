@@ -147,11 +147,14 @@ impl AzureTpm {
     }
 }
 
-fn build_azure_attestation(mut tpm: AzureTpm) -> libattest::Result<azure_attest::AzureQuote> {
+fn build_azure_attestation(
+    mut tpm: AzureTpm,
+    nonce: &[u8; 32],
+) -> libattest::Result<azure_attest::AzureQuote> {
     let cert = tpm.ak_cert().unwrap();
     let key = tpm.ak().unwrap();
     let report = tpm.hardware_report().unwrap();
-    let (attest, signature) = tpm.quote([0u8; 32]).unwrap();
+    let (attest, signature) = tpm.quote(nonce).unwrap();
 
     // convert tpm structure to wire compatible format
     let marshaled = attest.marshall()?;
@@ -178,7 +181,7 @@ fn main() {
     context.set_sessions((Some(AuthSession::Password), None, None));
 
     let tpm = AzureTpm::new(context);
-    let attestation = build_azure_attestation(tpm).unwrap();
+    let attestation = build_azure_attestation(tpm, &[0u8; 32]).unwrap();
 
     let attestation = serde_json::to_string(&attestation).unwrap();
 

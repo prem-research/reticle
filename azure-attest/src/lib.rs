@@ -4,8 +4,11 @@ mod serde_tpm;
 
 use rsa::signature::Verifier;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use tpm2_protocol::{TpmMarshal, TpmUnmarshal, TpmWriter, data::TpmsAttest};
+use sha2::Sha256;
+use tpm2_protocol::{
+    TpmMarshal, TpmWriter,
+    data::{TpmsAttest, TpmuAttest},
+};
 
 use crate::report::AttestationReport;
 
@@ -36,7 +39,6 @@ impl AzureTrust {
 pub struct AzureQuote {
     #[serde(with = "serde_tpm")]
     quote: TpmsAttest,
-
     hardware_report: AttestationReport,
 
     trust: AzureTrust,
@@ -53,7 +55,6 @@ impl AzureQuote {
 
     // pub fn parse(data: &AzureQuoteData) -> libattest::Result<Self> {
     //     let (attestation, _) = TpmsAttest::unmarshal(&data.quote)?;
-
     //     Ok(Self {
     //         quote: attestation,
     //         hardware_report: data.hardware_report.clone(),
@@ -62,10 +63,10 @@ impl AzureQuote {
     // }
 
     pub fn verify(&self) -> libattest::Result<()> {
-        let mut buffer = Box::new([0u8; 2048]);
+        let mut buffer = Box::new([0u8; 512]);
 
         let mut writer = TpmWriter::new(buffer.as_mut_slice());
-        self.quote.attested.marshal(&mut writer)?;
+        self.quote.marshal(&mut writer)?;
         let written = writer.len();
 
         let marshaled = &buffer[..written];
@@ -74,6 +75,14 @@ impl AzureQuote {
             .ak_key
             .verify(marshaled, &self.trust.quote_signature)?;
 
-        todo!()
+        let TpmuAttest::Quote(ref quote) = self.quote.attested else {
+            libattest::bail!("wrong type of attestation in TpmsQuote");
+        };
+
+        Ok(())
     }
 }
+
+// struct AzureReport {
+
+// }
