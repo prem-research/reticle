@@ -24,9 +24,9 @@ async fn main() -> anyhow::Result<()> {
     let collateral = pcs.fetch_collateral(&quote).await?;
 
     let nonce = ByteNonce::from(DATA).into();
-    let verifier = TdxQuoteVerifier::new(collateral, quote);
+    let verifier = TdxQuoteVerifier::new(collateral);
 
-    verifier.verify(&nonce)?;
+    verifier.verify(&quote, &nonce)?;
 
     println!("Verification success");
     // println!("{identity:?}");

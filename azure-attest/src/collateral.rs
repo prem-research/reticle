@@ -50,18 +50,19 @@ where
     ) -> libattest::Result<AzureQuoteVerifier> {
         // let report = quote.parse_hardware_report()?;
 
-        let verifier = match quote.hardware_report.payload {
-            ParserdHardwareReport::Tdx(ref tdx_quote) => {
-                let verifier = (self.fetch_tdx)(tdx_quote).await?;
-                AzureQuoteVerifier::Tdx(Box::new(verifier))
-            }
-            ParserdHardwareReport::Sev(ref sev_quote) => {
-                let verifier = (self.fetch_sev)(sev_quote).await?;
-                AzureQuoteVerifier::Sev(Box::new(verifier))
-            }
-        };
+        // let verifier = match quote.hardware_report.payload {
+        //     ParserdHardwareReport::Tdx(ref tdx_quote) => {
+        //         let verifier = (self.fetch_tdx)(tdx_quote).await?;
+        //         AzureQuoteVerifier::Tdx(Box::new(verifier))
+        //     }
+        //     ParserdHardwareReport::Sev(ref sev_quote) => {
+        //         let verifier = (self.fetch_sev)(sev_quote).await?;
+        //         AzureQuoteVerifier::Sev(Box::new(verifier))
+        //     }
+        // };
 
-        Ok(verifier)
+        // Ok(verifier)
+        todo!()
     }
 }
 
