@@ -1,8 +1,12 @@
-use snp_attest::{SevQuote, nonce::SevNonce, verify::SevQuoteVerifier};
-use tdx_attest::{TdxQuote, nonce::TdxNonce, verify::TdxQuoteVerifier};
+use snp_attest::{SevQuote, verify::SevQuoteVerifier};
+use tdx_attest::{TdxQuote, verify::TdxQuoteVerifier};
 
 use crate::{AzureQuote, ParsedHardwareReport};
 
+/// Construct the builder providing two async functions
+/// that fetch collateral and build a quote verifier
+/// based on the type of hardware report contained in the
+/// vtpm report data.
 pub struct ReportVerifierBuilder<T, S> {
     fetch_tdx: T,
     fetch_sev: S,
@@ -14,6 +18,12 @@ impl ReportVerifierBuilder<(), ()> {
             fetch_sev: (),
             fetch_tdx: (),
         }
+    }
+}
+
+impl Default for ReportVerifierBuilder<(), ()> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -44,6 +54,8 @@ where
     T: AsyncFnOnce(&TdxQuote) -> libattest::Result<TdxQuoteVerifier>,
     S: AsyncFnOnce(&SevQuote) -> libattest::Result<SevQuoteVerifier>,
 {
+    /// Chooses the right function to collect evidence depending
+    /// on the type of report data (sev or tdx) contained in the azure quote
     pub async fn fetch_collateral(self, quote: &AzureQuote) -> libattest::Result<ReportVerifier> {
         let report = quote.parse_hardware_report()?;
 

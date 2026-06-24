@@ -4,16 +4,11 @@ mod serde_cert;
 mod serde_tpm;
 pub mod verify;
 
-use libattest::{ByteNonce, error::Context, quote::QuoteVerifier};
-use rsa::signature::Verifier;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
-use snp_attest::{SevQuote, nonce::SevNonce, verify::SevQuoteVerifier};
-use tdx_attest::{TdxQuote, nonce::TdxNonce, verify::TdxQuoteVerifier};
-use tpm2_protocol::{
-    TpmMarshal, TpmWriter,
-    data::{TpmsAttest, TpmuAttest},
-};
+use snp_attest::SevQuote;
+use tdx_attest::TdxQuote;
+use tpm2_protocol::data::TpmsAttest;
 
 use crate::report::{AttestationReport, HardwareReport};
 
@@ -66,20 +61,9 @@ impl AzureQuote {
 
         Ok(report)
     }
-
-    // pub fn verify(self) -> libattest::Result<AzureReport> {}
 }
 
 enum ParsedHardwareReport {
     Tdx(TdxQuote),
     Sev(SevQuote),
 }
-
-// pub struct AzureReport {
-//     quote: AzureQuote,
-//     report: ParserdHardwareReport,
-// }
-
-// impl AzureReport {
-//     pub fn verify(self, verifier: &AzureQuoteVerifier) -> libattest::Result<()> {}
-// }

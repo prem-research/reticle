@@ -3,7 +3,7 @@ use jsonwebtoken::jwk::{AlgorithmParameters, JwkSet};
 use libattest::{ByteNonce, error::Context};
 use rsa::{BoxedUint, signature::Verifier};
 
-use crate::{AzureQuote, ParsedHardwareReport, collateral::ReportVerifier};
+use crate::{AzureQuote, ParsedHardwareReport, collateral::ReportVerifier, report::RuntimeClaims};
 
 pub fn verify_quote_signature(quote: &AzureQuote) -> libattest::Result<()> {
     use tpm2_protocol::{TpmMarshal, TpmWriter};
@@ -31,7 +31,7 @@ fn decode_base64_component(base64: &str) -> Result<rsa::BoxedUint, base64::Decod
     Ok(BoxedUint::from_be_slice_vartime(&decoded))
 }
 
-pub fn verify_quote_chain(quote: &AzureQuote) -> libattest::Result<()> {
+pub fn verify_runtime_data(quote: &AzureQuote) -> libattest::Result<RuntimeClaims> {
     let claims = quote
         .hardware_report
         .runtime
@@ -41,7 +41,9 @@ pub fn verify_quote_chain(quote: &AzureQuote) -> libattest::Result<()> {
     // Gather keys from runtime claims to enstablish trust into the keys used to sign
     // the vTPM quote.
 
-    let set = JwkSet { keys: claims.keys };
+    let set = JwkSet {
+        keys: claims.keys.clone(),
+    };
 
     let hclakpub = set
         .find("HCLAkPub")
@@ -68,7 +70,7 @@ pub fn verify_quote_chain(quote: &AzureQuote) -> libattest::Result<()> {
         libattest::bail!(exposed: "TPM read key and Hardware Report verified key do not match");
     }
 
-    Ok(())
+    Ok(claims)
 }
 
 pub fn verify_report_digest(
@@ -119,7 +121,7 @@ pub fn verify(azure_quote: AzureQuote, report_verifier: ReportVerifier) -> libat
     verify_report_digest(&azure_quote, &report_verifier)?;
     // 3: verify that report data contains the correct ak key,
     // sprouting azure trust from SEV/TDX
-    verify_quote_chain(&azure_quote)?;
+    verify_runtime_data(&azure_quote)?;
 
     Ok(())
 }
