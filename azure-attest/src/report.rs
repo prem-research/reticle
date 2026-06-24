@@ -177,7 +177,7 @@ pub struct RuntimeClaims {
 pub struct VmConfiguration {
     /// Root certificate thumbprint, when configured.
     #[serde(rename = "root-cert-thumbprint")]
-    pub root_cert_thumbprint: String,
+    pub root_cert_thumbprint: Option<String>,
     /// Whether VM console access is enabled.
     #[serde(rename = "console-enabled")]
     pub console_enabled: bool,
@@ -188,7 +188,7 @@ pub struct VmConfiguration {
     #[serde(rename = "tpm-enabled")]
     pub tpm_enabled: bool,
     /// Whether TPM state is persisted.
-    #[serde(rename = "tpm-persisted")]
+    #[serde(default, rename = "tpm-persisted")]
     pub tpm_persisted: bool,
     /// Azure VM unique ID.
     #[serde(rename = "vmUniqueId")]

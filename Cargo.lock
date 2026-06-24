@@ -231,6 +231,7 @@ name = "azure-attest"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64",
  "jsonwebtoken",
  "libattest",
  "rsa 0.10.0-rc.18",

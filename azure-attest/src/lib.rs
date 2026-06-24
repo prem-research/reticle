@@ -60,8 +60,8 @@ impl AzureQuote {
 
     fn parse_hardware_report(&self) -> libattest::Result<ParsedHardwareReport> {
         let report = match &self.hardware_report.payload {
-            HardwareReport::Tdx(items) => ParsedHardwareReport::Sev(SevQuote::new(&items)?),
-            HardwareReport::Sev(items) => ParsedHardwareReport::Tdx(TdxQuote::from_bytes(&items)?),
+            HardwareReport::Tdx(items) => ParsedHardwareReport::Tdx(TdxQuote::from_bytes(items)?),
+            HardwareReport::Sev(items) => ParsedHardwareReport::Sev(SevQuote::new(items)?),
         };
 
         Ok(report)

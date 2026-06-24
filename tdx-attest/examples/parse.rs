@@ -1,4 +1,4 @@
-use libattest::ByteNonce;
+use libattest::{ByteNonce, quote::QuoteVerifier};
 use tdx_attest::{
     TdxQuote,
     dcap::parser::ParseErrorExt,

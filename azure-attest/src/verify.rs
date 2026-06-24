@@ -1,7 +1,9 @@
+use base64::Engine;
+use jsonwebtoken::jwk::{AlgorithmParameters, JwkSet};
 use libattest::{ByteNonce, error::Context};
-use rsa::signature::Verifier;
+use rsa::{BoxedUint, signature::Verifier};
 
-use crate::{AzureQuote, ParsedHardwareReport, collateral::AzureQuoteVerifier};
+use crate::{AzureQuote, ParsedHardwareReport, collateral::ReportVerifier};
 
 pub fn verify_quote_signature(quote: &AzureQuote) -> libattest::Result<()> {
     use tpm2_protocol::{TpmMarshal, TpmWriter};
@@ -22,9 +24,56 @@ pub fn verify_quote_signature(quote: &AzureQuote) -> libattest::Result<()> {
     Ok(())
 }
 
+fn decode_base64_component(base64: &str) -> Result<rsa::BoxedUint, base64::DecodeError> {
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+
+    let decoded = URL_SAFE_NO_PAD.decode(base64)?;
+    Ok(BoxedUint::from_be_slice_vartime(&decoded))
+}
+
+pub fn verify_quote_chain(quote: &AzureQuote) -> libattest::Result<()> {
+    let claims = quote
+        .hardware_report
+        .runtime
+        .claims()
+        .context("failed parsing Runtime Data claims")?;
+
+    // Gather keys from runtime claims to enstablish trust into the keys used to sign
+    // the vTPM quote.
+
+    let set = JwkSet { keys: claims.keys };
+
+    let hclakpub = set
+        .find("HCLAkPub")
+        .context("Missing HCLAkPub from Runtime Claims")?;
+
+    // Verify that keys match
+    let AlgorithmParameters::RSA(ref hclakpub) = hclakpub.algorithm else {
+        libattest::bail!("Received wrong key type in Report Data JWT for HCKLAkPub");
+    };
+
+    // we decode the components of the rsa key from
+    // base64 encoded format of jsonwebkeys
+    let modulus = decode_base64_component(&hclakpub.n).context("failed parsing modulus")?;
+    let exponent = decode_base64_component(&hclakpub.e).context("failed parsing exponent")?;
+
+    // convert the key into something we can compare
+    let report_ak = rsa::RsaPublicKey::new(modulus, exponent)
+        .map(rsa::pkcs1v15::VerifyingKey::<sha2::Sha256>::new)
+        .context("failed constructing rsa public key from report data")?;
+
+    // Finally, we check if the vendored ak key and the trusted ak key
+    // whose trust we derive from the hardware report match
+    if report_ak != quote.trust.ak_key {
+        libattest::bail!(exposed: "TPM read key and Hardware Report verified key do not match");
+    }
+
+    Ok(())
+}
+
 pub fn verify_report_digest(
     quote: &AzureQuote,
-    verifier: &AzureQuoteVerifier,
+    verifier: &ReportVerifier,
 ) -> libattest::Result<()> {
     use libattest::quote::QuoteVerifier;
     use snp_attest::nonce::SevNonce;
@@ -63,9 +112,14 @@ pub fn verify_report_digest(
     Ok(())
 }
 
-pub fn verify(azure_quote: AzureQuote, verifier: AzureQuoteVerifier) -> libattest::Result<()> {
+pub fn verify(azure_quote: AzureQuote, report_verifier: ReportVerifier) -> libattest::Result<()> {
+    // 1: verify that AK signs Quote through signature
     verify_quote_signature(&azure_quote)?;
-    verify_report_digest(&azure_quote, &verifier)?;
+    // 2: verify that the hardware report signs report data
+    verify_report_digest(&azure_quote, &report_verifier)?;
+    // 3: verify that report data contains the correct ak key,
+    // sprouting azure trust from SEV/TDX
+    verify_quote_chain(&azure_quote)?;
 
     Ok(())
 }

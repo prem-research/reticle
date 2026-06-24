@@ -1,4 +1,4 @@
-use azure_attest::collateral::AzureVerifierBuilder;
+use azure_attest::collateral::ReportVerifierBuilder;
 use libattest::error::Context;
 use snp_attest::{kds::Kds, verify::SevQuoteVerifier};
 
@@ -11,24 +11,20 @@ fn decode_attestation() {
 
 #[tokio::test]
 async fn verify_attestation() {
-    let attestation: azure_attest::AzureQuote = serde_json::from_str(ATTESTATION).unwrap();
-    let report = attestation.verify().unwrap();
+    let quote: azure_attest::AzureQuote = serde_json::from_str(ATTESTATION).unwrap();
 
     let kds = Kds::default();
 
-    let verifier = AzureVerifierBuilder::new()
+    let verifier = ReportVerifierBuilder::new()
         .sev(async |quote| {
             kds.fetch_certificates(quote)
                 .await
                 .map(SevQuoteVerifier::new)
-                .context("lol")
         })
         .tdx(async |_| todo!())
-        .fetch_collateral(&report)
+        .fetch_collateral(&quote)
         .await
         .unwrap();
 
-    report.verify(&verifier).unwrap();
-
-    todo!()
+    azure_attest::verify::verify(quote, verifier).unwrap();
 }
