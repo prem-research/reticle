@@ -2,7 +2,7 @@ use libattest::validation::WithPolicy;
 use serde::Serialize;
 use sev::firmware::guest::{AttestationReport, GuestPolicy};
 
-use crate::ParsedAttestation;
+use crate::SevQuote;
 
 #[derive(Debug, Serialize)]
 pub struct GuestPolicyClaims {
@@ -61,7 +61,7 @@ impl From<&AttestationReport> for SevClaims {
     }
 }
 
-impl libattest::validation::IntoClaims for &ParsedAttestation {
+impl libattest::validation::IntoClaims for &SevQuote {
     type Claims = WithPolicy<SevClaims>;
     fn into_claims(self) -> WithPolicy<SevClaims> {
         WithPolicy::new("sev.allow", SevClaims::from(self.report()))

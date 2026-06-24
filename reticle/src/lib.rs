@@ -11,10 +11,11 @@ use futures::future::{Either, OptionFuture};
 use libattest::{
     CpuModule, GpuModule, Modules, bail,
     error::{AttestationError, Context, Expose},
+    quote::QuoteVerifier,
     validation::{Validator, WithPolicy},
 };
 use nvidia_attest::{EATToken, keychain::KeyChain, nonce::NvidiaNonce};
-use snp_attest::{ParsedAttestation, kds::Kds, nonce::SevNonce};
+use snp_attest::{SevQuote, kds::Kds, nonce::SevNonce, verify::SevQuoteVerifier};
 
 pub use nvidia_attest;
 use reqwest::{
@@ -23,7 +24,7 @@ use reqwest::{
 };
 pub use snp_attest;
 
-use tdx_attest::{TdxQuote, nonce::TdxNonce, pcs::Pcs, verify::QuoteVerifier};
+use tdx_attest::{TdxQuote, nonce::TdxNonce, pcs::Pcs, verify::TdxQuoteVerifier};
 
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -205,15 +206,12 @@ impl Client {
     /// This method exposes core functionality and does not perform cryptographic
     /// or measurement checks on the attestation. If you want to perform end-to-end attestation
     /// please refer to [`Self::attest_sev`]
-    pub async fn request_sev(
-        &self,
-        nonce: &SevNonce,
-    ) -> Result<ParsedAttestation, AttestationError> {
+    pub async fn request_sev(&self, nonce: &SevNonce) -> Result<SevQuote, AttestationError> {
         let url = self.url.join("/attestation/sev").unwrap();
 
         let query = [("nonce", &nonce.to_hex())];
         let response = self.request(url, &query).await?.bytes().await?;
-        let attestation = ParsedAttestation::new(&response)?;
+        let attestation = SevQuote::new(&response)?;
 
         Ok(attestation)
     }
@@ -266,7 +264,8 @@ impl Client {
         let attestation = self.request_sev(&nonce).await?;
         let keychain = self.kds.fetch_certificates(&attestation).await?;
 
-        attestation.verify(&keychain, &nonce)?;
+        let verifier = SevQuoteVerifier::new(keychain);
+        verifier.verify(&attestation, &nonce)?;
 
         self.policy_validator
             .verify_claim(&attestation)?
@@ -290,9 +289,9 @@ impl Client {
 
         let claims = quote.body().clone();
 
-        let verifier = QuoteVerifier::new(collateral, quote);
+        let verifier = TdxQuoteVerifier::new(collateral);
         verifier
-            .verify(&nonce)
+            .verify(&quote, &nonce)
             .context("TDX quote verification has failed")
             .expose_error()?;
 

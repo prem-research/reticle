@@ -7,7 +7,7 @@ use x509_cert::certificate::{CertificateInner, Rfc5280};
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    ParsedAttestation,
+    SevQuote,
     chain::{CRL, VerifiedChain},
 };
 
@@ -107,7 +107,7 @@ impl Kds {
 
     pub async fn fetch_certificates(
         &self,
-        attestation: &ParsedAttestation,
+        attestation: &SevQuote,
     ) -> Result<VerifiedChain, AttestationError> {
         log::info!("Fetching the chain from KDS");
         let chain = self
@@ -124,10 +124,7 @@ impl Kds {
     }
 
     /// Fetches the certificate revocation list from AMD's KDS
-    pub async fn fetch_crl(
-        &self,
-        attestation: &ParsedAttestation,
-    ) -> Result<CRL, AttestationError> {
+    pub async fn fetch_crl(&self, attestation: &SevQuote) -> Result<CRL, AttestationError> {
         let client = Client::new();
         let req = client.get(format!(
             "{}/crl",

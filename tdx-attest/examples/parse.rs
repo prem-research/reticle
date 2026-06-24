@@ -3,7 +3,7 @@ use tdx_attest::{
     TdxQuote,
     dcap::parser::ParseErrorExt,
     pcs::Pcs,
-    verify::{self, QuoteVerifier},
+    verify::{self, TdxQuoteVerifier},
 };
 
 // static DATA: [u8; 64] = [
@@ -24,7 +24,7 @@ async fn main() -> anyhow::Result<()> {
     let collateral = pcs.fetch_collateral(&quote).await?;
 
     let nonce = ByteNonce::from(DATA).into();
-    let verifier = QuoteVerifier::new(collateral, quote);
+    let verifier = TdxQuoteVerifier::new(collateral, quote);
 
     verifier.verify(&nonce)?;
 

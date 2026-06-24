@@ -1,5 +1,6 @@
 pub mod error;
 pub mod modules;
+pub mod quote;
 pub mod validation;
 
 pub use modules::*;

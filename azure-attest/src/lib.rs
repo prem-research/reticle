@@ -1,16 +1,21 @@
+pub mod collateral;
 pub mod report;
 mod serde_cert;
 mod serde_tpm;
+pub mod verify;
 
+use libattest::{ByteNonce, error::Context, quote::QuoteVerifier};
 use rsa::signature::Verifier;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
+use snp_attest::{SevQuote, nonce::SevNonce, verify::SevQuoteVerifier};
+use tdx_attest::{TdxQuote, nonce::TdxNonce, verify::TdxQuoteVerifier};
 use tpm2_protocol::{
     TpmMarshal, TpmWriter,
     data::{TpmsAttest, TpmuAttest},
 };
 
-use crate::report::AttestationReport;
+use crate::report::{AttestationReport, HardwareReport};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AzureTrust {
@@ -53,36 +58,28 @@ impl AzureQuote {
         }
     }
 
-    // pub fn parse(data: &AzureQuoteData) -> libattest::Result<Self> {
-    //     let (attestation, _) = TpmsAttest::unmarshal(&data.quote)?;
-    //     Ok(Self {
-    //         quote: attestation,
-    //         hardware_report: data.hardware_report.clone(),
-    //         trust: data.trust.clone(),
-    //     })
-    // }
-
-    pub fn verify(&self) -> libattest::Result<()> {
-        let mut buffer = Box::new([0u8; 512]);
-
-        let mut writer = TpmWriter::new(buffer.as_mut_slice());
-        self.quote.marshal(&mut writer)?;
-        let written = writer.len();
-
-        let marshaled = &buffer[..written];
-
-        self.trust
-            .ak_key
-            .verify(marshaled, &self.trust.quote_signature)?;
-
-        let TpmuAttest::Quote(ref quote) = self.quote.attested else {
-            libattest::bail!("wrong type of attestation in TpmsQuote");
+    fn parse_hardware_report(&self) -> libattest::Result<ParsedHardwareReport> {
+        let report = match &self.hardware_report.payload {
+            HardwareReport::Tdx(items) => ParsedHardwareReport::Sev(SevQuote::new(&items)?),
+            HardwareReport::Sev(items) => ParsedHardwareReport::Tdx(TdxQuote::from_bytes(&items)?),
         };
 
-        Ok(())
+        Ok(report)
     }
+
+    // pub fn verify(self) -> libattest::Result<AzureReport> {}
 }
 
-// struct AzureReport {
+enum ParsedHardwareReport {
+    Tdx(TdxQuote),
+    Sev(SevQuote),
+}
 
+// pub struct AzureReport {
+//     quote: AzureQuote,
+//     report: ParserdHardwareReport,
+// }
+
+// impl AzureReport {
+//     pub fn verify(self, verifier: &AzureQuoteVerifier) -> libattest::Result<()> {}
 // }

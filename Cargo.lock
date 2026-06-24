@@ -240,6 +240,7 @@ dependencies = [
  "snp-attest",
  "tdx-attest",
  "thiserror 2.0.18",
+ "tokio",
  "tpm2-protocol",
  "tss-esapi",
  "x509-cert 0.3.0-rc.4",
