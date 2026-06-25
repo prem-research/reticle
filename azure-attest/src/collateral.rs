@@ -1,7 +1,7 @@
 use snp_attest::{SevQuote, verify::SevQuoteVerifier};
 use tdx_attest::{TdxQuote, verify::TdxQuoteVerifier};
 
-use crate::{AzureQuote, ParsedHardwareReport};
+use crate::quote::{AzureQuote, ParsedHardwareReport};
 
 /// Construct the builder providing two async functions
 /// that fetch collateral and build a quote verifier

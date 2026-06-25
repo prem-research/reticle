@@ -130,7 +130,10 @@ impl Validator {
 
     /// gets the rego query and input from `impl Claim` and then
     /// drives the engine to verify the query
-    pub fn verify_claim(&self, claims: impl IntoClaims) -> Result<ValidationResult, AttestationError> {
+    pub fn verify_claim(
+        &self,
+        claims: impl IntoClaims,
+    ) -> Result<ValidationResult, AttestationError> {
         let claims = claims.into_claims();
         // avois polluting the engine for further verifications
         // and allows us to have this method &self

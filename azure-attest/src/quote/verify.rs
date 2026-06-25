@@ -1,9 +1,16 @@
+use std::ops::Deref;
+
 use base64::Engine;
 use jsonwebtoken::jwk::{AlgorithmParameters, JwkSet};
 use libattest::{ByteNonce, error::Context};
 use rsa::{BoxedUint, signature::Verifier};
 
-use crate::{AzureQuote, ParsedHardwareReport, collateral::ReportVerifier, report::RuntimeClaims};
+use crate::{
+    collateral::ReportVerifier,
+    nonce::AzureNonce,
+    quote::{AzureQuote, ParsedHardwareReport},
+    report::RuntimeClaims,
+};
 
 pub fn verify_quote_signature(quote: &AzureQuote) -> libattest::Result<()> {
     use tpm2_protocol::{TpmMarshal, TpmWriter};
@@ -114,7 +121,28 @@ pub fn verify_report_digest(
     Ok(())
 }
 
-pub fn verify(azure_quote: AzureQuote, report_verifier: ReportVerifier) -> libattest::Result<()> {
+fn verify_quote_nonce(azure_quote: &AzureQuote, nonce: &AzureNonce) -> libattest::Result<()> {
+    let tpm_nonce = azure_quote.quote.extra_data;
+
+    // try to fit the tpm nonce into our azurenonce type.
+    // tpm nonces can be arbitrary sized (MAX 64) so we
+    // have to check manually
+    let tpm_nonce = <&[u8; 64]>::try_from(tpm_nonce.deref())
+        .map(AzureNonce::from)
+        .context("received nonce does not fit into defined AzureNonce type")?;
+
+    if !nonce.eq(&tpm_nonce) {
+        libattest::bail!(exposed: "Mismatched vTPM nonce");
+    }
+
+    Ok(())
+}
+
+pub fn verify(
+    azure_quote: AzureQuote,
+    report_verifier: ReportVerifier,
+    nonce: &AzureNonce,
+) -> libattest::Result<()> {
     // 1: verify that AK signs Quote through signature
     verify_quote_signature(&azure_quote)?;
     // 2: verify that the hardware report signs report data
@@ -122,6 +150,8 @@ pub fn verify(azure_quote: AzureQuote, report_verifier: ReportVerifier) -> libat
     // 3: verify that report data contains the correct ak key,
     // sprouting azure trust from SEV/TDX
     verify_runtime_data(&azure_quote)?;
+    // 4: Verify that user supplied nonce and received quote nonce match
+    verify_quote_nonce(&azure_quote, nonce)?;
 
     Ok(())
 }

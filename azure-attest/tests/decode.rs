@@ -26,5 +26,5 @@ async fn verify_attestation() {
         .await
         .unwrap();
 
-    azure_attest::verify::verify(quote, verifier).unwrap();
+    azure_attest::verify(quote, verifier).unwrap();
 }
