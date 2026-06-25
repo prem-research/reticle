@@ -1,4 +1,4 @@
-use azure_attest::collateral::ReportVerifierBuilder;
+use azure_attest::{collateral::ReportVerifierBuilder, nonce::AzureNonce};
 use libattest::error::Context;
 use snp_attest::{kds::Kds, verify::SevQuoteVerifier};
 
@@ -26,5 +26,6 @@ async fn verify_attestation() {
         .await
         .unwrap();
 
-    azure_attest::verify(quote, verifier).unwrap();
+    let nonce = AzureNonce::from([0u8; 64]);
+    azure_attest::verify(quote, verifier, &nonce).unwrap();
 }

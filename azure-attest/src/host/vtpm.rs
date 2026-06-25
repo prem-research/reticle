@@ -6,7 +6,9 @@ use sha2::Sha256;
 use tss_esapi::{
     abstraction::nv,
     handles::{KeyHandle, NvIndexTpmHandle},
-    interface_types::{algorithm::HashingAlgorithm, resource_handles::NvAuth},
+    interface_types::{
+        algorithm::HashingAlgorithm, resource_handles::NvAuth, session_handles::AuthSession,
+    },
     structures::{
         Attest, PcrSelectSize, PcrSelectionListBuilder, PcrSlot, Public, RsaExponent, Signature,
         SignatureScheme,
@@ -17,13 +19,24 @@ use x509_cert::der::{Decode, SliceReader};
 
 use crate::report::AttestationReport;
 
-pub struct AzureTpm {
+pub struct AzureTpmCtx {
     context: tss_esapi::Context,
 }
 
-impl AzureTpm {
+impl AzureTpmCtx {
     pub fn new(context: tss_esapi::Context) -> Self {
         Self { context }
+    }
+
+    pub fn default_context() -> tss_esapi::Result<Self> {
+        use tss_esapi::tcti_ldr::DeviceConfig;
+        use tss_esapi::tcti_ldr::TctiNameConf;
+
+        let mut context = tss_esapi::Context::new(TctiNameConf::Device(DeviceConfig::default()))?;
+
+        context.set_sessions((Some(AuthSession::Password), None, None));
+
+        Ok(Self { context })
     }
 
     const AK_CERT_IDX: u32 = 0x01C101D0;

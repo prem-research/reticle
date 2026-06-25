@@ -9,7 +9,7 @@ pub mod vtpm;
 
 /// Performs attestation on an AzureTpm object
 pub fn azure_attest(
-    mut tpm: vtpm::AzureTpm,
+    mut tpm: vtpm::AzureTpmCtx,
     nonce: &AzureNonce,
 ) -> libattest::Result<crate::AzureQuote> {
     let cert = tpm.ak_cert().unwrap();
