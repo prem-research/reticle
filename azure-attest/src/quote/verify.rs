@@ -127,7 +127,7 @@ fn verify_quote_nonce(azure_quote: &AzureQuote, nonce: &AzureNonce) -> libattest
     // try to fit the tpm nonce into our azurenonce type.
     // tpm nonces can be arbitrary sized (MAX 64) so we
     // have to check manually
-    let tpm_nonce = <&[u8; 64]>::try_from(tpm_nonce.deref())
+    let tpm_nonce = <&[u8; _]>::try_from(tpm_nonce.deref())
         .map(AzureNonce::from)
         .context("received nonce does not fit into defined AzureNonce type")?;
 
