@@ -3,7 +3,17 @@ use std::ops::Deref;
 use base64::Engine;
 use jsonwebtoken::jwk::{AlgorithmParameters, JwkSet};
 use libattest::{ByteNonce, error::Context};
-use rsa::{BoxedUint, signature::Verifier};
+use rsa::{
+    BoxedUint,
+    pkcs1::DecodeRsaPublicKey,
+    pkcs1v15::{Signature, VerifyingKey},
+    signature::Verifier,
+};
+use sha2::Sha256;
+use x509_cert::der::{
+    Encode,
+    oid::db::{rfc5912::SHA_256_WITH_RSA_ENCRYPTION, rfc9688::RSA_ENCRYPTION},
+};
 
 use crate::{
     collateral::ReportVerifier,
@@ -27,6 +37,27 @@ pub fn verify_quote_signature(quote: &AzureQuote) -> libattest::Result<()> {
         .trust
         .ak_key
         .verify(marshaled, &quote.trust.quote_signature)?;
+
+    Ok(())
+}
+
+pub fn verify_quote_certificate(quote: &AzureQuote) -> libattest::Result<()> {
+    let pk = quote
+        .trust
+        .ak_cert
+        .tbs_certificate()
+        .subject_public_key_info();
+
+    pk.algorithm
+        .assert_algorithm_oid(RSA_ENCRYPTION)
+        .context("invalid AK cert public key encryption algorithm")?;
+
+    let public_key = rsa::RsaPublicKey::from_pkcs1_der(pk.subject_public_key.raw_bytes())?;
+    let public_key: VerifyingKey<Sha256> = VerifyingKey::new(public_key);
+
+    if quote.trust.ak_key != public_key {
+        libattest::bail!(exposed: "mismatched ak key between certificate and evidence");
+    }
 
     Ok(())
 }

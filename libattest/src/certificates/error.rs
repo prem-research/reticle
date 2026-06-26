@@ -21,6 +21,15 @@ pub enum CertificateError {
     #[error("certificate extension is malformed")]
     Extension,
 
+    #[error("this certificate chain does not contain any leaf certificates")]
+    NoLeaf,
+
+    #[error("signature error: {0}")]
+    Signature(#[from] signature::Error),
+
+    #[error("rsa signature error: {0}")]
+    RsaSignature(#[from] rsa::signature::Error),
+
     #[error("an error occurred while parsing the certificate: {0}")]
     Der(#[from] der::Error),
 

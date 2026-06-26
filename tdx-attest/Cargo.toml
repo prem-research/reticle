@@ -6,8 +6,6 @@ edition = "2024"
 [dependencies]
 # dcap-qvl = "0.3"
 # tdx-quote = "0.0.5"
-wasm-bindgen.workspace = true
-wasm-bindgen-futures.workspace = true
 libattest = { path = "../libattest" }
 thiserror = "2"
 zerocopy = { version = "0.8.39", features = ["derive"] }
@@ -29,6 +27,8 @@ const-oid = "0.10.2"
 sha2 = "0.10.9"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen.workspace = true
+wasm-bindgen-futures.workspace = true
 web-time = "1.1"
 
 [dev-dependencies]

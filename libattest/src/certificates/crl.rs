@@ -1,14 +1,11 @@
-use crate::certificates::now;
-
 use der::oid::db::rfc5912::ECDSA_WITH_SHA_256;
 use der::{Decode, Encode};
 use p256::ecdsa::Signature;
-use signature::Verifier;
+use x509_cert::crl::CertificateList;
 use x509_cert::der::DecodePem;
-use x509_cert::time::Time;
-use x509_cert::{certificate::Rfc5280, crl::CertificateList};
 
-use crate::certificates::{CertificateChain, CertificateError, EcdsaCert};
+use crate::certificates::format::{Cert, CertFormat, Verify};
+use crate::certificates::{CertificateChain, CertificateError};
 
 mod sealed {
     pub trait Sealed {}
@@ -24,14 +21,15 @@ impl sealed::Sealed for Crl {}
 
 impl Crl {
     pub fn from_pem(
-        verifier: impl Verifier<Signature>,
+        verifier: impl Verify<Signature>,
         pem: impl AsRef<[u8]>,
     ) -> Result<Self, CertificateError> {
         let list = CertificateList::from_pem(pem)?;
         Self::from_certificate_list(verifier, list)
     }
+
     pub fn from_der(
-        verifier: impl Verifier<Signature>,
+        verifier: impl Verify<Signature>,
         der: impl AsRef<[u8]>,
     ) -> Result<Self, CertificateError> {
         let list = CertificateList::from_der(der.as_ref())?;
@@ -39,7 +37,7 @@ impl Crl {
     }
 
     pub fn from_certificate_list(
-        verifier: impl Verifier<Signature>,
+        verifier: impl Verify<Signature>,
         list: CertificateList,
     ) -> Result<Self, CertificateError> {
         // let list: CertificateList<Rfc5280> = CertificateList::from_pem(pem)?;
@@ -48,7 +46,7 @@ impl Crl {
         let expired = list
             .tbs_cert_list
             .next_update
-            .is_some_and(|a| a.to_system_time() < now());
+            .is_some_and(|a| a.to_system_time() < crate::now());
 
         if expired {
             return Err(CertificateError::Expired);
@@ -72,9 +70,7 @@ impl Crl {
             Signature::from_der(signature).expect("could not re-decode an encoded signature");
 
         // verify the signature of the certificate chain
-        verifier
-            .verify(&tbs_list, &signature)
-            .map_err(CertificateError::BadSignature)?;
+        verifier.verify_signature(&tbs_list, &signature)?;
 
         // ok!
         Ok(Self { list, signature })
@@ -85,16 +81,16 @@ pub trait VerifyCrl<Tbs>: sealed::Sealed {
     fn check_revoked(&self, tbs: &Tbs) -> Result<(), CertificateError>;
 }
 
-impl VerifyCrl<CertificateChain> for Crl {
-    fn check_revoked(&self, tbs: &CertificateChain) -> Result<(), CertificateError> {
+impl<C: Cert> VerifyCrl<CertificateChain<C>> for Crl {
+    fn check_revoked(&self, tbs: &CertificateChain<C>) -> Result<(), CertificateError> {
         tbs.chain
             .iter()
             .try_for_each(|cert| self.check_revoked(cert))
     }
 }
 
-impl VerifyCrl<EcdsaCert> for Crl {
-    fn check_revoked(&self, tbs: &EcdsaCert) -> Result<(), CertificateError> {
+impl<C: CertFormat> VerifyCrl<C> for Crl {
+    fn check_revoked(&self, tbs: &C) -> Result<(), CertificateError> {
         let certificates = self
             .list
             .tbs_cert_list
@@ -103,7 +99,7 @@ impl VerifyCrl<EcdsaCert> for Crl {
             .flatten();
 
         // if this serial number is found in the list, the certificate has been revoked
-        let serial_number = tbs.certificate.tbs_certificate().serial_number().clone();
+        let serial_number = tbs.cetificate().serial_number().clone();
 
         let found = certificates
             .map(|cert| &cert.serial_number)

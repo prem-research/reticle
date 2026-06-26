@@ -244,6 +244,8 @@ dependencies = [
  "tokio",
  "tpm2-protocol",
  "tss-esapi",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
  "x509-cert 0.3.0-rc.4",
  "zerocopy",
 ]
@@ -967,7 +969,7 @@ dependencies = [
  "pem-rfc7468 0.7.0",
  "pkcs8 0.10.2",
  "rand_core 0.6.4",
- "sec1",
+ "sec1 0.7.3",
  "subtle",
  "zeroize",
 ]
@@ -1934,14 +1936,24 @@ name = "libattest"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "der 0.8.0",
  "getrandom 0.4.2",
  "hex",
  "js-sys",
+ "p256",
  "regorus",
+ "rsa 0.10.0-rc.18",
+ "sec1 0.8.1",
  "serde",
  "serde-value",
+ "sha2 0.11.0",
+ "signature 2.2.0",
+ "spki 0.8.0",
+ "thiserror 2.0.18",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "web-time",
+ "x509-cert 0.3.0-rc.4",
 ]
 
 [[package]]
@@ -3313,6 +3325,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "sec1"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d56d437c2f19203ce5f7122e507831de96f3d2d4d3be5af44a0b0a09d8a80e4d"
+dependencies = [
+ "base16ct 1.0.0",
+ "der 0.8.0",
+ "hybrid-array",
+ "zeroize",
+]
+
+[[package]]
 name = "security-framework"
 version = "3.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3753,7 +3777,7 @@ dependencies = [
  "libattest",
  "p256",
  "reqwest 0.13.2",
- "sec1",
+ "sec1 0.7.3",
  "serde",
  "serde_json",
  "sha2 0.10.9",

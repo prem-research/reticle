@@ -17,19 +17,19 @@ static DATA: [u8; 64] = [0; 64];
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let input = std::fs::read("./examples/quote.test").unwrap();
-    let pcs = Pcs::new("https://pccs.prem.io/")?;
+    // let input = std::fs::read("./examples/quote.test").unwrap();
+    // let pcs = Pcs::new("https://pccs.prem.io/")?;
 
-    let quote = TdxQuote::from_bytes(&input)?;
-    let collateral = pcs.fetch_collateral(&quote).await?;
+    // let quote = TdxQuote::from_bytes(&input)?;
+    // let collateral = pcs.fetch_collateral(&quote).await?;
 
-    let nonce = ByteNonce::from(DATA).into();
-    let verifier = TdxQuoteVerifier::new(collateral);
+    // let nonce = ByteNonce::from(DATA).into();
+    // let verifier = TdxQuoteVerifier::new(collateral);
 
-    verifier.verify(&quote, &nonce)?;
+    // verifier.verify(&quote, &nonce)?;
 
-    println!("Verification success");
-    // println!("{identity:?}");
+    // println!("Verification success");
+    // // println!("{identity:?}");
 
     Ok(())
 }

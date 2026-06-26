@@ -1,13 +1,16 @@
 use std::ops::Deref;
 
-use libattest::{error::Context, quote::QuoteVerifier};
+use libattest::{
+    certificates::{crl::VerifyCrl, format::Verify},
+    error::Context,
+    quote::QuoteVerifier,
+};
 use sha2::{Digest, Sha256, digest::Update};
 use signature::Verifier;
 use zerocopy::IntoBytes;
 
 use crate::{
     TdxCertification, TdxQuote,
-    certificates::crl::VerifyCrl,
     dcap::types::{ReportData, TdxQuoteBody},
     error::TdxError,
     nonce::TdxNonce,
@@ -47,7 +50,7 @@ fn verify_qe_report(quote: &TdxQuote, collateral: &Collateral) -> Result<(), Tdx
         .context("qe report is not in the first level of nesting in dcap quote")?;
 
     let qe_report_data = qe_report.qe_report.as_bytes();
-    pck_chain.verify(qe_report_data, &qe_report.qe_report_signature)?;
+    pck_chain.verify_signature(qe_report_data, &qe_report.qe_report_signature)?;
 
     // now verify hashes
     let attestation_key = certification.attestation_key.to_sec1_bytes();

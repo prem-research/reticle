@@ -6,6 +6,7 @@ pub mod report;
 #[cfg(feature = "host")]
 pub mod host;
 
+pub mod ca;
 mod serde;
 
 pub use quote::AzureQuote;

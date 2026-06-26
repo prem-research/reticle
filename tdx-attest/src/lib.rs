@@ -11,10 +11,7 @@ use crate::dcap::TdQuote;
 use crate::dcap::parser::Parse;
 use crate::error::TdxError;
 
-use crate::{
-    certificates::CertificateChain,
-    dcap::types::{EnclaveReport, TdxQuoteBody, TdxQuoteHeader},
-};
+use crate::dcap::types::{EnclaveReport, TdxQuoteBody, TdxQuoteHeader};
 
 pub(crate) mod certificates;
 pub mod dcap;

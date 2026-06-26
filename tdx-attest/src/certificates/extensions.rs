@@ -7,9 +7,10 @@ use der::{
     asn1::{Int, ObjectIdentifier, OctetString, OctetStringRef, SequenceRef},
     oid::{self, AssociatedOid, ObjectIdentifierRef},
 };
+use libattest::error::Context;
 // use sec1::der::asn1::SequenceOf;
 
-use crate::{certificates::CertificateError, dcap::types};
+use crate::dcap::types;
 
 #[derive(Sequence, Debug)]
 struct TaggedField<'a> {
@@ -24,10 +25,10 @@ pub struct TcbExtension {
 }
 
 impl TcbExtension {
-    fn decode<'a>(mut from: AnyRef<'a>) -> Result<TcbExtension, CertificateError> {
-        let fields: Vec<TaggedField> = from.decode_as()?;
+    fn decode<'a>(mut from: AnyRef<'a>) -> Option<TcbExtension> {
+        let fields: Vec<TaggedField> = from.decode_as().ok()?;
 
-        let cpu_svn = fields.get(..16).ok_or(CertificateError::WrongFormat)?;
+        let cpu_svn = fields.get(..16)?;
         let cpu_svn = cpu_svn
             .iter()
             .map(|a| {
@@ -35,23 +36,17 @@ impl TcbExtension {
                     .then(|| a.data.decode_as::<u32>().ok())
                     .flatten()
             })
-            .collect::<Option<Vec<u32>>>()
-            .ok_or(CertificateError::WrongFormat)?;
+            .collect::<Option<Vec<u32>>>()?;
 
-        let cpu_svn = cpu_svn
-            .try_into()
-            .map_err(|_| CertificateError::WrongFormat)?;
+        let cpu_svn = Box::<[u32; 16]>::try_from(cpu_svn).ok()?;
 
-        let pce_svn = fields
-            .get(16)
-            .and_then(|TaggedField { data, .. }| {
-                (data.tag() == Tag::Integer)
-                    .then(|| data.decode_as::<u32>().ok())
-                    .flatten()
-            })
-            .ok_or(CertificateError::WrongFormat)?;
+        let pce_svn = fields.get(16).and_then(|TaggedField { data, .. }| {
+            (data.tag() == Tag::Integer)
+                .then(|| data.decode_as::<u32>().ok())
+                .flatten()
+        })?;
 
-        Ok(TcbExtension { cpu_svn, pce_svn })
+        Some(TcbExtension { cpu_svn, pce_svn })
     }
 }
 
@@ -83,14 +78,17 @@ impl SgxExtension<'_> {
 }
 
 impl<'a> Decode<'a> for SgxExtension<'a> {
-    type Error = CertificateError;
+    type Error = der::Error;
 
     fn decode<R: der::Reader<'a>>(decoder: &mut R) -> Result<Self, Self::Error> {
         let sequence: TaggedField = decoder.decode()?;
 
         let extension = match sequence.object_identifier {
             Self::FMSPC_OID => Self::Fmspc(sequence.data.decode_as()?),
-            Self::TCB_OID => Self::Tcb(TcbExtension::decode(sequence.data)?),
+            Self::TCB_OID => Self::Tcb(
+                TcbExtension::decode(sequence.data)
+                    .ok_or(der::Error::new(der::ErrorKind::Failed, Length::new(0)))?,
+            ),
             _ => Self::Unknown {
                 identifier: sequence.object_identifier,
                 value: sequence.data,
@@ -126,7 +124,7 @@ impl AssociatedOid for SgxExtensions<'_> {
 }
 
 impl<'a> der::Decode<'a> for SgxExtensions<'a> {
-    type Error = CertificateError;
+    type Error = der::Error;
 
     fn decode<R: der::Reader<'a>>(decoder: &mut R) -> Result<Self, Self::Error> {
         let extensions: Vec<SgxExtension<'_>> = decoder.decode()?;

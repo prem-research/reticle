@@ -11,9 +11,19 @@ anyhow = "1.0"
 regorus = { git = "https://github.com/microsoft/regorus.git", default-features = false, features = ["arc", "rvm", "std"] }
 # serde_json = "1.0.149"
 serde-value = "0.7.0"
+x509-cert = "0.3.0-rc.4"
+sha2 = "0.11.0"
+p256 = "0.13.2"
+signature = "2.2.0"
+sec1 = "0.8.1"
+spki = "0.8.0"
+thiserror = "2.0.18"
+der = "0.8.0"
+rsa = { version = "0.10.0-rc.18", features = ["serde"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 getrandom = { version = "0.4.2", features = ["wasm_js"] }
 js-sys = "0.3.93"
+web-time = "1.1"
