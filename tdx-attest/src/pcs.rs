@@ -5,10 +5,9 @@ pub mod tcb;
 use std::str::FromStr;
 
 use libattest::{
-    certificates::{CertificateChain, crl::Crl, format::ecdsa::EcdsaCert},
+    crypto::{CertificateChain, algorithms::ecdsa::EcdsaCert, chain::crl::Crl},
     error::Context,
 };
-use p256::ecdsa::Signature;
 use reqwest::{Client, IntoUrl, Url};
 use serde::Deserialize;
 use x509_cert::Certificate;

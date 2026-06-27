@@ -8,10 +8,6 @@ use der::{
     Encode,
     oid::db::rfc5912::{ECDSA_WITH_SHA_256, ID_EC_PUBLIC_KEY},
 };
-use p256::{
-    PublicKey,
-    ecdsa::{DerSignature, Signature, VerifyingKey, signature::Verifier},
-};
 use spki::{DecodePublicKey, ObjectIdentifier};
 use thiserror::Error;
 use x509_cert::{

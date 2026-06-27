@@ -1,7 +1,7 @@
 use std::sync::LazyLock;
 
 use der::Decode;
-use libattest::certificates::format::{CertFormat, ecdsa::EcdsaCert};
+use libattest::crypto::algorithms::{CertFormat, ecdsa::EcdsaCert};
 use x509_cert::Certificate;
 
 static INTEL_CA_DER: &[u8; 659] = include_bytes!("./IntelCA.der");

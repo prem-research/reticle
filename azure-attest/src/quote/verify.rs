@@ -2,7 +2,15 @@ use std::ops::Deref;
 
 use base64::Engine;
 use jsonwebtoken::jwk::{AlgorithmParameters, JwkSet};
-use libattest::{ByteNonce, error::Context};
+use libattest::{
+    ByteNonce,
+    crypto::{
+        CertificateChain,
+        algorithms::{CertFormat, rsa::RsaCert},
+        signature::rsa::RsaSignature,
+    },
+    error::Context,
+};
 use rsa::{
     BoxedUint,
     pkcs1::DecodeRsaPublicKey,
@@ -16,13 +24,17 @@ use x509_cert::der::{
 };
 
 use crate::{
+    ca::AZURE_CA,
     collateral::ReportVerifier,
     nonce::AzureNonce,
     quote::{AzureQuote, ParsedHardwareReport},
     report::RuntimeClaims,
 };
 
-pub fn verify_quote_signature(quote: &AzureQuote) -> libattest::Result<()> {
+pub fn verify_quote_signature(
+    quote: &AzureQuote,
+    trust_chain: CertificateChain<RsaCert>,
+) -> libattest::Result<()> {
     use tpm2_protocol::{TpmMarshal, TpmWriter};
 
     let mut buffer = Box::new([0u8; 512]);
@@ -33,15 +45,15 @@ pub fn verify_quote_signature(quote: &AzureQuote) -> libattest::Result<()> {
     let written = writer.len();
     let marshaled = &buffer[..written];
 
-    quote
-        .trust
-        .ak_key
-        .verify(marshaled, &quote.trust.quote_signature)?;
+    let signature = RsaSignature::<Sha256>::new(quote.trust.quote_signature.clone());
+    trust_chain.verify(marshaled, &signature)?;
 
     Ok(())
 }
 
-pub fn verify_quote_certificate(quote: &AzureQuote) -> libattest::Result<()> {
+pub fn verify_quote_trust_chain(
+    quote: &AzureQuote,
+) -> libattest::Result<CertificateChain<RsaCert>> {
     let pk = quote
         .trust
         .ak_cert
@@ -59,7 +71,18 @@ pub fn verify_quote_certificate(quote: &AzureQuote) -> libattest::Result<()> {
         libattest::bail!(exposed: "mismatched ak key between certificate and evidence");
     }
 
-    Ok(())
+    let cert = RsaCert::from_certificate(quote.trust.ak_cert.clone())
+        .context("failed validating certificate")?;
+
+    let intermediate = crate::ca::intermediate_db()
+        .find_intermediate(&cert)
+        .context("failed finding matching intermediate certificate for ak_cert")?;
+
+    let chain = CertificateChain::<RsaCert>::with_anchor(&AZURE_CA)
+        .with_certificate(intermediate.clone())?
+        .with_certificate(cert)?;
+
+    Ok(chain)
 }
 
 fn decode_base64_component(base64: &str) -> Result<rsa::BoxedUint, base64::DecodeError> {
@@ -174,15 +197,19 @@ pub fn verify(
     report_verifier: ReportVerifier,
     nonce: &AzureNonce,
 ) -> libattest::Result<()> {
+    // 2: verify quote certificate
+    let trust_chain =
+        verify_quote_trust_chain(&azure_quote).context("while verifying quote certificates")?;
     // 1: verify that AK signs Quote through signature
-    verify_quote_signature(&azure_quote)?;
-    // 2: verify that the hardware report signs report data
-    verify_report_digest(&azure_quote, &report_verifier)?;
-    // 3: verify that report data contains the correct ak key,
+    verify_quote_signature(&azure_quote, trust_chain).context("while verifying quote signature")?;
+    // 3: verify that the hardware report signs report data
+    verify_report_digest(&azure_quote, &report_verifier)
+        .context("while verifying report digest")?;
+    // 4: verify that report data contains the correct ak key,
     // sprouting azure trust from SEV/TDX
-    verify_runtime_data(&azure_quote)?;
-    // 4: Verify that user supplied nonce and received quote nonce match
-    verify_quote_nonce(&azure_quote, nonce)?;
+    verify_runtime_data(&azure_quote).context("while verifying runtime data")?;
+    // 5: Verify that user supplied nonce and received quote nonce match
+    verify_quote_nonce(&azure_quote, nonce).context("while verifying quote nonce")?;
 
     Ok(())
 }

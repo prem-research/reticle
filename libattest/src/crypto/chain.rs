@@ -1,10 +1,6 @@
 pub mod crl;
-pub mod error;
-pub mod format;
 
-pub use error::CertificateError;
-
-use crate::certificates::format::{Cert, Verify};
+use crate::crypto::{CertificateError, algorithms::Cert};
 
 pub type PinnedCertificate<C: Cert> = &'static C;
 
@@ -34,10 +30,17 @@ impl<C: Cert + 'static> CertificateChain<C> {
         self.chain.last()
     }
 
+    pub fn with_certificate(mut self, other: C) -> Result<Self, CertificateError> {
+        self.push_certificate(other)?;
+        Ok(self)
+    }
+
     /// Inserts a new leaf into this certificate chain. The certificate is first
     /// verified by the previous certificates
     pub fn push_certificate(&mut self, other: C) -> Result<(), CertificateError> {
         let verifier = self.chain.last().or(self.anchor);
+
+        // todo: add match between SKI and AKI
 
         match verifier {
             Some(verifier) => verifier.verify_cert(&other)?,
@@ -72,10 +75,11 @@ impl<C: Cert + 'static> CertificateChain<C> {
     }
 }
 
-impl<C: Cert> Verify<C::Signature> for CertificateChain<C> {
-    fn verify_signature(&self, msg: &[u8], sig: &C::Signature) -> Result<(), CertificateError> {
-        self.leaf()
-            .ok_or(CertificateError::NoLeaf)?
-            .verify_signature(msg, sig)
+impl<S, C> signature::Verifier<S> for CertificateChain<C>
+where
+    C: Cert + signature::Verifier<S>,
+{
+    fn verify(&self, msg: &[u8], sig: &S) -> Result<(), signature::Error> {
+        self.leaf().unwrap().verify(msg, sig)
     }
 }

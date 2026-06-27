@@ -13,13 +13,14 @@ regorus = { git = "https://github.com/microsoft/regorus.git", default-features =
 serde-value = "0.7.0"
 x509-cert = "0.3.0-rc.4"
 sha2 = "0.11.0"
-p256 = "0.13.2"
-signature = "2.2.0"
+p256 = "0.14.0-rc.14"
+signature = "3.0"
 sec1 = "0.8.1"
 spki = "0.8.0"
 thiserror = "2.0.18"
 der = "0.8.0"
 rsa = { version = "0.10.0-rc.18", features = ["serde"] }
+digest = "0.11.3"
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 wasm-bindgen = "0.2"

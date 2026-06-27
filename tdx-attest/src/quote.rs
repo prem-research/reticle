@@ -1,6 +1,7 @@
 use libattest::{
-    certificates::{CertificateChain, format::ecdsa::EcdsaCert},
+    crypto::{CertificateChain, algorithms::ecdsa::EcdsaCert},
     error::Context,
+    p256,
 };
 use p256::ecdsa::{Signature, VerifyingKey};
 

@@ -3,14 +3,11 @@ use std::marker::PhantomData;
 use crate::{ca::INTEL_CA, error::TdxError};
 use anyhow::bail;
 use chrono::Utc;
+use libattest::p256::ecdsa::Signature;
 use libattest::{
-    certificates::{
-        CertificateChain,
-        format::{Verify, ecdsa::EcdsaCert},
-    },
+    crypto::{CertificateChain, algorithms::ecdsa::EcdsaCert},
     error::Context,
 };
-use p256::ecdsa::Signature;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use signature::Verifier;
@@ -61,7 +58,7 @@ impl<T> SignedResponse<T> {
 
         // verify signature and message using certificate chain
         self.chain
-            .verify_signature(&msg, &self.signature)
+            .verify(&msg, &self.signature)
             .context("signed response has a bad signature")?;
 
         let data = T::deserialize(&self.data).context("response data is in the wrong format")?;

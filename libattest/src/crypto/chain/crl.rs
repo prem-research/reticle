@@ -4,8 +4,9 @@ use p256::ecdsa::Signature;
 use x509_cert::crl::CertificateList;
 use x509_cert::der::DecodePem;
 
-use crate::certificates::format::{Cert, CertFormat, Verify};
-use crate::certificates::{CertificateChain, CertificateError};
+use crate::crypto::CertificateError;
+use crate::crypto::algorithms::{Cert, CertFormat};
+use crate::crypto::chain::CertificateChain;
 
 mod sealed {
     pub trait Sealed {}
@@ -21,7 +22,7 @@ impl sealed::Sealed for Crl {}
 
 impl Crl {
     pub fn from_pem(
-        verifier: impl Verify<Signature>,
+        verifier: impl signature::Verifier<Signature>,
         pem: impl AsRef<[u8]>,
     ) -> Result<Self, CertificateError> {
         let list = CertificateList::from_pem(pem)?;
@@ -29,7 +30,7 @@ impl Crl {
     }
 
     pub fn from_der(
-        verifier: impl Verify<Signature>,
+        verifier: impl signature::Verifier<Signature>,
         der: impl AsRef<[u8]>,
     ) -> Result<Self, CertificateError> {
         let list = CertificateList::from_der(der.as_ref())?;
@@ -37,7 +38,7 @@ impl Crl {
     }
 
     pub fn from_certificate_list(
-        verifier: impl Verify<Signature>,
+        verifier: impl signature::Verifier<Signature>,
         list: CertificateList,
     ) -> Result<Self, CertificateError> {
         // let list: CertificateList<Rfc5280> = CertificateList::from_pem(pem)?;
@@ -70,7 +71,7 @@ impl Crl {
             Signature::from_der(signature).expect("could not re-decode an encoded signature");
 
         // verify the signature of the certificate chain
-        verifier.verify_signature(&tbs_list, &signature)?;
+        verifier.verify(&tbs_list, &signature)?;
 
         // ok!
         Ok(Self { list, signature })
@@ -99,7 +100,7 @@ impl<C: CertFormat> VerifyCrl<C> for Crl {
             .flatten();
 
         // if this serial number is found in the list, the certificate has been revoked
-        let serial_number = tbs.cetificate().serial_number().clone();
+        let serial_number = tbs.certificate().serial_number().clone();
 
         let found = certificates
             .map(|cert| &cert.serial_number)

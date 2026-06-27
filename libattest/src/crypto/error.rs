@@ -6,6 +6,9 @@ pub enum CertificateError {
     #[error("tried parsing a certificate with an unsupported algorithm: {0}")]
     WrongAlgorithm(spki::Error),
 
+    #[error("the signature or protocol used by this certificated is not supported")]
+    Unsupported,
+
     #[error("a signature or key was serialized in the wrong format in the certificate")]
     WrongFormat,
 
@@ -26,9 +29,6 @@ pub enum CertificateError {
 
     #[error("signature error: {0}")]
     Signature(#[from] signature::Error),
-
-    #[error("rsa signature error: {0}")]
-    RsaSignature(#[from] rsa::signature::Error),
 
     #[error("an error occurred while parsing the certificate: {0}")]
     Der(#[from] der::Error),

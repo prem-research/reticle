@@ -6,9 +6,9 @@ use p256::ecdsa::{Signature, VerifyingKey};
 use signature::Verifier;
 use x509_cert::certificate::TbsCertificateInner;
 
-use crate::certificates::{
+use crate::crypto::{
     CertificateError,
-    format::{Cert, CertFormat, Verify, verify_cert_common},
+    algorithms::{Cert, CertFormat, verify_cert_common},
 };
 
 #[derive(Debug)]
@@ -24,20 +24,18 @@ pub struct EcdsaCert {
 impl super::sealed::Sealed for EcdsaCert {}
 
 impl CertFormat for EcdsaCert {
-    type Signature = Signature;
-
     fn from_certificate(cert: x509_cert::Certificate) -> Result<Self, CertificateError> {
         Self::from_cert(cert)
     }
 
-    fn cetificate(&self) -> &TbsCertificateInner {
+    fn certificate(&self) -> &TbsCertificateInner {
         self.certificate.tbs_certificate()
     }
 }
 
-impl Verify<Signature> for EcdsaCert {
-    fn verify_signature(&self, msg: &[u8], signature: &Signature) -> Result<(), CertificateError> {
-        self.public_key.verify(msg, signature).map_err(Into::into)
+impl signature::Verifier<Signature> for EcdsaCert {
+    fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
+        self.public_key.verify(msg, signature)
     }
 }
 
@@ -119,18 +117,5 @@ impl EcdsaCert {
             public_key,
             signature,
         })
-    }
-}
-
-// impl Verifier<Signature> for EcdsaCert {
-//     fn verify(&self, msg: &[u8], signature: &Signature) -> Result<(), signature::Error> {
-//         self.public_key.verify(msg, signature)
-//     }
-// }
-
-impl TryFrom<x509_cert::Certificate> for EcdsaCert {
-    type Error = CertificateError;
-    fn try_from(value: x509_cert::Certificate) -> Result<Self, Self::Error> {
-        Self::from_cert(value)
     }
 }

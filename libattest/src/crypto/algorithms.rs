@@ -1,6 +1,6 @@
 use x509_cert::certificate::TbsCertificateInner;
 
-use crate::certificates::CertificateError;
+use crate::crypto::CertificateError;
 
 pub mod ecdsa;
 pub mod rsa;
@@ -10,22 +10,14 @@ mod sealed {
 }
 
 pub trait CertFormat: Sized + sealed::Sealed {
-    type Signature;
-
     /// Parse this certificate format from the generix `x509_cert::Certificate` type
     fn from_certificate(cert: x509_cert::Certificate) -> Result<Self, CertificateError>;
 
     /// Get inner signed data of this certificate
-    fn cetificate(&self) -> &TbsCertificateInner;
+    fn certificate(&self) -> &TbsCertificateInner;
 }
 
-pub trait Verify<Signature> {
-    /// Uses the public component of this certificate to verify another signature
-    /// over arbitrary data.
-    fn verify_signature(&self, msg: &[u8], signature: &Signature) -> Result<(), CertificateError>;
-}
-
-pub trait Cert: CertFormat + Verify<Self::Signature> {
+pub trait Cert: CertFormat {
     /// Verifies that the public component of this certificate signs another certificate's TBS
     fn verify_cert(&self, other: &Self) -> Result<(), CertificateError>;
 

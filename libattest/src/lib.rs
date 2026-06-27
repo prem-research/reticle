@@ -1,4 +1,4 @@
-pub mod certificates;
+pub mod crypto;
 pub mod error;
 pub mod modules;
 pub mod nonce;
@@ -10,6 +10,8 @@ pub use nonce::*;
 
 pub type Result<T> = std::result::Result<T, error::AttestationError>;
 pub use error::AttestationError;
+
+pub use p256;
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) fn now() -> std::time::SystemTime {
