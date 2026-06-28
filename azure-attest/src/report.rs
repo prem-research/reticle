@@ -138,9 +138,9 @@ impl AttestationReport {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HardwareReport {
     /// Intel TDX hardware report payload.
-    Tdx(Vec<u8>),
+    Tdx(#[serde(with = "hex::serde")] Vec<u8>),
     /// AMD SEV-SNP hardware report payload.
-    Sev(Vec<u8>),
+    Sev(#[serde(with = "hex::serde")] Vec<u8>),
 }
 
 /// Owned runtime data.
