@@ -11,18 +11,10 @@ use libattest::{
     },
     error::Context,
 };
-use rsa::{
-    BoxedUint,
-    pkcs1::DecodeRsaPublicKey,
-    pkcs1v15::{Signature, VerifyingKey},
-    signature::Verifier,
-};
+use rsa::{BoxedUint, pkcs1::DecodeRsaPublicKey, pkcs1v15::VerifyingKey, signature::Verifier};
 use sha2::Sha256;
 use tpm2_protocol::data::TpmuAttest;
-use x509_cert::der::{
-    Encode,
-    oid::db::{rfc5912::SHA_256_WITH_RSA_ENCRYPTION, rfc9688::RSA_ENCRYPTION},
-};
+use x509_cert::der::oid::db::rfc9688::RSA_ENCRYPTION;
 
 use crate::{
     ca::AZURE_CA,

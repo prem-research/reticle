@@ -1,4 +1,4 @@
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserializer, Serializer};
 use tpm2_protocol::{TpmMarshal, TpmSized, TpmUnmarshal, TpmWriter};
 
 pub fn serialize<T, S>(obj: &T, serializer: S) -> Result<S::Ok, S::Error>
@@ -12,7 +12,7 @@ where
     obj.marshal(&mut writer)
         .map_err(<S::Error as serde::ser::Error>::custom)?;
 
-    buf.serialize(serializer)
+    hex::serde::serialize(buf, serializer)
 }
 
 pub fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
@@ -20,7 +20,7 @@ where
     D: Deserializer<'de>,
     T: TpmUnmarshal + TpmSized,
 {
-    let buf = Vec::<u8>::deserialize(deserializer)?;
+    let buf: Vec<u8> = hex::serde::deserialize(deserializer)?;
 
     if buf.len() != T::SIZE {
         return Err(serde::de::Error::custom(

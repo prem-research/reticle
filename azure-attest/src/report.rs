@@ -149,6 +149,7 @@ pub struct RuntimeData {
     /// Fixed runtime data header.
     pub header: RuntimeDataHeader,
     /// Raw runtime claims JSON bytes.
+    #[serde(with = "hex::serde")]
     pub claims_json: Vec<u8>,
 }
 
