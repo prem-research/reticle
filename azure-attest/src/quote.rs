@@ -1,12 +1,19 @@
+pub mod claims;
+pub mod pcr;
 pub mod verify;
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
+use sha2::{Sha256, digest};
 use snp_attest::SevQuote;
 use tdx_attest::TdxQuote;
-use tpm2_protocol::data::TpmsAttest;
+use tpm2_protocol::data::{TpmAlgId, TpmsAttest};
 
-use crate::report::{AttestationReport, HardwareReport};
+use crate::{
+    quote::pcr::PcrBankReading,
+    report::{AttestationReport, HardwareReport},
+};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AzureTrust {
@@ -35,16 +42,24 @@ impl AzureTrust {
 pub struct AzureQuote {
     #[serde(with = "crate::serde::serde_tpm")]
     quote: TpmsAttest,
+    /// we store a single bank in the quote as we are requesting a single bank
+    /// from the vtpm (sha256)
+    pcr_bank: PcrBankReading<Sha256>,
     hardware_report: AttestationReport,
-
     trust: AzureTrust,
 }
 
 impl AzureQuote {
-    pub fn new(quote: TpmsAttest, hardware_report: AttestationReport, trust: AzureTrust) -> Self {
+    pub fn new(
+        quote: TpmsAttest,
+        pcr_bank: PcrBankReading<Sha256>,
+        hardware_report: AttestationReport,
+        trust: AzureTrust,
+    ) -> Self {
         Self {
             quote,
             hardware_report,
+            pcr_bank,
             trust,
         }
     }

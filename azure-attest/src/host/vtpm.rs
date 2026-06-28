@@ -4,20 +4,20 @@ use libattest::error::Context;
 use rsa::{BoxedUint, pkcs1v15::VerifyingKey};
 use sha2::Sha256;
 use tss_esapi::{
-    abstraction::nv,
+    abstraction::{nv, pcr::PcrData},
     handles::{KeyHandle, NvIndexTpmHandle},
     interface_types::{
         algorithm::HashingAlgorithm, resource_handles::NvAuth, session_handles::AuthSession,
     },
     structures::{
         Attest, PcrSelectSize, PcrSelectionListBuilder, PcrSlot, Public, RsaExponent, Signature,
-        SignatureScheme,
+        SignatureScheme, pcr_selection_list,
     },
 };
 
 use x509_cert::der::{Decode, SliceReader};
 
-use crate::report::AttestationReport;
+use crate::{quote::pcr::PcrBankReading, report::AttestationReport};
 
 pub struct AzureTpmCtx {
     context: tss_esapi::Context,
@@ -134,7 +134,7 @@ impl AzureTpmCtx {
         .map_err(Into::into)
     }
 
-    pub(super) fn quote(mut self, nonce: impl AsRef<[u8]>) -> anyhow::Result<(Attest, Signature)> {
+    pub(super) fn quote(&mut self, nonce: impl AsRef<[u8]>) -> anyhow::Result<(Attest, Signature)> {
         let key_handle = self.ak_handle()?;
 
         let pcr_list = PcrSelectionListBuilder::new()
@@ -154,5 +154,26 @@ impl AzureTpmCtx {
             .context("unable to request quote from tpm")?;
 
         Ok(res)
+    }
+
+    pub(super) fn read_pcr_bank(&mut self) -> anyhow::Result<PcrBankReading<Sha256>> {
+        let pcr_list = PcrSelectionListBuilder::new()
+            .with_selection(HashingAlgorithm::Sha256, &Self::VTPM_DEFAULT_PCR_SLOTS)
+            .with_size_of_select(PcrSelectSize::default())
+            .build()
+            .unwrap();
+
+        // pcr_list.
+
+        let list = self
+            .context
+            .execute_without_session(|ctx| tss_esapi::abstraction::pcr::read_all(ctx, pcr_list))?;
+
+        let bank: PcrBankReading<Sha256> = list
+            .pcr_bank(HashingAlgorithm::Sha256)
+            .expect("we just requested this exact bank")
+            .into();
+
+        Ok(bank)
     }
 }

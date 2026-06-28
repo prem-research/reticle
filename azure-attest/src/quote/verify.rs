@@ -18,6 +18,7 @@ use rsa::{
     signature::Verifier,
 };
 use sha2::Sha256;
+use tpm2_protocol::data::TpmuAttest;
 use x509_cert::der::{
     Encode,
     oid::db::{rfc5912::SHA_256_WITH_RSA_ENCRYPTION, rfc9688::RSA_ENCRYPTION},
@@ -192,15 +193,28 @@ fn verify_quote_nonce(azure_quote: &AzureQuote, nonce: &AzureNonce) -> libattest
     Ok(())
 }
 
+fn verify_pcr_digest(azure_quote: &AzureQuote) -> libattest::Result<()> {
+    let digest = azure_quote.pcr_bank.pcr_digest();
+    let TpmuAttest::Quote(ref info) = azure_quote.quote.attested else {
+        libattest::bail!("wrong type of attested data in quote");
+    };
+
+    if info.pcr_digest.deref() != digest.deref() {
+        libattest::bail!(exposed: "PCR digest mismatch");
+    }
+
+    Ok(())
+}
+
 pub fn verify(
     azure_quote: AzureQuote,
     report_verifier: ReportVerifier,
     nonce: &AzureNonce,
 ) -> libattest::Result<()> {
-    // 2: verify quote certificate
+    // 1: verify quote certificate chain against pinned trust
     let trust_chain =
         verify_quote_trust_chain(&azure_quote).context("while verifying quote certificates")?;
-    // 1: verify that AK signs Quote through signature
+    // 2: verify that AK signs Quote through leaf certificate
     verify_quote_signature(&azure_quote, trust_chain).context("while verifying quote signature")?;
     // 3: verify that the hardware report signs report data
     verify_report_digest(&azure_quote, &report_verifier)
@@ -210,6 +224,8 @@ pub fn verify(
     verify_runtime_data(&azure_quote).context("while verifying runtime data")?;
     // 5: Verify that user supplied nonce and received quote nonce match
     verify_quote_nonce(&azure_quote, nonce).context("while verifying quote nonce")?;
+    // 6: Verify pcr digest
+    verify_pcr_digest(&azure_quote).context("failed verifying pcr bank digest")?;
 
     Ok(())
 }

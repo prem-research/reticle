@@ -11,10 +11,11 @@ pub mod vtpm;
 pub fn azure_attest(
     mut tpm: vtpm::AzureTpmCtx,
     nonce: &AzureNonce,
-) -> libattest::Result<crate::AzureQuote> {
-    let cert = tpm.ak_cert().unwrap();
+) -> anyhow::Result<crate::AzureQuote> {
+    let cert = tpm.ak_cert()?;
     let key = tpm.ak().unwrap();
     let report = tpm.hardware_report().unwrap();
+    let pcr = tpm.read_pcr_bank()?;
     let (attest, signature) = tpm.quote(nonce.deref()).unwrap();
 
     // convert tpm structure to wire compatible format
@@ -23,13 +24,13 @@ pub fn azure_attest(
 
     let signature = match signature {
         Signature::RsaSsa(ref signature) => signature.signature().value(),
-        _ => libattest::bail!("unsupported signature algorithm"),
+        _ => anyhow::bail!("unsupported signature algorithm"),
     };
 
     let signature = rsa::pkcs1v15::Signature::try_from(signature)?;
 
     let azure_trust = AzureTrust::new(signature, key, cert);
-    let azure_quote = AzureQuote::new(attest, report, azure_trust);
+    let azure_quote = AzureQuote::new(attest, pcr, report, azure_trust);
 
     Ok(azure_quote)
 }
