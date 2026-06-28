@@ -2,6 +2,7 @@ use libattest::{
     crypto::{CertificateChain, algorithms::ecdsa::EcdsaCert},
     error::Context,
     p256,
+    validation::Verifiable,
 };
 use p256::ecdsa::{Signature, VerifyingKey};
 
@@ -120,6 +121,14 @@ impl TdxQuote {
         let quote = quote.try_into()?;
 
         Ok(quote)
+    }
+}
+
+impl Verifiable for TdxQuote {
+    type Claims<'a> = &'a TdxQuoteBody;
+
+    fn claims(&self) -> Self::Claims<'_> {
+        &self.body
     }
 }
 

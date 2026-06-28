@@ -267,8 +267,10 @@ impl Client {
         let verifier = SevQuoteVerifier::new(keychain);
         verifier.verify(&attestation, &nonce)?;
 
+        let claims = WithPolicy::new("sev.allow", attestation);
+
         self.policy_validator
-            .verify_claim(&attestation)?
+            .verify_claim(&claims)?
             .or_err("sev claims did not match specified OPA policy")
             .expose_error()?;
 
@@ -287,17 +289,16 @@ impl Client {
             .context("failed fetching collateral from pcs server")
             .expose_error()?;
 
-        let claims = quote.body().clone();
-
         let verifier = TdxQuoteVerifier::new(collateral);
         verifier
             .verify(&quote, &nonce)
             .context("TDX quote verification has failed")
             .expose_error()?;
 
-        let claims = WithPolicy::new("tdx.allow", claims);
+        let claims = WithPolicy::new("tdx.allow", quote);
+
         self.policy_validator
-            .verify_claim(claims)?
+            .verify_claim(&claims)?
             .or_err("tdx claims did not match specified OPA policy")
             .expose_error()?;
 

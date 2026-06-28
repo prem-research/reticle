@@ -6,12 +6,15 @@ pub mod verify;
 
 // pub mod nonce;
 
-use libattest::error::{AttestationError, Context, Expose};
+use libattest::{
+    error::{AttestationError, Context, Expose},
+    validation::Verifiable,
+};
 
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::{kds::chipid_from_gen, nonce::SevNonce, oid};
+use crate::{claims::SevClaims, kds::chipid_from_gen, nonce::SevNonce, oid};
 use der::Encode;
 use sev::{
     CpuFamily, CpuModel, Generation, firmware::guest::AttestationReport, parser::ByteParser,
@@ -128,4 +131,15 @@ impl SevQuote {
     pub fn report(&self) -> &AttestationReport {
         &self.report
     }
+}
+
+impl Verifiable for SevQuote {
+    fn claims(&self) -> SevClaims {
+        SevClaims::from(self.report())
+    }
+
+    type Claims<'a>
+        = SevClaims
+    where
+        Self: 'a;
 }

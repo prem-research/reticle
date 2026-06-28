@@ -10,4 +10,3 @@ pub mod ca;
 mod serde;
 
 pub use quote::AzureQuote;
-pub use quote::verify::verify;

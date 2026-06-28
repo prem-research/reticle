@@ -10,6 +10,7 @@ use libattest::{
         signature::rsa::RsaSignature,
     },
     error::Context,
+    validation::Verifiable,
 };
 use rsa::{BoxedUint, pkcs1::DecodeRsaPublicKey, pkcs1v15::VerifyingKey, signature::Verifier};
 use sha2::Sha256;
@@ -20,7 +21,10 @@ use crate::{
     ca::AZURE_CA,
     collateral::ReportVerifier,
     nonce::AzureNonce,
-    quote::{AzureQuote, ParsedHardwareReport},
+    quote::{
+        AzureQuote, ParsedHardwareReport,
+        claims::{AzureClaims, HardwareClaims, TpmAttestEvidence},
+    },
     report::RuntimeClaims,
 };
 
@@ -130,7 +134,7 @@ pub fn verify_runtime_data(quote: &AzureQuote) -> libattest::Result<RuntimeClaim
 pub fn verify_report_digest(
     quote: &AzureQuote,
     verifier: &ReportVerifier,
-) -> libattest::Result<()> {
+) -> libattest::Result<HardwareClaims> {
     use libattest::quote::QuoteVerifier;
     use snp_attest::nonce::SevNonce;
     use tdx_attest::nonce::TdxNonce;
@@ -150,22 +154,24 @@ pub fn verify_report_digest(
         .map(ByteNonce::from)
         .context("nonce didn't fit")?;
 
-    match report {
+    let claims = match report {
         ParsedHardwareReport::Tdx(tdx_quote) => {
             let verifier = verifier.tdx().context("didn't receive tdx verifier")?;
             let nonce = TdxNonce::new(nonce);
 
             verifier.verify(&tdx_quote, &nonce)?;
+            HardwareClaims::Tdx(tdx_quote.body().clone().into())
         }
         ParsedHardwareReport::Sev(sev_quote) => {
             let verifier = verifier.sev().context("didn't receive sev verifier")?;
             let nonce = SevNonce::new(nonce);
 
             verifier.verify(&sev_quote, &nonce)?;
+            HardwareClaims::Sev(sev_quote.claims().into())
         }
     };
 
-    Ok(())
+    Ok(claims)
 }
 
 fn verify_quote_nonce(azure_quote: &AzureQuote, nonce: &AzureNonce) -> libattest::Result<()> {
@@ -198,26 +204,36 @@ fn verify_pcr_digest(azure_quote: &AzureQuote) -> libattest::Result<()> {
     Ok(())
 }
 
-pub fn verify(
-    azure_quote: AzureQuote,
+pub fn verify_impl<'a>(
+    azure_quote: &'a AzureQuote,
     report_verifier: ReportVerifier,
     nonce: &AzureNonce,
-) -> libattest::Result<()> {
+) -> libattest::Result<AzureClaims<'a>> {
     // 1: verify quote certificate chain against pinned trust
     let trust_chain =
         verify_quote_trust_chain(&azure_quote).context("while verifying quote certificates")?;
     // 2: verify that AK signs Quote through leaf certificate
     verify_quote_signature(&azure_quote, trust_chain).context("while verifying quote signature")?;
     // 3: verify that the hardware report signs report data
-    verify_report_digest(&azure_quote, &report_verifier)
+    let hardware_claims = verify_report_digest(&azure_quote, &report_verifier)
         .context("while verifying report digest")?;
     // 4: verify that report data contains the correct ak key,
     // sprouting azure trust from SEV/TDX
-    verify_runtime_data(&azure_quote).context("while verifying runtime data")?;
+    let runtime_claims =
+        verify_runtime_data(&azure_quote).context("while verifying runtime data")?;
     // 5: Verify that user supplied nonce and received quote nonce match
     verify_quote_nonce(&azure_quote, nonce).context("while verifying quote nonce")?;
     // 6: Verify pcr digest
     verify_pcr_digest(&azure_quote).context("failed verifying pcr bank digest")?;
 
-    Ok(())
+    let tpm_evidence = TpmAttestEvidence::from(&azure_quote.quote);
+
+    let azure_claims = AzureClaims::new(
+        &azure_quote.pcr_bank,
+        hardware_claims,
+        tpm_evidence,
+        runtime_claims,
+    );
+
+    Ok(azure_claims)
 }

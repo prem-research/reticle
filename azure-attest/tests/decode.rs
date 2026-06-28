@@ -26,5 +26,7 @@ async fn verify_attestation() {
         .unwrap();
 
     let nonce = AzureNonce::from([0u8; 32]);
-    azure_attest::verify(quote, verifier, &nonce).unwrap();
+    let claims = quote.verify(verifier, &nonce).unwrap();
+
+    println!("{claims:?}");
 }

@@ -11,7 +11,12 @@ use tdx_attest::TdxQuote;
 use tpm2_protocol::data::{TpmAlgId, TpmsAttest};
 
 use crate::{
-    quote::pcr::PcrBankReading,
+    collateral::ReportVerifier,
+    nonce::AzureNonce,
+    quote::{
+        claims::{AzureClaims, TpmAttestEvidence},
+        pcr::PcrBankReading,
+    },
     report::{AttestationReport, HardwareReport},
 };
 
@@ -50,7 +55,20 @@ pub struct AzureQuote {
 }
 
 impl AzureQuote {
-    pub fn new(
+    /// performs cryptographic verification of the whole azure stack
+    /// and returns a set of verified claims on which the client can apply policies
+    pub fn verify(
+        &self,
+        report_verifier: ReportVerifier,
+        nonce: &AzureNonce,
+    ) -> libattest::Result<AzureClaims> {
+        verify::verify_impl(self, report_verifier, nonce)
+    }
+}
+
+// create only implementations
+impl AzureQuote {
+    pub(crate) fn new(
         quote: TpmsAttest,
         pcr_bank: PcrBankReading<Sha256>,
         hardware_report: AttestationReport,
