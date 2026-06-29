@@ -7,7 +7,6 @@ use nvidia_attest::EATToken;
 use nvidia_attest::keychain::KeyChain;
 use nvidia_attest::nonce::NvidiaNonce;
 use nvml_wrapper::Nvml;
-use nvml_wrapper::enum_wrappers::device::Brand::Nvidia;
 use rocket::fairing::{Fairing, Info, Kind};
 use rocket::{Build, Rocket, State};
 
@@ -17,23 +16,14 @@ use crate::response::ApiError;
 pub struct SdkFairing {
     handle: SdkHandle,
     nvml: Nvml,
-
-    // set of UUIDs of gpus enabled for confidential computing.
-    // must turn off confidential computing on exit.
-    attestation_enabled: HashSet<String>,
 }
 
 impl SdkFairing {
     pub fn init() -> anyhow::Result<Self> {
         let handle = SdkHandle::get_handle()?;
         let nvml = Nvml::init()?;
-        let attestation_enabled = HashSet::new();
 
-        Ok(SdkFairing {
-            handle,
-            nvml,
-            attestation_enabled,
-        })
+        Ok(SdkFairing { handle, nvml })
     }
 
     async fn attest_and_init(&self) -> anyhow::Result<()> {

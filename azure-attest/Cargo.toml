@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-host = ["dep:tss-esapi"]
+host = ["dep:tss-esapi", "dep:anyhow"]
 cli = ["dep:tss-esapi", "dep:anyhow"]
 
 [dependencies]

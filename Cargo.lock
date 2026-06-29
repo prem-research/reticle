@@ -180,6 +180,7 @@ name = "attestation-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "azure-attest",
  "base64",
  "configfs-tsm",
  "env_logger",
@@ -189,6 +190,7 @@ dependencies = [
  "nvat",
  "nvidia-attest",
  "nvml-wrapper",
+ "reqwest 0.13.4",
  "rocket",
  "serde",
  "serde_json",
@@ -3065,14 +3067,16 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.13.2"
+version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab3f43e3283ab1488b624b44b0e988d0acea0b3214e694730a055cb6b2efa801"
+checksum = "219c5811de6525e5416c7d5d53bb656d3afdbc6c5af816e0802bcfa42dbdc1c3"
 dependencies = [
  "base64",
  "bytes",
  "encoding_rs",
+ "futures-channel",
  "futures-core",
+ "futures-util",
  "h2 0.4.13",
  "http 1.4.0",
  "http-body 1.0.1",
@@ -3903,7 +3907,7 @@ dependencies = [
  "der 0.8.0",
  "hex",
  "libattest",
- "reqwest 0.13.2",
+ "reqwest 0.13.4",
  "sec1 0.7.3",
  "serde",
  "serde_json",

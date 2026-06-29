@@ -9,6 +9,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 pub enum CpuModule {
     Sev,
     Tdx,
+    Azure,
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]

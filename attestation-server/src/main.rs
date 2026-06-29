@@ -1,6 +1,7 @@
 mod response;
 
 // pub mod modules;
+mod azure_api;
 pub mod modules;
 mod nonce;
 mod nvidia_api;
@@ -50,6 +51,10 @@ async fn main() -> Result<(), anyhow::Error> {
         }
         CpuModule::Tdx => {
             routes.extend(routes![tdx_api::tdx_attestation]);
+            rocket
+        }
+        CpuModule::Azure => {
+            routes.extend(routes![azure_api::azure_attestation]);
             rocket
         }
         _ => bail!("cpu module not yet supported by attestation-server"),
