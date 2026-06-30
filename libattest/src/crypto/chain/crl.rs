@@ -14,8 +14,7 @@ mod sealed {
 
 pub struct Crl {
     list: CertificateList,
-
-    signature: Signature,
+    _signature: Signature,
 }
 
 impl sealed::Sealed for Crl {}
@@ -74,7 +73,10 @@ impl Crl {
         verifier.verify(&tbs_list, &signature)?;
 
         // ok!
-        Ok(Self { list, signature })
+        Ok(Self {
+            list,
+            _signature: signature,
+        })
     }
 }
 

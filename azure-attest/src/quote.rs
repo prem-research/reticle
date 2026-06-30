@@ -2,21 +2,19 @@ pub mod claims;
 pub mod pcr;
 pub mod verify;
 
-use std::collections::BTreeMap;
-
 use serde::{Deserialize, Serialize};
-use sha2::{Sha256, digest};
+use sha2::Sha256;
 use snp_attest::SevQuote;
 use tdx_attest::TdxQuote;
-use tpm2_protocol::data::{TpmAlgId, TpmsAttest};
+use tpm2_protocol::data::TpmsAttest;
+
+#[cfg(target_family = "wasm")]
+use wasm_bindgen::prelude::*;
 
 use crate::{
     collateral::ReportVerifier,
     nonce::AzureNonce,
-    quote::{
-        claims::{AzureClaims, TpmAttestEvidence},
-        pcr::PcrBankReading,
-    },
+    quote::{claims::AzureClaims, pcr::PcrBankReading},
     report::{AttestationReport, HardwareReport},
 };
 
@@ -44,6 +42,7 @@ impl AzureTrust {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[cfg_attr(target_family = "wasm", wasm_bindgen)]
 pub struct AzureQuote {
     #[serde(with = "crate::serde::serde_tpm")]
     quote: TpmsAttest,
@@ -61,7 +60,7 @@ impl AzureQuote {
         &self,
         report_verifier: ReportVerifier,
         nonce: &AzureNonce,
-    ) -> libattest::Result<AzureClaims> {
+    ) -> libattest::Result<AzureClaims<'_>> {
         verify::verify_impl(self, report_verifier, nonce)
     }
 }
