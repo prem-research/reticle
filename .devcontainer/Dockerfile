@@ -151,6 +151,12 @@ RUN \
     CXX=/usr/bin/${TARGET_TRIPLE}gnu-g++ \
     && make -j$(nproc) \
     && make install \
+    && test -f ${SYSROOT}/lib/libtss2-esys.a \
+    && test -f ${SYSROOT}/lib/pkgconfig/tss2-esys.pc \
+    && mv ${SYSROOT}/lib/libtss2-esys.a ${SYSROOT}/lib/libtss2-esys-real.a \
+    && printf '%s\n' \
+    'GROUP ( libtss2-esys-real.a libtss2-sys.a libtss2-mu.a libtss2-tctildr.a libtss2-rc.a )' \
+    > ${SYSROOT}/lib/libtss2-esys.a \
     && rm -rf /tmp/tpm2-tss-${TPM2TSS_VER} /tmp/tpm2-tss-${TPM2TSS_VER}.tar.gz
 
 RUN rustup target add \
