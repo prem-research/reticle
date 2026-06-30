@@ -24,6 +24,7 @@ impl AzureDetector {
             .timeout(Duration::from_secs(2))
             .build()?
             .get("http://169.254.169.254/metadata/instance/compute")
+            .header("Metadata", "true")
             .query(&[("api-version", "2025-04-07")])
             .send()?
             .error_for_status()?
@@ -44,12 +45,20 @@ impl ModuleDetector {
         path.as_ref().exists()
     }
 
-    fn detect_azure(&self) -> Option<()> {
+    fn detect_azure(&self) -> bool {
         log::info!("Trying to detect for Azure...");
-        let imds = AzureDetector::fetch_imds().ok()?;
+        let imds = AzureDetector::fetch_imds();
+
+        let imds = match imds {
+            Ok(imds) => imds,
+            Err(err) => {
+                log::error!("Got error from imds: {err}");
+                return false;
+            }
+        };
 
         log::debug!("Got security_type {}", imds.security_profile.security_type);
-        (imds.security_profile.security_type == "ConfidentialVM").then_some(())
+        (imds.security_profile.security_type == "ConfidentialVM")
     }
 
     fn detect_cpu(&self) -> Option<CpuModule> {
@@ -57,7 +66,7 @@ impl ModuleDetector {
             Some(CpuModule::Sev)
         } else if self.path_exists(Self::TDX_PATH) {
             Some(CpuModule::Tdx)
-        } else if self.detect_azure().is_some() {
+        } else if self.detect_azure() {
             Some(CpuModule::Azure)
         } else {
             None
