@@ -5,9 +5,10 @@ pub mod gateway;
 pub mod query;
 pub mod rego;
 
-use std::borrow::Cow;
+use std::{borrow::Cow, pin::Pin};
 
-use futures::future::{Either, OptionFuture};
+use azure_attest::{AzureQuote, collateral::ReportVerifierBuilder, nonce::AzureNonce};
+use futures::future::OptionFuture;
 use libattest::{
     CpuModule, GpuModule, Modules, bail,
     error::{AttestationError, Context, Expose},
@@ -258,6 +259,43 @@ impl Client {
         Ok(quote)
     }
 
+    /// Requests and parses an Azure Quote
+    ///
+    pub async fn request_azure(&self, nonce: &AzureNonce) -> Result<AzureQuote, AttestationError> {
+        let url = self.url.join("/attestation/azure").unwrap();
+        let query = [("nonce", &nonce.to_hex())];
+
+        let response: AzureQuote = self.request(url, &query).await?.json().await?;
+
+        Ok(response)
+    }
+
+    pub async fn attest_azure(&self) -> Result<(), AttestationError> {
+        let nonce = AzureNonce::generate();
+
+        let quote = self.request_azure(&nonce).await?;
+        let verifier = ReportVerifierBuilder::default()
+            .sev(async |quote| {
+                self.kds
+                    .fetch_certificates(quote)
+                    .await
+                    .map(SevQuoteVerifier::new)
+            })
+            .tdx(async |_| unimplemented!())
+            .fetch_collateral(&quote)
+            .await?;
+
+        let evidence = quote.verify(verifier, &nonce)?;
+        let claims = WithPolicy::new("azure.allow", evidence);
+
+        self.policy_validator
+            .verify_claim(claims)?
+            .or_err("azure claims did not match specified opa policy")
+            .expose_error()?;
+
+        Ok(())
+    }
+
     /// Performs end-to-end sev-snp attestation. Generates nonce and validates claims all in one
     pub async fn attest_sev(&self) -> Result<(), AttestationError> {
         let nonce = SevNonce::generate();
@@ -335,11 +373,13 @@ impl Client {
             .context("failed to request modules from attestation server")
             .expose_error()?;
 
-        let cpu_attest = match modules.cpu() {
-            CpuModule::Sev => Either::Left(self.attest_sev()),
-            CpuModule::Tdx => Either::Right(self.attest_tdx()),
-            _ => bail!("we do not yet support the advertised cpu platform"),
-        };
+        let cpu_attest: Pin<Box<dyn Future<Output = Result<(), AttestationError>>>> =
+            match modules.cpu() {
+                CpuModule::Sev => Box::pin(self.attest_sev()),
+                CpuModule::Tdx => Box::pin(self.attest_tdx()),
+                CpuModule::Azure => Box::pin(self.attest_azure()),
+                _ => bail!("we do not yet support the advertised cpu platform"),
+            };
 
         let gpu_attest = match modules.gpu() {
             None => None,

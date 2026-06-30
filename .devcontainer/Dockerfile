@@ -10,7 +10,7 @@ ENV LIBTOOL_VER=2.4.7
 ENV LIBXML2_VER=2.9.14
 ENV LIBXSLT_VER=1.1.39
 ENV XMLSEC_VER=1.3.9
-#ENV TPM2TSS_VER="4.1.3"
+ENV TPM2TSS_VER=4.1.3
 
 RUN apt-get update \
     && apt-get install -qyy --no-install-recommends \
@@ -131,22 +131,27 @@ RUN \
     /tmp/xmlsec1-${XMLSEC_VER} \
     /tmp/xmlsec1-${XMLSEC_VER}.tar.gz
 
-# RUN git clone \
-#     https://github.com/tpm2-software/tpm2-tss.git \
-#     -b ${TPM2TSS_VER} --depth 1 /tmp/tpm2-tss \
-#     && cd /tmp/tpm2-tss \
-#     && ./bootstrap \
-#     && ./configure \
-#     --disable-fapi \
-#     --disable-policy \
-#     --prefix="${SYSROOT}" \
-#     --target=${TARGET_TRIPLE}gnu \
-#     --host=${TARGET_TRIPLE}gnu \
-#     CC=/usr/bin/${TARGET_TRIPLE}gnu-gcc \
-#     CXX=/usr/bin/${TARGET_TRIPLE}gnu-cpp \
-#     && make -j$(nproc) \
-#     && make install \
-#     && rm -rf /tmp/tpm2-tss
+RUN \
+    wget \
+    https://github.com/tpm2-software/tpm2-tss/releases/download/${TPM2TSS_VER}/tpm2-tss-${TPM2TSS_VER}.tar.gz \
+    -O /tmp/tpm2-tss-${TPM2TSS_VER}.tar.gz \
+    && cd /tmp \
+    && tar xvf tpm2-tss-${TPM2TSS_VER}.tar.gz \
+    && cd tpm2-tss-${TPM2TSS_VER} \
+    && CFLAGS=-fPIC ./configure \
+    --prefix=${SYSROOT} \
+    --host=${TARGET_TRIPLE}gnu \
+    --with-crypto=ossl \
+    --disable-fapi \
+    --disable-policy \
+    --disable-doxygen-doc \
+    --enable-static \
+    --disable-shared \
+    CC=/usr/bin/${TARGET_TRIPLE}gnu-gcc \
+    CXX=/usr/bin/${TARGET_TRIPLE}gnu-g++ \
+    && make -j$(nproc) \
+    && make install \
+    && rm -rf /tmp/tpm2-tss-${TPM2TSS_VER} /tmp/tpm2-tss-${TPM2TSS_VER}.tar.gz
 
 RUN rustup target add \
     ${RUST_TARGET}

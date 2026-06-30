@@ -3113,6 +3113,7 @@ name = "reticle"
 version = "0.4.8"
 dependencies = [
  "async-once-cell",
+ "azure-attest",
  "bytes",
  "console_error_panic_hook",
  "futures",
