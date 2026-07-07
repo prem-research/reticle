@@ -86,7 +86,7 @@ impl Kds {
             ))
             .query(&query);
 
-        let resp = req.send().await?.bytes().await?;
+        let resp = req.send().await?.error_for_status()?.bytes().await?;
         Ok(sev::certs::snp::Certificate::from_der(&resp).expect("invalid vcek from AMD KDS"))
     }
 

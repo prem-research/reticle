@@ -8,6 +8,7 @@ use tpm2_protocol::data::{TpmsAttest, TpmsClockInfo};
 use crate::{quote::pcr::PcrBankReading, report::RuntimeClaims};
 
 #[derive(Serialize, Debug)]
+#[serde(tag = "type", content = "report")]
 pub enum HardwareClaims {
     Sev(Box<SevClaims>),
     Tdx(Box<TdxQuoteBody>),

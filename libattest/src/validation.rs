@@ -159,6 +159,8 @@ impl Validator {
         engine.set_input(value);
 
         let query = format!("data.{}", claims.policy());
+
+        engine.set_enable_coverage(true);
         let result = engine
             .eval_rule(query)
             .map_err(AttestationError::from_anyhow)
@@ -170,17 +172,34 @@ impl Validator {
             _ => return AttestationError::internal("rego policy returned a non boolean result"),
         };
 
-        Ok(ValidationResult(result))
+        let res = if result {
+            ValidationResult::Success
+        } else {
+            let coverage = engine
+                .get_coverage_report()
+                .and_then(|report| report.to_string_pretty())
+                .map_err(AttestationError::from_anyhow)?;
+
+            ValidationResult::Failure { coverage }
+        };
+
+        Ok(res)
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 #[must_use]
-pub struct ValidationResult(pub bool);
+pub enum ValidationResult {
+    Success,
+    Failure { coverage: String },
+}
 
 impl ValidationResult {
     pub fn or_err(self, msg: &'static str) -> Result<(), AttestationError> {
-        self.0.then_some(()).context(msg)
+        match self {
+            Self::Success => Ok(()),
+            Self::Failure { coverage } => Err(AttestationError::new(coverage)).context(msg),
+        }
     }
 }
 

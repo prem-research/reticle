@@ -1,4 +1,5 @@
 use reticle::{ClientBuilder, query::QueryParams};
+use snp_attest::kds::Kds;
 
 #[tokio::main]
 async fn main() {
@@ -6,7 +7,12 @@ async fn main() {
         .nth(1)
         .expect("must supply api url as first argument");
 
-    let client = ClientBuilder::new(&api_url).build().await.unwrap();
+    let kds = Kds::default();
+    let client = ClientBuilder::new(&api_url)
+        .with_kds(kds)
+        .build()
+        .await
+        .unwrap();
 
     let result = client.attest().await.unwrap();
     println!("{result:?}");

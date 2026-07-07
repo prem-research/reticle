@@ -286,6 +286,7 @@ impl Client {
             .await?;
 
         let evidence = quote.verify(verifier, &nonce)?;
+
         let claims = WithPolicy::new("azure.allow", evidence);
 
         self.policy_validator
