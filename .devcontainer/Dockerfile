@@ -33,6 +33,7 @@ ENV SYSROOT="/x86_64-sysroot"
 ENV PKG_CONFIG_ALLOW_CROSS=1
 ENV PKG_CONFIG_PATH="${SYSROOT}/lib/pkgconfig:${SYSROOT}/share/pkgconfig"
 ENV PKG_CONFIG_SYSROOT_DIR="$SYSROOT"
+ENV LD_LIBRARY_PATH="${SYSROOT}/lib"
 
 RUN wget \
     -O/tmp/openssl-${OPENSSL_VER}.tar.gz \
@@ -146,13 +147,15 @@ RUN \
     --disable-policy \
     --disable-doxygen-doc \
     --enable-static \
-    --disable-shared \
+    --enable-shared \
     CC=/usr/bin/${TARGET_TRIPLE}gnu-gcc \
     CXX=/usr/bin/${TARGET_TRIPLE}gnu-g++ \
     && make -j$(nproc) \
     && make install \
     && test -f ${SYSROOT}/lib/libtss2-esys.a \
     && test -f ${SYSROOT}/lib/pkgconfig/tss2-esys.pc \
+    && test -f ${SYSROOT}/lib/libtss2-tcti-device.so \
+    && test -f ${SYSROOT}/lib/libtss2-tcti-device.so.0 \
     && mv ${SYSROOT}/lib/libtss2-esys.a ${SYSROOT}/lib/libtss2-esys-real.a \
     && printf '%s\n' \
     'GROUP ( libtss2-esys-real.a libtss2-sys.a libtss2-mu.a libtss2-tctildr.a libtss2-rc.a )' \
