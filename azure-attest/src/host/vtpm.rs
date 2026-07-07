@@ -1,18 +1,19 @@
-use std::ops::Deref;
+use std::{ops::Deref, str::FromStr};
 
 use libattest::error::Context;
 use rsa::{BoxedUint, pkcs1v15::VerifyingKey};
 use sha2::Sha256;
 use tss_esapi::{
-    abstraction::{nv, pcr::PcrData},
+    abstraction::nv,
     handles::{KeyHandle, NvIndexTpmHandle},
     interface_types::{
         algorithm::HashingAlgorithm, resource_handles::NvAuth, session_handles::AuthSession,
     },
     structures::{
         Attest, PcrSelectSize, PcrSelectionListBuilder, PcrSlot, Public, RsaExponent, Signature,
-        SignatureScheme, pcr_selection_list,
+        SignatureScheme,
     },
+    tcti_ldr::DeviceConfig,
 };
 
 use x509_cert::der::{Decode, SliceReader};
@@ -28,15 +29,19 @@ impl AzureTpmCtx {
         Self { context }
     }
 
-    pub fn default_context() -> tss_esapi::Result<Self> {
-        use tss_esapi::tcti_ldr::DeviceConfig;
+    pub fn with_device(device: &'static str) -> tss_esapi::Result<Self> {
         use tss_esapi::tcti_ldr::TctiNameConf;
 
-        let mut context = tss_esapi::Context::new(TctiNameConf::Device(DeviceConfig::default()))?;
+        let mut context =
+            tss_esapi::Context::new(TctiNameConf::Device(DeviceConfig::from_str(device)?))?;
 
         context.set_sessions((Some(AuthSession::Password), None, None));
 
         Ok(Self { context })
+    }
+
+    pub fn default_device() -> tss_esapi::Result<Self> {
+        Self::with_device("/dev/tpmrm0")
     }
 
     const AK_CERT_IDX: u32 = 0x01C101D0;

@@ -8,7 +8,7 @@ pub async fn azure_attestation(
     nonce: NonceParam<libattest::ByteNonce<32>, 32>,
 ) -> ApiJsonResult<AzureQuote> {
     let NonceParam(nonce) = nonce;
-    let tpm = AzureTpmCtx::default_context().context("failed creating tpm context")?;
+    let tpm = AzureTpmCtx::default_device().context("failed creating tpm context")?;
     let nonce = AzureNonce::new(nonce);
 
     let quote = azure_attest::host::azure_attest(tpm, &nonce)?;
