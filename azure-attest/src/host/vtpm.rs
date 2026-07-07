@@ -1,4 +1,4 @@
-use std::{ops::Deref, str::FromStr};
+use std::{ops::Deref, path::Path, str::FromStr};
 
 use libattest::error::Context;
 use rsa::{BoxedUint, pkcs1v15::VerifyingKey};
@@ -29,9 +29,10 @@ impl AzureTpmCtx {
         Self { context }
     }
 
-    pub fn with_device(device: &'static str) -> tss_esapi::Result<Self> {
+    pub fn with_device(device: impl AsRef<Path>) -> tss_esapi::Result<Self> {
         use tss_esapi::tcti_ldr::TctiNameConf;
 
+        let device = device.as_ref().to_str().unwrap();
         let mut context =
             tss_esapi::Context::new(TctiNameConf::Device(DeviceConfig::from_str(device)?))?;
 

@@ -13,17 +13,17 @@ use rocket::{Build, Rocket, State};
 use crate::nonce::NonceParam;
 use crate::response::ApiError;
 
-pub struct SdkFairing {
+pub struct NvidiaFairing {
     handle: SdkHandle,
     nvml: Nvml,
 }
 
-impl SdkFairing {
+impl NvidiaFairing {
     pub fn init() -> anyhow::Result<Self> {
         let handle = SdkHandle::get_handle()?;
         let nvml = Nvml::init()?;
 
-        Ok(SdkFairing { handle, nvml })
+        Ok(NvidiaFairing { handle, nvml })
     }
 
     async fn attest_and_init(&self) -> anyhow::Result<()> {
@@ -79,7 +79,7 @@ impl SdkFairing {
 }
 
 #[rocket::async_trait]
-impl Fairing for SdkFairing {
+impl Fairing for NvidiaFairing {
     fn info(&self) -> rocket::fairing::Info {
         Info {
             name: "Nvidia SDK initializer",

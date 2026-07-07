@@ -17,7 +17,12 @@ use rocket::{State, routes};
 use sev::firmware::guest::Firmware;
 use tokio::sync::Mutex;
 
-use crate::{modules::ModuleDetector, nvidia_api::SdkFairing, response::ApiJsonResult};
+use crate::{
+    azure_api::{AzureFairing, TpmDevice},
+    modules::ModuleDetector,
+    nvidia_api::NvidiaFairing,
+    response::ApiJsonResult,
+};
 
 #[rocket::get("/modules")]
 fn get_modules(modules: &State<Modules>) -> ApiJsonResult<&Modules> {
@@ -54,8 +59,11 @@ async fn main() -> Result<(), anyhow::Error> {
             rocket
         }
         CpuModule::Azure => {
+            let tpm = TpmDevice::auto_detect().context("could not detect default tpm device")?;
+            let tpm = AzureFairing::new(tpm);
+
             routes.extend(routes![azure_api::azure_attestation]);
-            rocket
+            rocket.attach(tpm)
         }
         _ => bail!("cpu module not yet supported by attestation-server"),
     };
@@ -63,7 +71,7 @@ async fn main() -> Result<(), anyhow::Error> {
     if let Some(GpuModule::Nvidia) = modules.gpu() {
         // attach the nvidia fairing responsible for first attestation
         // and enable gpus for confidential computing operations
-        let sdk = SdkFairing::init()?;
+        let sdk = NvidiaFairing::init()?;
         rocket = rocket.attach(sdk);
 
         routes.extend(routes![nvidia_api::nvidia_attestation]);
