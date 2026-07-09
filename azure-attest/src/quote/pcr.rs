@@ -65,5 +65,5 @@ impl<D: digest::Digest> From<&PcrBank> for PcrBankReading<D> {
 #[cfg(feature = "host")]
 fn pcr_slot_to_number(slot: PcrSlot) -> u32 {
     let slot: u32 = slot.into();
-    slot.ilog2() + 1
+    slot.ilog2()
 }

@@ -14,7 +14,7 @@ use libattest::{
 };
 use rsa::{BoxedUint, pkcs1::DecodeRsaPublicKey, pkcs1v15::VerifyingKey, signature::Verifier};
 use sha2::Sha256;
-use tpm2_protocol::data::TpmuAttest;
+use tpm2_protocol::data::{TpmAlgId, TpmuAttest};
 use x509_cert::der::oid::db::rfc9688::RSA_ENCRYPTION;
 
 use crate::{
@@ -193,12 +193,34 @@ fn verify_quote_nonce(azure_quote: &AzureQuote, nonce: &AzureNonce) -> libattest
 
 fn verify_pcr_digest(azure_quote: &AzureQuote) -> libattest::Result<()> {
     let digest = azure_quote.pcr_bank.pcr_digest();
+
     let TpmuAttest::Quote(ref info) = azure_quote.quote.attested else {
         libattest::bail!("wrong type of attested data in quote");
     };
 
+    verify_pcr_selection(info)?;
+
     if info.pcr_digest.deref() != digest.deref() {
         libattest::bail!(exposed: "PCR digest mismatch");
+    }
+
+    Ok(())
+}
+
+fn verify_pcr_selection(info: &tpm2_protocol::data::TpmsQuoteInfo) -> libattest::Result<()> {
+    const EXPECTED_PCR_SELECT: &[u8] = &[0xff, 0xff, 0xff];
+
+    if info.pcr_select.len() != 1 {
+        libattest::bail!(exposed: "TPM quote must contain exactly one PCR selection");
+    }
+
+    let selection = &info.pcr_select[0];
+    if selection.hash != TpmAlgId::Sha256 {
+        libattest::bail!(exposed: "TPM quote PCR selection must use SHA-256");
+    }
+
+    if selection.pcr_select.deref() != EXPECTED_PCR_SELECT {
+        libattest::bail!(exposed: "TPM quote must select PCRs 0 through 23");
     }
 
     Ok(())
@@ -236,4 +258,21 @@ pub fn verify_impl<'a>(
     );
 
     Ok(azure_claims)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ATTESTATION: &str = include_str!("../../tests/attestation.json");
+
+    #[test]
+    fn bundled_quote_selects_sha256_pcrs_0_through_23() {
+        let quote: AzureQuote = serde_json::from_str(ATTESTATION).unwrap();
+        let TpmuAttest::Quote(ref info) = quote.quote.attested else {
+            panic!("bundled attestation is not a TPM quote");
+        };
+
+        verify_pcr_selection(info).unwrap();
+    }
 }
