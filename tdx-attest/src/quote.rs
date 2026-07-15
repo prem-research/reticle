@@ -1,8 +1,13 @@
-use libattest::error::Context;
+use libattest::{
+    crypto::{CertificateChain, algorithms::ecdsa::EcdsaCert},
+    error::Context,
+    p256,
+    validation::Verifiable,
+};
 use p256::ecdsa::{Signature, VerifyingKey};
 
 use crate::{
-    certificates::{CertificateChain, ca, extensions::SgxExtensions},
+    certificates::{ca, extensions::SgxExtensions},
     dcap::{
         self, TdQuote,
         parser::Parse,
@@ -27,7 +32,7 @@ pub enum CertificationData {
     PlainText(Vec<u8>),
     EncryptedCpuSvnsRSA2048(Vec<u8>),
     EncryptedCpuSvnsRSA3072(Vec<u8>),
-    PckChain(CertificateChain),
+    PckChain(CertificateChain<EcdsaCert>),
     QeReportCertificationData(Box<QeReportCertificationData>),
 }
 
@@ -37,7 +42,7 @@ impl CertificationData {
     ///
     /// Returns Some if the leaf of this data structure has a certificate chain, None if
     /// trust is based on other identifiers
-    pub fn pck_chain(&self) -> Option<&CertificateChain> {
+    pub fn pck_chain(&self) -> Option<&CertificateChain<EcdsaCert>> {
         match self {
             Self::QeReportCertificationData(data) => data.certification_data.pck_chain(),
             Self::PckChain(chain) => Some(chain),
@@ -119,6 +124,14 @@ impl TdxQuote {
     }
 }
 
+impl Verifiable for TdxQuote {
+    type Claims<'a> = &'a TdxQuoteBody;
+
+    fn claims(&self) -> Self::Claims<'_> {
+        &self.body
+    }
+}
+
 /// public keys are encoded in dcap without the header for sec1 (0x04)
 /// so we have to add it manually
 fn decode_public_key(public_key: &[u8; 64]) -> Result<VerifyingKey, p256::ecdsa::Error> {
@@ -169,9 +182,9 @@ impl TryFrom<dcap::QeCertificationData<'_>> for CertificationData {
             PlainText(x) => Self::PlainText(x.to_owned()),
             EncryptedCpuSvnsRSA2048(x) => Self::EncryptedCpuSvnsRSA2048(x.to_owned()),
             EncryptedCpuSvnsRSA3072(x) => Self::EncryptedCpuSvnsRSA3072(x.to_owned()),
-            PckChain(chain) => {
-                Self::PckChain(CertificateChain::with_anchor(&ca::INTEL_CA).parse_pem_chain(chain)?)
-            }
+            PckChain(chain) => Self::PckChain(
+                CertificateChain::<EcdsaCert>::with_anchor(&ca::INTEL_CA).parse_pem_chain(chain)?,
+            ),
             QeReportCertificationData(report) => {
                 Self::QeReportCertificationData(Box::new((*report).try_into()?))
             }

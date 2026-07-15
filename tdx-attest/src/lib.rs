@@ -1,20 +1,13 @@
 #![warn(clippy::pedantic)]
 #![allow(unused, clippy::missing_panics_doc)]
 
-use p256::ecdsa::VerifyingKey;
-use p256::{EncodedPoint, elliptic_curve};
-use p256::{PublicKey, ecdsa::Signature};
-
 use crate::certificates::ca;
 use crate::certificates::extensions::{SgxExtension, SgxExtensions};
 use crate::dcap::TdQuote;
 use crate::dcap::parser::Parse;
 use crate::error::TdxError;
 
-use crate::{
-    certificates::CertificateChain,
-    dcap::types::{EnclaveReport, TdxQuoteBody, TdxQuoteHeader},
-};
+use crate::dcap::types::{EnclaveReport, TdxQuoteBody, TdxQuoteHeader};
 
 pub(crate) mod certificates;
 pub mod dcap;

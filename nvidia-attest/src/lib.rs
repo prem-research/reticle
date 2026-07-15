@@ -8,7 +8,7 @@ use jsonwebtoken::{DecodingKey, Validation};
 use libattest::{
     bail,
     error::{AttestationError, Context, Expose},
-    // validation::AssignedPolicy,
+    validation::Verifiable,
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -29,6 +29,17 @@ use crate::{
 pub struct DecodedClaims {
     overall_claims: OverallClaims,
     gpu_claims: HashMap<String, GpuClaims>,
+}
+
+impl Verifiable for DecodedClaims {
+    type Claims<'a>
+        = &'a DecodedClaims
+    where
+        Self: 'a;
+
+    fn claims<'a>(&'a self) -> Self::Claims<'a> {
+        self
+    }
 }
 
 impl DecodedClaims {

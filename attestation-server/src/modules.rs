@@ -1,6 +1,38 @@
 use anyhow::Context;
 use libattest::{CpuModule, GpuModule, Modules, ModulesBuilder};
-use std::path::Path;
+use serde::Deserialize;
+use std::{path::Path, time::Duration};
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SecurityProfile {
+    security_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ComputeMetadata {
+    // name: String,
+    security_profile: SecurityProfile,
+}
+
+struct AzureDetector;
+
+impl AzureDetector {
+    pub fn fetch_imds() -> anyhow::Result<ComputeMetadata> {
+        let res: ComputeMetadata = reqwest::blocking::ClientBuilder::new()
+            .timeout(Duration::from_secs(2))
+            .build()?
+            .get("http://169.254.169.254/metadata/instance/compute")
+            .header("Metadata", "true")
+            .query(&[("api-version", "2025-04-07")])
+            .send()?
+            .error_for_status()?
+            .json()?;
+
+        Ok(res)
+    }
+}
 
 pub struct ModuleDetector;
 
@@ -13,11 +45,29 @@ impl ModuleDetector {
         path.as_ref().exists()
     }
 
+    fn detect_azure(&self) -> bool {
+        log::info!("Trying to detect for Azure...");
+        let imds = AzureDetector::fetch_imds();
+
+        let imds = match imds {
+            Ok(imds) => imds,
+            Err(err) => {
+                log::error!("Got error from imds: {err}");
+                return false;
+            }
+        };
+
+        log::debug!("Got security_type {}", imds.security_profile.security_type);
+        (imds.security_profile.security_type == "ConfidentialVM")
+    }
+
     fn detect_cpu(&self) -> Option<CpuModule> {
         if self.path_exists(Self::SEV_PATH) {
             Some(CpuModule::Sev)
         } else if self.path_exists(Self::TDX_PATH) {
             Some(CpuModule::Tdx)
+        } else if self.detect_azure() {
+            Some(CpuModule::Azure)
         } else {
             None
         }

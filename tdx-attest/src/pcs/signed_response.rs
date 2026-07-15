@@ -3,13 +3,14 @@ use std::marker::PhantomData;
 use crate::{ca::INTEL_CA, error::TdxError};
 use anyhow::bail;
 use chrono::Utc;
-use libattest::error::Context;
-use p256::ecdsa::Signature;
+use libattest::p256::ecdsa::Signature;
+use libattest::{
+    crypto::{CertificateChain, algorithms::ecdsa::EcdsaCert},
+    error::Context,
+};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use signature::Verifier;
-
-use crate::certificates::CertificateChain;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -20,7 +21,7 @@ struct Header {
 
 /// Every signed response from the PCS has these 3 things.
 pub struct SignedResponse<T> {
-    chain: CertificateChain,
+    chain: CertificateChain<EcdsaCert>,
     signature: Signature,
 
     header: Header,
@@ -90,7 +91,7 @@ impl ParseSignedResponse for reqwest::Response {
 
         // anchor our trust in embedded intel_ca, still parsing pem chain from
         // response
-        let chain = CertificateChain::with_anchor(&INTEL_CA)
+        let chain = CertificateChain::<EcdsaCert>::with_anchor(&INTEL_CA)
             .parse_pem_chain(&chain)
             .context("failed parsing certificate chain from header")?;
 

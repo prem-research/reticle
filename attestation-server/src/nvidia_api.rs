@@ -1,9 +1,11 @@
-use anyhow::{Context, bail};
+use std::collections::HashSet;
+use std::ops::Deref;
+
+use anyhow::Context;
 use nvat::{AttestationBuilder, SdkHandle, nonce::NvatNonce};
 use nvidia_attest::EATToken;
 use nvidia_attest::keychain::KeyChain;
 use nvidia_attest::nonce::NvidiaNonce;
-use nvidia_attest::types::GpuClaims;
 use nvml_wrapper::Nvml;
 use rocket::fairing::{Fairing, Info, Kind};
 use rocket::{Build, Rocket, State};
@@ -11,17 +13,17 @@ use rocket::{Build, Rocket, State};
 use crate::nonce::NonceParam;
 use crate::response::ApiError;
 
-pub struct SdkFairing {
+pub struct NvidiaFairing {
     handle: SdkHandle,
     nvml: Nvml,
 }
 
-impl SdkFairing {
+impl NvidiaFairing {
     pub fn init() -> anyhow::Result<Self> {
         let handle = SdkHandle::get_handle()?;
         let nvml = Nvml::init()?;
 
-        Ok(SdkFairing { handle, nvml })
+        Ok(NvidiaFairing { handle, nvml })
     }
 
     async fn attest_and_init(&self) -> anyhow::Result<()> {
@@ -44,35 +46,40 @@ impl SdkFairing {
         // we gather the device uuids from the claims of the attested gpus
         // so we don't accidentally turn on confidential computing for
         // gpus we didn't explicitly verify
-        let attested_gpus: Vec<&GpuClaims> = claims.gpu_claims().values().collect();
-        let available_gpus: Vec<nvml_wrapper::Device> = (0..self.nvml.device_count()?)
-            .map(|idx| self.nvml.device_by_index(idx))
-            .collect::<Result<_, _>>()?;
+        let uuids: HashSet<String> = claims
+            .gpu_claims()
+            .values()
+            .map(|gpu| &gpu.ueid)
+            .cloned()
+            .collect();
 
-        if attested_gpus.len() != available_gpus.len() {
-            let attested_gpus = attested_gpus.len();
-            let available_gpus = available_gpus.len();
+        for uuid in uuids {
+            let device = self.nvml.device_by_uuid(uuid.deref()).with_context(|| {
+                format!("Device with UUID: {uuid} was attested but not found by nvml")
+            })?;
 
-            bail!(
-                "there's a mismatch between the number of available gpus {available_gpus} on this machine and the attested number of gpus {attested_gpus}"
-            );
+            // once we attest the device we can activate
+            // confidential compute state
+            device
+                .set_confidential_compute_state(true)
+                .with_context(|| {
+                    format!("cannot activate confidential computing for gpu uuid:{uuid}")
+                })?;
         }
 
-        let gpu = available_gpus
-            .first()
-            .context("No GPUs available in the system for confidential computing workloads")?;
-
-        // nvml wrapper library is broken and calling this method
-        // on the device enables it systemwide. It should be
-        // self.nvml.set_confidential_compute_state(true);
-        gpu.set_confidential_compute_state(true)?;
+        let count = self.nvml.device_count()? as usize;
+        if count != claims.gpu_claims().iter().count() {
+            log::warn!(
+                "there are still devices on this machine for which confidential computing wasn't enabled."
+            )
+        }
 
         Ok(())
     }
 }
 
 #[rocket::async_trait]
-impl Fairing for SdkFairing {
+impl Fairing for NvidiaFairing {
     fn info(&self) -> rocket::fairing::Info {
         Info {
             name: "Nvidia SDK initializer",

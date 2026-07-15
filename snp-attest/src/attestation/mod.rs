@@ -2,15 +2,19 @@
 pub mod chain;
 /// Methods for interacting with AMD's keyserver
 pub mod kds;
+pub mod verify;
 
 // pub mod nonce;
 
-use libattest::error::{AttestationError, Context, Expose};
+use libattest::{
+    error::{AttestationError, Context, Expose},
+    validation::Verifiable,
+};
 
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::{kds::chipid_from_gen, nonce::SevNonce, oid};
+use crate::{claims::SevClaims, kds::chipid_from_gen, nonce::SevNonce, oid};
 use der::Encode;
 use sev::{
     CpuFamily, CpuModel, Generation, firmware::guest::AttestationReport, parser::ByteParser,
@@ -23,7 +27,7 @@ use self::chain::VerifiedChain;
 /// Represents a parsed attestation report with some already
 /// parsed commonly accessed fields
 #[allow(unused)]
-pub struct ParsedAttestation {
+pub struct SevQuote {
     cpu_fam_id: CpuFamily,
     cpu_mod_id: CpuModel,
     generation: Generation,
@@ -32,7 +36,7 @@ pub struct ParsedAttestation {
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
-impl ParsedAttestation {
+impl SevQuote {
     /// Parses and constructs a new attestation report from a stream of binary data
     pub fn new(bytes: &[u8]) -> Result<Self, AttestationError> {
         let report =
@@ -48,7 +52,7 @@ impl ParsedAttestation {
         let generation = sev::Generation::identify_cpu(cpu_fam_id, cpu_mod_id)
             .context("could not identify cpu from attestation report")?;
 
-        Ok(ParsedAttestation {
+        Ok(SevQuote {
             cpu_fam_id,
             cpu_mod_id,
             generation,
@@ -65,7 +69,7 @@ impl ParsedAttestation {
     }
 
     /// Verifies the attestation report against a certificate chain
-    pub fn verify(&self, chain: &VerifiedChain, nonce: &SevNonce) -> Result<(), AttestationError> {
+    fn verify(&self, chain: &VerifiedChain, nonce: &SevNonce) -> Result<(), AttestationError> {
         // let certificates = chain.parse_certificates()?;
 
         // TODO: unify everything and use either x509-cert or x509-parser
@@ -119,7 +123,7 @@ impl ParsedAttestation {
     }
 }
 
-impl ParsedAttestation {
+impl SevQuote {
     pub fn generation(&self) -> Generation {
         self.generation
     }
@@ -127,4 +131,15 @@ impl ParsedAttestation {
     pub fn report(&self) -> &AttestationReport {
         &self.report
     }
+}
+
+impl Verifiable for SevQuote {
+    fn claims(&self) -> SevClaims {
+        SevClaims::from(self.report())
+    }
+
+    type Claims<'a>
+        = SevClaims
+    where
+        Self: 'a;
 }

@@ -5,20 +5,23 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{AttestationError, Context};
 
-pub trait Claim: AssignedPolicy {
+pub trait Verifiable {
+    type Claims<'a>: Serialize
+    where
+        Self: 'a;
+
     /// Converts this set of claims into a rego engine compatible format
-    fn rego_repr(&self) -> impl Serialize;
+    fn claims<'a>(&'a self) -> Self::Claims<'a>;
 }
 
-pub trait IntoClaims {
-    type Claims: Claim;
-    fn into_claims(self) -> Self::Claims;
-}
+impl<V: Verifiable> Verifiable for &V {
+    type Claims<'a>
+        = V::Claims<'a>
+    where
+        Self: 'a;
 
-impl<C: Claim> IntoClaims for C {
-    type Claims = C;
-    fn into_claims(self) -> C {
-        self
+    fn claims<'a>(&'a self) -> Self::Claims<'a> {
+        (*self).claims()
     }
 }
 
@@ -33,13 +36,19 @@ pub trait AssignedPolicy {
     fn policy(&self) -> Cow<'static, str>;
 }
 
-pub struct WithPolicy<T: Serialize> {
-    claims: T,
+impl<A: AssignedPolicy> AssignedPolicy for &A {
+    fn policy(&self) -> Cow<'static, str> {
+        (*self).policy()
+    }
+}
+
+pub struct WithPolicy<C: Verifiable> {
+    claims: C,
     policy: Cow<'static, str>,
 }
 
-impl<T: Serialize> WithPolicy<T> {
-    pub fn new(policy: impl Into<Cow<'static, str>>, claims: T) -> Self {
+impl<C: Verifiable> WithPolicy<C> {
+    pub fn new(policy: impl Into<Cow<'static, str>>, claims: C) -> Self {
         Self {
             claims,
             policy: policy.into(),
@@ -47,13 +56,18 @@ impl<T: Serialize> WithPolicy<T> {
     }
 }
 
-impl<T: Serialize> Claim for WithPolicy<T> {
-    fn rego_repr(&self) -> impl Serialize {
-        &self.claims
+impl<C: Verifiable> Verifiable for WithPolicy<C> {
+    type Claims<'a>
+        = C::Claims<'a>
+    where
+        Self: 'a;
+
+    fn claims<'a>(&'a self) -> Self::Claims<'a> {
+        self.claims.claims()
     }
 }
 
-impl<T: Serialize> AssignedPolicy for WithPolicy<T> {
+impl<C: Verifiable> AssignedPolicy for WithPolicy<C> {
     fn policy(&self) -> Cow<'static, str> {
         self.policy.clone()
     }
@@ -130,19 +144,23 @@ impl Validator {
 
     /// gets the rego query and input from `impl Claim` and then
     /// drives the engine to verify the query
-    pub fn verify_claim(&self, claims: impl IntoClaims) -> Result<ValidationResult, AttestationError> {
-        let claims = claims.into_claims();
+    pub fn verify_claim<C>(&self, claims: C) -> Result<ValidationResult, AttestationError>
+    where
+        C: Verifiable + AssignedPolicy,
+    {
         // avois polluting the engine for further verifications
         // and allows us to have this method &self
         let mut engine = self.engine.clone();
 
         // convert claims to rego compatible format
-        let value = serde_value::to_value(claims.rego_repr())?;
+        let value = serde_value::to_value(claims.claims())?;
         let value = regorus::Value::deserialize(value)?;
         // here we set what input. will be in rego
         engine.set_input(value);
 
         let query = format!("data.{}", claims.policy());
+
+        engine.set_enable_coverage(true);
         let result = engine
             .eval_rule(query)
             .map_err(AttestationError::from_anyhow)
@@ -154,17 +172,34 @@ impl Validator {
             _ => return AttestationError::internal("rego policy returned a non boolean result"),
         };
 
-        Ok(ValidationResult(result))
+        let res = if result {
+            ValidationResult::Success
+        } else {
+            let coverage = engine
+                .get_coverage_report()
+                .and_then(|report| report.to_string_pretty())
+                .map_err(AttestationError::from_anyhow)?;
+
+            ValidationResult::Failure { coverage }
+        };
+
+        Ok(res)
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 #[must_use]
-pub struct ValidationResult(pub bool);
+pub enum ValidationResult {
+    Success,
+    Failure { coverage: String },
+}
 
 impl ValidationResult {
     pub fn or_err(self, msg: &'static str) -> Result<(), AttestationError> {
-        self.0.then_some(()).context(msg)
+        match self {
+            Self::Success => Ok(()),
+            Self::Failure { coverage } => Err(AttestationError::new(coverage)).context(msg),
+        }
     }
 }
 

@@ -4,15 +4,17 @@ pub mod tcb;
 
 use std::str::FromStr;
 
-use libattest::error::Context;
-use p256::ecdsa::Signature;
+use libattest::{
+    crypto::{CertificateChain, algorithms::ecdsa::EcdsaCert, chain::crl::Crl},
+    error::Context,
+};
 use reqwest::{Client, IntoUrl, Url};
 use serde::Deserialize;
 use x509_cert::Certificate;
 
 use crate::{
     TdxQuote,
-    certificates::{CertificateChain, IntermediateCa, ca::INTEL_CA, crl::Crl},
+    certificates::{IntermediateCa, ca::INTEL_CA},
     dcap::types::Fmspc,
     error::TdxError,
     pcs::{qe::EnclaveIdentity, signed_response::ParseSignedResponse, tcb::TcbInfo},
@@ -60,7 +62,7 @@ impl Pcs {
             .get("SGX-PCK-CRL-Issuer-Chain")
             .context("crl response does not contain a certificate chain")?;
 
-        let chain = CertificateChain::with_anchor(&INTEL_CA)
+        let chain = CertificateChain::<EcdsaCert>::with_anchor(&INTEL_CA)
             .parse_pem_chain(&urlencoding::decode_binary(certificate_chain.as_bytes()))
             .context("failed parsing crl certificate chain")?;
 
@@ -68,7 +70,7 @@ impl Pcs {
 
         // TODO: review this very bad thing. We really should build our own pccs already.
         let crl = hex::decode(crl)?;
-        let crl = Crl::from_der(&chain, crl).context("failed parsing and verifying crl")?;
+        let crl = Crl::from_der(chain, crl).context("failed parsing and verifying crl")?;
 
         Ok(crl)
     }

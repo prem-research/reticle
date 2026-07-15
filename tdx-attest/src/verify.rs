@@ -1,13 +1,12 @@
 use std::ops::Deref;
 
-use libattest::error::Context;
+use libattest::{crypto::chain::crl::VerifyCrl, error::Context, quote::QuoteVerifier};
 use sha2::{Digest, Sha256, digest::Update};
 use signature::Verifier;
 use zerocopy::IntoBytes;
 
 use crate::{
     TdxCertification, TdxQuote,
-    certificates::crl::VerifyCrl,
     dcap::types::{ReportData, TdxQuoteBody},
     error::TdxError,
     nonce::TdxNonce,
@@ -262,25 +261,30 @@ fn verify_mask<const N: usize>(quote: &[u8; N], expected: &[u8; N], mask: &[u8; 
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
-pub struct QuoteVerifier {
+pub struct TdxQuoteVerifier {
     collateral: Collateral,
-    quote: TdxQuote,
+    // quote: TdxQuote,
     minimum_tcb_level: TcbStatus,
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
-impl QuoteVerifier {
+impl TdxQuoteVerifier {
     #[cfg_attr(target_family = "wasm", wasm_bindgen(constructor))]
-    pub fn new(collateral: Collateral, quote: TdxQuote) -> Self {
+    #[must_use]
+    pub fn new(collateral: Collateral) -> Self {
         Self {
             collateral,
-            quote,
             minimum_tcb_level: TcbStatus::UpToDate,
         }
     }
+}
 
-    pub fn verify(&self, nonce: &TdxNonce) -> Result<(), TdxError> {
-        let tcb_levels = verify(&self.quote, &self.collateral, nonce)?;
+impl QuoteVerifier for TdxQuoteVerifier {
+    type Nonce = TdxNonce;
+    type Quote = TdxQuote;
+
+    fn verify(&self, quote: &TdxQuote, nonce: &TdxNonce) -> Result<(), TdxError> {
+        let tcb_levels = verify(quote, &self.collateral, nonce)?;
         let minimum_tcb = &self.minimum_tcb_level;
 
         if tcb_levels.qe_tcb.tcb_status < self.minimum_tcb_level {

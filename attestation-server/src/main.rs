@@ -1,6 +1,7 @@
 mod response;
 
 // pub mod modules;
+mod azure_api;
 pub mod modules;
 mod nonce;
 mod nvidia_api;
@@ -16,16 +17,21 @@ use rocket::{State, catch, catchers, routes};
 use sev::firmware::guest::Firmware;
 use tokio::sync::Mutex;
 
-use crate::{modules::ModuleDetector, nvidia_api::SdkFairing, response::ApiJsonResult};
-
-#[catch(404)]
-fn not_found() -> &'static str {
-    ""
-}
+use crate::{
+    azure_api::{AzureFairing, TpmDevice},
+    modules::ModuleDetector,
+    nvidia_api::NvidiaFairing,
+    response::ApiJsonResult,
+};
 
 #[rocket::get("/modules")]
 fn get_modules(modules: &State<Modules>) -> ApiJsonResult<&Modules> {
     response::ok(modules.deref())
+}
+
+#[catch(404)]
+fn not_found() -> &'static str {
+    "route not found"
 }
 
 #[tokio::main]
@@ -57,13 +63,20 @@ async fn main() -> Result<(), anyhow::Error> {
             routes.extend(routes![tdx_api::tdx_attestation]);
             rocket
         }
+        CpuModule::Azure => {
+            let tpm = TpmDevice::auto_detect().context("could not detect default tpm device")?;
+            let tpm = AzureFairing::new(tpm);
+
+            routes.extend(routes![azure_api::azure_attestation]);
+            rocket.attach(tpm)
+        }
         _ => bail!("cpu module not yet supported by attestation-server"),
     };
 
     if let Some(GpuModule::Nvidia) = modules.gpu() {
         // attach the nvidia fairing responsible for first attestation
         // and enable gpus for confidential computing operations
-        let sdk = SdkFairing::init()?;
+        let sdk = NvidiaFairing::init()?;
         rocket = rocket.attach(sdk);
 
         routes.extend(routes![nvidia_api::nvidia_attestation]);
