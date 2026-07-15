@@ -29,6 +29,11 @@ fn get_modules(modules: &State<Modules>) -> ApiJsonResult<&Modules> {
     response::ok(modules.deref())
 }
 
+#[catch(404)]
+fn not_found() -> &'static str {
+    "route not found"
+}
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     env_logger::builder()
