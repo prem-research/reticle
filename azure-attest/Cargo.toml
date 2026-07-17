@@ -11,27 +11,27 @@ cli = ["dep:tss-esapi", "dep:anyhow"]
 tpm2-protocol = "0.16.0"
 snp-attest = { path = "../snp-attest" }
 tdx-attest = { path = "../tdx-attest" }
-x509-cert = "0.3.0-rc.4"
+x509-cert.workspace = true
 rsa = { version = "0.10.0-rc.18", features = ["serde"] }
-libattest = { path = "../libattest" }
+libattest.workspace = true
 jsonwebtoken = { version = "10.3.0", default-features = false }
-serde = { version = "1.0.228", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 sha2 = "0.11.0"
-serde_json = "1.0.149"
-thiserror = "2.0.17"
-zerocopy = { version = "0.8.48", features = ["derive"] }
+serde_json.workspace = true
+thiserror.workspace = true
+zerocopy = { workspace = true, features = ["derive"] }
 
 tss-esapi = { version = "7.7.0", optional = true }
-anyhow = { version = "*", optional = true }
+anyhow = { workspace = true, optional = true }
 base64 = "0.22.1"
-hex = { version = "0.4.3", features = ["serde"] }
+hex = { workspace = true, features = ["serde"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
+wasm-bindgen.workspace = true
+wasm-bindgen-futures.workspace = true
 
 [dev-dependencies]
-tokio = { version = "1.49.0", features = ["full"] }
+tokio = { workspace = true, features = ["full"] }
 
 [[bin]]
 name = "generate-report"

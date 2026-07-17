@@ -6,5 +6,16 @@ members = ["libattest", "nvidia-attest", "reticle", "snp-attest", "tdx-attest", 
 sev = { git = "https://github.com/BRA1L0R/sev", branch = "prem" }
 
 [workspace.dependencies]
+anyhow = "1.0"
+getrandom = "=0.2.16"
+hex = "0.4.3"
+libattest = { path = "libattest" }
+reqwest = "0.13.2"
+serde = "1.0.228"
+serde_json = "1.0.149"
+thiserror = "2.0.17"
+tokio = "1.49.0"
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
+x509-cert = "0.3.0-rc.4"
+zerocopy = "0.8.48"
