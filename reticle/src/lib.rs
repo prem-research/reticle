@@ -5,7 +5,7 @@ pub mod gateway;
 pub mod query;
 pub mod rego;
 
-use std::{borrow::Cow, pin::Pin};
+use std::pin::Pin;
 
 use azure_attest::{AzureQuote, collateral::ReportVerifierBuilder, nonce::AzureNonce};
 use futures::future::OptionFuture;
@@ -108,7 +108,7 @@ pub struct ClientBuilder {
     // amd collateral server
     kds: Kds,
     // prem OPA policies url
-    policies: Box<dyn PolicyProvider>,
+    policies: Box<dyn PolicyProvider + Send>,
 
     headers: HeaderMap,
 }
@@ -150,16 +150,6 @@ impl ClientBuilder {
         self
     }
 
-    /// sets custom url for OPA policies index
-    // pub fn with_policies_url(mut self, url: &str) -> Self {
-    //     self.policies = url.to_string().into();
-    //     self
-    // }
-    pub fn with_policy_provider(mut self, policy: impl PolicyProvider + 'static) -> Self {
-        self.policies = Box::new(policy);
-        self
-    }
-
     pub async fn build(self) -> Result<Client, AttestationError> {
         let reqwest_client = reqwest::Client::builder()
             .default_headers(self.headers)
@@ -183,6 +173,18 @@ impl ClientBuilder {
             policy_validator: validator,
             reqwest_client,
         })
+    }
+}
+
+impl ClientBuilder {
+    /// sets custom url for OPA policies index
+    // pub fn with_policies_url(mut self, url: &str) -> Self {
+    //     self.policies = url.to_string().into();
+    //     self
+    // }
+    pub fn with_policy_provider(mut self, policy: impl PolicyProvider + Send + 'static) -> Self {
+        self.policies = Box::new(policy);
+        self
     }
 }
 

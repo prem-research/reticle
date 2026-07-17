@@ -74,7 +74,7 @@ impl UrlPolicies {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait::async_trait(?Send)]
 impl PolicyProvider for UrlPolicies {
     async fn fetch_validator(&self) -> Result<Validator, AttestationError> {
         let index = self.fetch_index("policies.json").await?;

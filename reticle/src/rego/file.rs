@@ -16,7 +16,7 @@ impl FilePolicies {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait::async_trait(?Send)]
 impl PolicyProvider for FilePolicies {
     async fn fetch_validator(&self) -> Result<Validator, AttestationError> {
         if !self.path.is_dir() {
