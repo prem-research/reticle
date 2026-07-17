@@ -30,7 +30,10 @@ use tdx_attest::{TdxQuote, nonce::TdxNonce, pcs::Pcs, verify::TdxQuoteVerifier};
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::{query::QueryParams, rego::PoliciesClient};
+use crate::{
+    query::QueryParams,
+    rego::{PolicyProvider, UrlPolicies},
+};
 
 #[cfg(feature = "debug")]
 #[cfg(target_family = "wasm")]
@@ -105,7 +108,7 @@ pub struct ClientBuilder {
     // amd collateral server
     kds: Kds,
     // prem OPA policies url
-    policies: Cow<'static, str>,
+    policies: Box<dyn PolicyProvider>,
 
     headers: HeaderMap,
 }
@@ -122,7 +125,7 @@ impl ClientBuilder {
             url: url.to_string(),
             pcs: Pcs::new(PREM_PCCS).unwrap(),
             kds: Kds::new(PREM_KCDS).unwrap(),
-            policies: PREM_POLICIES.into(),
+            policies: Box::new(UrlPolicies::new(PREM_POLICIES).unwrap()),
             headers: HeaderMap::default(),
         }
     }
@@ -148,8 +151,12 @@ impl ClientBuilder {
     }
 
     /// sets custom url for OPA policies index
-    pub fn with_policies_url(mut self, url: &str) -> Self {
-        self.policies = url.to_string().into();
+    // pub fn with_policies_url(mut self, url: &str) -> Self {
+    //     self.policies = url.to_string().into();
+    //     self
+    // }
+    pub fn with_policy_provider(mut self, policy: impl PolicyProvider + 'static) -> Self {
+        self.policies = Box::new(policy);
         self
     }
 
@@ -158,10 +165,11 @@ impl ClientBuilder {
             .default_headers(self.headers)
             .build()?;
 
-        let validator = PoliciesClient::new(self.policies.as_ref())?
+        let validator = self
+            .policies
             .fetch_validator()
             .await
-            .context("failed fetching OPA policies from url")?;
+            .context("failed fetching OPA policies from provider")?;
 
         Ok(Client {
             url: self

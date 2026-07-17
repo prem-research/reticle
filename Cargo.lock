@@ -2312,7 +2312,7 @@ dependencies = [
 [[package]]
 name = "nvat"
 version = "0.1.0"
-source = "git+ssh://git@github.com/prem-research/nvat-rs.git?branch=main#cd102730c8a82026b395ca5d6e8ff5f37f53feef"
+source = "git+https://github.com/prem-research/nvat-rs.git?branch=main#cd102730c8a82026b395ca5d6e8ff5f37f53feef"
 dependencies = [
  "log",
  "nvat_sys",
@@ -2322,7 +2322,7 @@ dependencies = [
 [[package]]
 name = "nvat_sys"
 version = "1.0.0"
-source = "git+ssh://git@github.com/prem-research/nvat-rs.git?branch=main#cd102730c8a82026b395ca5d6e8ff5f37f53feef"
+source = "git+https://github.com/prem-research/nvat-rs.git?branch=main#cd102730c8a82026b395ca5d6e8ff5f37f53feef"
 dependencies = [
  "bindgen",
  "pkg-config",
@@ -3114,6 +3114,7 @@ name = "reticle"
 version = "0.5.0"
 dependencies = [
  "async-once-cell",
+ "async-trait",
  "azure-attest",
  "bytes",
  "console_error_panic_hook",

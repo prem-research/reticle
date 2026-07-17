@@ -202,21 +202,3 @@ impl ValidationResult {
         }
     }
 }
-
-// pub struct Appraisal {
-//     regorous: Engine,
-// }
-
-// impl Appraisal {
-//     pub fn new() -> Self {
-//         Appraisal {
-//             regorous: Engine::default(),
-//         }
-//     }
-
-//     pub fn set_policy(&self, policy: &str) {
-//         self.regorous.add_polic
-//     }
-
-//     pub fn set_claims(claims: impl Claims) {}
-// }
