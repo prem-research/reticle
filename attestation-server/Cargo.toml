@@ -15,7 +15,7 @@ anyhow = { workspace = true }
 base64 = { workspace = true }
 hex = { workspace = true }
 thiserror = { workspace = true }
-nvat = { git = "ssh://git@github.com/prem-research/nvat-rs.git", branch = "main" }
+nvat = { git = "https://github.com/prem-research/nvat-rs.git", branch = "main" }
 
 libattest = { path = "../libattest" }
 nvidia-attest = { path = "../nvidia-attest" }

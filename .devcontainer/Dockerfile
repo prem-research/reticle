@@ -173,6 +173,7 @@ RUN \
     && apt-get update \
     && apt-get install -y \
     docker-ce-cli
+
 Types: deb
 URIs: https://download.docker.com/linux/debian
 Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")

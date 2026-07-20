@@ -5,7 +5,7 @@ pub mod gateway;
 pub mod query;
 pub mod rego;
 
-use std::{borrow::Cow, pin::Pin};
+use std::pin::Pin;
 
 use azure_attest::{AzureQuote, collateral::ReportVerifierBuilder, nonce::AzureNonce};
 use futures::future::OptionFuture;
@@ -30,7 +30,10 @@ use tdx_attest::{TdxQuote, nonce::TdxNonce, pcs::Pcs, verify::TdxQuoteVerifier};
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::{query::QueryParams, rego::PoliciesClient};
+use crate::{
+    query::QueryParams,
+    rego::{PolicyProvider, UrlPolicies},
+};
 
 #[cfg(feature = "debug")]
 #[cfg(target_family = "wasm")]
@@ -105,7 +108,7 @@ pub struct ClientBuilder {
     // amd collateral server
     kds: Kds,
     // prem OPA policies url
-    policies: Cow<'static, str>,
+    policies: Box<dyn PolicyProvider + Send>,
 
     headers: HeaderMap,
 }
@@ -122,7 +125,7 @@ impl ClientBuilder {
             url: url.to_string(),
             pcs: Pcs::new(PREM_PCCS).unwrap(),
             kds: Kds::new(PREM_KCDS).unwrap(),
-            policies: PREM_POLICIES.into(),
+            policies: Box::new(UrlPolicies::new(PREM_POLICIES).unwrap()),
             headers: HeaderMap::default(),
         }
     }
@@ -147,21 +150,16 @@ impl ClientBuilder {
         self
     }
 
-    /// sets custom url for OPA policies index
-    pub fn with_policies_url(mut self, url: &str) -> Self {
-        self.policies = url.to_string().into();
-        self
-    }
-
     pub async fn build(self) -> Result<Client, AttestationError> {
         let reqwest_client = reqwest::Client::builder()
             .default_headers(self.headers)
             .build()?;
 
-        let validator = PoliciesClient::new(self.policies.as_ref())?
+        let validator = self
+            .policies
             .fetch_validator()
             .await
-            .context("failed fetching OPA policies from url")?;
+            .context("failed fetching OPA policies from provider")?;
 
         Ok(Client {
             url: self
@@ -175,6 +173,18 @@ impl ClientBuilder {
             policy_validator: validator,
             reqwest_client,
         })
+    }
+}
+
+impl ClientBuilder {
+    /// sets custom url for OPA policies index
+    // pub fn with_policies_url(mut self, url: &str) -> Self {
+    //     self.policies = url.to_string().into();
+    //     self
+    // }
+    pub fn with_policy_provider(mut self, policy: impl PolicyProvider + Send + 'static) -> Self {
+        self.policies = Box::new(policy);
+        self
     }
 }
 

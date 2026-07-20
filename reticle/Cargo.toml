@@ -23,6 +23,7 @@ hex.workspace = true
 futures = "0.3.32"
 web-sys = { version = "0.3.98", features = ["Request", "RequestInit"] }
 async-once-cell = "0.5.4"
+async-trait = "0.1.89"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
