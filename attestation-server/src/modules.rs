@@ -58,7 +58,7 @@ impl ModuleDetector {
         };
 
         log::debug!("Got security_type {}", imds.security_profile.security_type);
-        (imds.security_profile.security_type == "ConfidentialVM")
+        imds.security_profile.security_type == "ConfidentialVM"
     }
 
     fn detect_cpu(&self) -> Option<CpuModule> {

@@ -20,6 +20,7 @@ impl TpmDevice {
     const TPM_PATH: &'static str = "/dev/tpm0";
     const TPMRM_PATH: &'static str = "/dev/tpmrm0";
 
+    #[allow(dead_code)]
     pub fn with_path(device: impl Into<PathBuf>) -> Self {
         Self {
             tpm_path: device.into().into(),
