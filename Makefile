@@ -9,8 +9,8 @@ nvidia-cpp-sdk:
 		https://github.com/coval3nte/attestation-sdk \
 		attestation-sdk || true \
 	&& cd attestation-sdk \
-	&& git fetch --depth 1 origin 539c381561a07b3a3cff9ed3949316c330878e92 \
-	&& git checkout 539c381561a07b3a3cff9ed3949316c330878e92 \
+	&& git fetch --depth 1 origin 6d04df39fdf2e7ad5e7baef6b94f20ab5e9385b0 \
+	&& git checkout 6d04df39fdf2e7ad5e7baef6b94f20ab5e9385b0 \
 	&& cd nv-attestation-sdk-cpp \
 	&& rm -rf build \
 	&& cmake -S . -B build \
