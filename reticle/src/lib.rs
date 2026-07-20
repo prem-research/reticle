@@ -150,6 +150,12 @@ impl ClientBuilder {
         self
     }
 
+    /// sets the confidential policy provider to URL source with the specified url
+    pub fn with_policies_url(mut self, url: &str) -> libattest::Result<Self> {
+        self.policies = Box::new(UrlPolicies::new(url)?);
+        Ok(self)
+    }
+
     pub async fn build(self) -> Result<Client, AttestationError> {
         let reqwest_client = reqwest::Client::builder()
             .default_headers(self.headers)
