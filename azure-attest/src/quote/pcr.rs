@@ -4,9 +4,8 @@ use std::ops::Deref;
 
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "host")]
-use sha2::Digest;
 use sha2::digest;
+
 #[cfg(feature = "host")]
 use tss_esapi::abstraction::pcr::PcrBank;
 #[cfg(feature = "host")]
