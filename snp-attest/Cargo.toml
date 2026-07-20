@@ -5,7 +5,7 @@ edition = "2024"
 
 
 [dependencies]
-sev = { version = "7.1.0", default-features = false, features = ["crypto_nossl", "snp", "serde"] }
+sev = { workspace = true, default-features = false, features = ["crypto_nossl", "snp", "serde"] }
 libattest.workspace = true
 tss-esapi = { version= "7.2", optional=true }
 # anyhow = "1.0.69"
