@@ -20,6 +20,7 @@ nvat = { git = "https://github.com/prem-research/nvat-rs.git", branch = "main" }
 libattest = { path = "../libattest" }
 nvidia-attest = { path = "../nvidia-attest" }
 azure-attest = { path = "../azure-attest", features = ["host"] }
+attestation-protocol = { path = "../attestation-protocol" }
 
 snp-attest = { path = "../snp-attest", default-features = false }
 env_logger = "0.11.8"
@@ -27,3 +28,4 @@ log = "0.4.29"
 configfs-tsm = { version = "0.0.2" }
 nvml-wrapper = "0.12.1"
 reqwest = { workspace = true, features = ["blocking", "json"] }
+clap = { version = "4.6.4", features = ["derive", "env"] }

@@ -1,26 +1,28 @@
 mod response;
 
 // pub mod modules;
-mod azure_api;
-pub mod modules;
+mod metadata;
+mod modules;
 mod nonce;
-mod nvidia_api;
-mod sev_api;
-mod tdx_api;
+mod platforms;
 
-use std::ops::Deref;
+use std::{ops::Deref, path::PathBuf};
 
 use anyhow::{Context, bail};
-use libattest::{CpuModule, GpuModule, modules::Modules};
+use attestation_protocol::modules::{CpuModule, GpuModule, Modules};
+use clap::Parser;
 use log::LevelFilter;
 use rocket::{State, catch, catchers, routes};
 use sev::firmware::guest::Firmware;
 use tokio::sync::Mutex;
 
 use crate::{
-    azure_api::{AzureFairing, TpmDevice},
     modules::ModuleDetector,
-    nvidia_api::NvidiaFairing,
+    platforms::{
+        azure::{AzureFairing, TpmDevice},
+        nvidia::NvidiaFairing,
+        tdx::TdxProvider,
+    },
     response::ApiJsonResult,
 };
 
@@ -41,6 +43,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .parse_default_env()
         .init();
 
+    // let settings = Settings::parse();
     let rocket = rocket::build();
     let mut routes = routes![];
 
@@ -56,18 +59,13 @@ async fn main() -> Result<(), anyhow::Error> {
                 .context("failed to open sev-snp firmware")?
                 .into();
 
-            routes.extend(routes![sev_api::cpu_attestation]);
             rocket.manage(firmware)
         }
-        CpuModule::Tdx => {
-            routes.extend(routes![tdx_api::tdx_attestation]);
-            rocket
-        }
+        CpuModule::Tdx => rocket.manage(TdxProvider),
         CpuModule::Azure => {
             let tpm = TpmDevice::auto_detect().context("could not detect default tpm device")?;
             let tpm = AzureFairing::new(tpm);
 
-            routes.extend(routes![azure_api::azure_attestation]);
             rocket.attach(tpm)
         }
         _ => bail!("cpu module not yet supported by attestation-server"),
@@ -78,8 +76,6 @@ async fn main() -> Result<(), anyhow::Error> {
         // and enable gpus for confidential computing operations
         let sdk = NvidiaFairing::init()?;
         rocket = rocket.attach(sdk);
-
-        routes.extend(routes![nvidia_api::nvidia_attestation]);
     };
 
     rocket

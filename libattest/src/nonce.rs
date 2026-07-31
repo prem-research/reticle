@@ -58,7 +58,7 @@ macro_rules! define_nonce_type {
     };
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ByteNonce<const N: usize>(Box<[u8; N]>);
 
 impl<const N: usize> ByteNonce<N> {

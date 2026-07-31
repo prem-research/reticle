@@ -1,0 +1,12 @@
+[package]
+name = "attestation-protocol"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+digest = "0.11"
+postcard = "1.1"
+serde = { workspace = true, features = ["derive"] }
+sha2 = "0.11"
+libattest = { path = "../libattest" }
+azure-attest = { path = "../azure-attest" }

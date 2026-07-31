@@ -7,10 +7,11 @@ pub mod rego;
 
 use std::pin::Pin;
 
+use attestation_protocol::modules::{CpuModule, GpuModule, Modules};
 use azure_attest::{AzureQuote, collateral::ReportVerifierBuilder, nonce::AzureNonce};
 use futures::future::OptionFuture;
 use libattest::{
-    CpuModule, GpuModule, Modules, bail,
+    bail,
     error::{AttestationError, Context, Expose},
     quote::QuoteVerifier,
     validation::{Validator, WithPolicy},
@@ -210,7 +211,7 @@ pub struct Client {
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl Client {
     /// Gather available attestable modules from remote attestation endpoint
-    pub async fn request_modules(&self) -> Result<libattest::Modules, AttestationError> {
+    pub async fn request_modules(&self) -> Result<Modules, AttestationError> {
         let url = self.url.join("/attestation/modules").unwrap();
         let response = self.request(url, &()).await?.json().await?;
 
