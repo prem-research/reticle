@@ -24,7 +24,7 @@
 #     RUSTFLAGS="-L${SYSROOT}/lib" \
 #     cargo build --release -p attestation-server --no-default-features --features "${FEATURES}"
 
-FROM debian:bookworm-slim AS runtime
+FROM debian:trixie-slim AS runtime
 ARG SYSROOT
 
 WORKDIR /app

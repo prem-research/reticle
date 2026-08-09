@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/devcontainers/rust:2-bookworm
+FROM mcr.microsoft.com/devcontainers/rust:2-bookworm AS sysroot-builder
 
 ENV TARGET_TRIPLE=x86_64-linux-
 ENV RUST_TARGET=x86_64-unknown-linux-gnu
@@ -161,6 +161,11 @@ RUN \
     'GROUP ( libtss2-esys-real.a libtss2-sys.a libtss2-mu.a libtss2-tctildr.a libtss2-rc.a )' \
     > ${SYSROOT}/lib/libtss2-esys.a \
     && rm -rf /tmp/tpm2-tss-${TPM2TSS_VER} /tmp/tpm2-tss-${TPM2TSS_VER}.tar.gz
+
+FROM scratch AS sysroot-export
+COPY --from=sysroot-builder /x86_64-sysroot /
+
+FROM sysroot-builder AS development
 
 RUN rustup target add \
     ${RUST_TARGET}
