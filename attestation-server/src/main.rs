@@ -19,6 +19,7 @@ use tokio::sync::Mutex;
 use crate::{
     modules::ModuleDetector,
     platforms::{
+        attest::attest,
         azure::{AzureFairing, TpmDevice},
         nvidia::NvidiaFairing,
         tdx::TdxProvider,
@@ -48,7 +49,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut routes = routes![];
 
     // advertise server capabilities
-    routes.extend(routes![get_modules]);
+    routes.extend(routes![get_modules, attest]);
 
     let modules = ModuleDetector.detect()?;
     let rocket = rocket.manage(modules);
