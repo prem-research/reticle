@@ -43,6 +43,24 @@ impl<'r> FromRequest<'r> for CpuAttestation<'r> {
     }
 }
 
+pub enum GpuAttestation<'a> {
+    Nvidia(&'a State<SdkHandle>),
+    Absent,
+}
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for GpuAttestation<'r> {
+    type Error = anyhow::Error;
+
+    #[inline(always)]
+    async fn from_request(req: &'r Request<'_>) -> rocket::request::Outcome<Self, anyhow::Error> {
+        if let Some(nvidia) = State::get(req.rocket()) {
+            return Outcome::Success(GpuAttestation::Nvidia(nvidia));
+        }
+        Outcome::Success(GpuAttestation::Absent)
+    }
+}
+
 fn attest_tpm(tpm: &TpmDevice, nonce: ByteNonce<32>) -> anyhow::Result<AzureQuote> {
     let tpm = tpm.create_context()?;
     azure_attest::host::azure_attest(tpm, &(nonce.into()))
@@ -83,7 +101,7 @@ fn attest_gpu(sdk: &SdkHandle, nonce: ByteNonce<32>) -> anyhow::Result<String> {
 pub async fn attest(
     nonce: NonceParam<libattest::ByteNonce<64>, 64>,
     cpu: CpuAttestation<'_>,
-    gpu: Option<&State<SdkHandle>>,
+    gpu: GpuAttestation<'_>,
 ) -> ApiJsonResult<CvmReport> {
     // placeholder
     let NonceParam(nonce) = nonce;
@@ -106,8 +124,8 @@ pub async fn attest(
     };
 
     let gpu_report = match gpu {
-        None => GpuReport::Absent,
-        Some(sdk) => {
+        GpuAttestation::Absent => GpuReport::Absent,
+        GpuAttestation::Nvidia(sdk) => {
             let nonce = manifest.bind(nonce);
             attest_gpu(sdk, nonce).map(GpuReport::Nvidia)?
         }
