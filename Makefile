@@ -1,12 +1,6 @@
-.PHONY: nvidia-cpp-sdk bins wasm clean attestation-server-image clean-sysroot
+.PHONY: nvidia-cpp-sdk bins wasm
 
 CMAKE_JOBS ?= $$(nproc)
-DOCKER ?= docker
-ATTESTATION_SERVER_IMAGE ?= attestation-server:local
-SYSROOT ?= /x86_64-sysroot
-
-LOCAL_SYSROOT := sysroot
-LOCAL_SYSROOT_STAMP := $(LOCAL_SYSROOT)/.complete
 
 nvidia-cpp-sdk:
 	git clone \
@@ -45,28 +39,6 @@ bins:
 
 wasm:
 	wasm-pack build reticle
-
-$(LOCAL_SYSROOT_STAMP):
-	@test -d "$(SYSROOT)/lib" || { \
-		echo "SYSROOT library directory not found: $(SYSROOT)/lib" >&2; \
-		exit 1; \
-	}
-	mkdir -p $(LOCAL_SYSROOT)/lib
-	cp -a "$(SYSROOT)/lib/." $(LOCAL_SYSROOT)/lib/
-	touch $@
-
-attestation-server-image: $(LOCAL_SYSROOT_STAMP)
-	env -u SYSROOT \
-		RUSTFLAGS="-L$(SYSROOT)/lib -lssl -lcrypto" \
-		cargo build --release -p attestation-server
-	$(DOCKER) build \
-		--file attestation-server/Dockerfile \
-		--build-arg SYSROOT=./$(LOCAL_SYSROOT) \
-		--tag $(ATTESTATION_SERVER_IMAGE) \
-		.
-
-clean-sysroot:
-	rm -rf $(LOCAL_SYSROOT)
 
 clean:
 	rm -rf \

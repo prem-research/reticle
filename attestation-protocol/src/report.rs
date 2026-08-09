@@ -2,14 +2,17 @@ use azure_attest::AzureQuote;
 use digest::Update;
 use libattest::ByteNonce;
 use serde::{Deserialize, Serialize};
+use serde_with::base64::Base64;
+use serde_with::serde_as;
 use sha2::{Digest, Sha512};
 
+#[serde_as]
 #[derive(Serialize, Deserialize)]
 pub enum CpuReport {
     /// AMD Sev-Snp
-    Sev(Vec<u8>),
+    Sev(#[serde_as(as = "Base64")] Vec<u8>),
     /// Intel TDX
-    Tdx(Vec<u8>),
+    Tdx(#[serde_as(as = "Base64")] Vec<u8>),
     /// Hyper-V
     Azr(Box<AzureQuote>),
 }
