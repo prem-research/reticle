@@ -114,7 +114,7 @@ impl Kds {
             .get_chain(
                 &attestation.report.chip_id,
                 attestation.report.reported_tcb,
-                attestation.generation,
+                attestation.generation()?,
             )
             .await?;
 
@@ -128,7 +128,7 @@ impl Kds {
         let client = Client::new();
         let req = client.get(format!(
             "{}/crl",
-            self.get_base_url(attestation.generation())
+            self.get_base_url(attestation.generation()?)
         ));
 
         let resp = req.send().await?.bytes().await?;

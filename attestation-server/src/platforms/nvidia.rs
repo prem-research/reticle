@@ -2,10 +2,12 @@ use std::collections::HashSet;
 use std::ops::Deref;
 
 use anyhow::Context;
+use libattest::quote::QuoteVerifier;
 use nvat::{AttestationBuilder, SdkHandle, nonce::NvatNonce};
 use nvidia_attest::EATToken;
 use nvidia_attest::keychain::KeyChain;
 use nvidia_attest::nonce::NvidiaNonce;
+use nvidia_attest::verifier::NvidiaVerifier;
 use nvml_wrapper::Nvml;
 use rocket::fairing::{Fairing, Info, Kind};
 use rocket::{Build, Rocket, State};
@@ -40,8 +42,10 @@ impl NvidiaFairing {
             .attest_device(&nvat_nonce)?;
 
         // NvidiaNonce::
-        let claims =
-            EATToken::parse(attestation.detached_eat.as_str()?)?.verify(&keychain, &nonce)?;
+        // let claims =
+        //     EATToken::parse(attestation.detached_eat.as_str()?)?.verify(&keychain, &nonce)?;
+        let quote = EATToken::parse(attestation.detached_eat.as_str()?)?;
+        let claims = NvidiaVerifier::new(keychain).verify(&quote, &nonce)?;
 
         // we gather the device uuids from the claims of the attested gpus
         // so we don't accidentally turn on confidential computing for

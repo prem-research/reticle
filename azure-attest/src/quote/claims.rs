@@ -1,4 +1,3 @@
-use libattest::validation::Verifiable;
 use serde::Serialize;
 use sha2::Sha256;
 use snp_attest::claims::SevClaims;
@@ -60,17 +59,6 @@ pub struct AzureClaims<'a> {
 
     hardware_claims: HardwareClaims,
     runtime_claims: RuntimeClaims,
-}
-
-impl Verifiable for AzureClaims<'_> {
-    type Claims<'x>
-        = &'x Self
-    where
-        Self: 'x;
-
-    fn claims<'a>(&'a self) -> Self::Claims<'a> {
-        self
-    }
 }
 
 impl<'a> AzureClaims<'a> {

@@ -1,6 +1,8 @@
 use std::ops::Deref;
 
-use libattest::{crypto::chain::crl::VerifyCrl, error::Context, quote::QuoteVerifier};
+use libattest::{
+    crypto::chain::crl::VerifyCrl, error::Context, quote::QuoteVerifier, validation::Verifiable,
+};
 use sha2::{Digest, Sha256, digest::Update};
 use signature::Verifier;
 use zerocopy::IntoBytes;
@@ -283,7 +285,11 @@ impl QuoteVerifier for TdxQuoteVerifier {
     type Nonce = TdxNonce;
     type Quote = TdxQuote;
 
-    fn verify(&self, quote: &TdxQuote, nonce: &TdxNonce) -> Result<(), TdxError> {
+    fn verify<'a>(
+        &self,
+        quote: &'a TdxQuote,
+        nonce: &TdxNonce,
+    ) -> Result<&'a TdxQuoteBody, TdxError> {
         let tcb_levels = verify(quote, &self.collateral, nonce)?;
         let minimum_tcb = &self.minimum_tcb_level;
 
@@ -299,6 +305,6 @@ impl QuoteVerifier for TdxQuoteVerifier {
                 .with_context(|| format!("expected {minimum_tcb} got {tcb_status}"));
         }
 
-        Ok(())
+        Ok(&quote.body)
     }
 }

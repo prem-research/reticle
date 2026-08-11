@@ -2,6 +2,7 @@ pub mod claims;
 pub mod pcr;
 pub mod verify;
 
+use libattest::validation::Verifiable;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use snp_attest::SevQuote;
@@ -53,18 +54,6 @@ pub struct AzureQuote {
     trust: AzureTrust,
 }
 
-impl AzureQuote {
-    /// performs cryptographic verification of the whole azure stack
-    /// and returns a set of verified claims on which the client can apply policies
-    pub fn verify(
-        &self,
-        report_verifier: ReportVerifier,
-        nonce: &AzureNonce,
-    ) -> libattest::Result<AzureClaims<'_>> {
-        verify::verify_impl(self, report_verifier, nonce)
-    }
-}
-
 // create only implementations
 impl AzureQuote {
     pub(crate) fn new(
@@ -89,6 +78,13 @@ impl AzureQuote {
 
         Ok(report)
     }
+}
+
+impl Verifiable for AzureQuote {
+    type Claims<'x>
+        = AzureClaims<'x>
+    where
+        Self: 'x;
 }
 
 pub(crate) enum ParsedHardwareReport {

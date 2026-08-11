@@ -56,7 +56,7 @@ impl<D: digest::Digest> From<&PcrBank> for PcrBankReading<D> {
 
         PcrBankReading {
             pcr_list,
-            _digest: PhantomData::default(),
+            _digest: PhantomData,
         }
     }
 }

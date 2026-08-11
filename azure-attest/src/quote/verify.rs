@@ -10,7 +10,6 @@ use libattest::{
         signature::rsa::RsaSignature,
     },
     error::Context,
-    validation::Verifiable,
 };
 use rsa::{BoxedUint, pkcs1::DecodeRsaPublicKey, pkcs1v15::VerifyingKey, signature::Verifier};
 use sha2::Sha256;
@@ -159,15 +158,15 @@ pub fn verify_report_digest(
             let verifier = verifier.tdx().context("didn't receive tdx verifier")?;
             let nonce = TdxNonce::new(nonce);
 
-            verifier.verify(&tdx_quote, &nonce)?;
-            HardwareClaims::Tdx(tdx_quote.body().clone().into())
+            let claims = verifier.verify(&tdx_quote, &nonce)?;
+            HardwareClaims::Tdx(claims.clone().into())
         }
         ParsedHardwareReport::Sev(sev_quote) => {
             let verifier = verifier.sev().context("didn't receive sev verifier")?;
             let nonce = SevNonce::new(nonce);
 
-            verifier.verify(&sev_quote, &nonce)?;
-            HardwareClaims::Sev(sev_quote.claims().into())
+            let claims = verifier.verify(&sev_quote, &nonce)?;
+            HardwareClaims::Sev(claims.into())
         }
     };
 
@@ -228,25 +227,25 @@ fn verify_pcr_selection(info: &tpm2_protocol::data::TpmsQuoteInfo) -> libattest:
 
 pub fn verify_impl<'a>(
     azure_quote: &'a AzureQuote,
-    report_verifier: ReportVerifier,
+    report_verifier: &ReportVerifier,
     nonce: &AzureNonce,
 ) -> libattest::Result<AzureClaims<'a>> {
     // 1: verify quote certificate chain against pinned trust
     let trust_chain =
-        verify_quote_trust_chain(&azure_quote).context("while verifying quote certificates")?;
+        verify_quote_trust_chain(azure_quote).context("while verifying quote certificates")?;
     // 2: verify that AK signs Quote through leaf certificate
-    verify_quote_signature(&azure_quote, trust_chain).context("while verifying quote signature")?;
+    verify_quote_signature(azure_quote, trust_chain).context("while verifying quote signature")?;
     // 3: verify that the hardware report signs report data
-    let hardware_claims = verify_report_digest(&azure_quote, &report_verifier)
+    let hardware_claims = verify_report_digest(azure_quote, &report_verifier)
         .context("while verifying report digest")?;
     // 4: verify that report data contains the correct ak key,
     // sprouting azure trust from SEV/TDX
     let runtime_claims =
-        verify_runtime_data(&azure_quote).context("while verifying runtime data")?;
+        verify_runtime_data(azure_quote).context("while verifying runtime data")?;
     // 5: Verify that user supplied nonce and received quote nonce match
-    verify_quote_nonce(&azure_quote, nonce).context("while verifying quote nonce")?;
+    verify_quote_nonce(azure_quote, nonce).context("while verifying quote nonce")?;
     // 6: Verify pcr digest
-    verify_pcr_digest(&azure_quote).context("failed verifying pcr bank digest")?;
+    verify_pcr_digest(azure_quote).context("failed verifying pcr bank digest")?;
 
     let tpm_evidence = TpmAttestEvidence::from(&azure_quote.quote);
 

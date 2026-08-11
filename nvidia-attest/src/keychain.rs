@@ -1,6 +1,6 @@
 use std::{ops::Deref, sync::LazyLock};
 
-use libattest::error::AttestationError;
+use libattest::{error::AttestationError, quote::QuoteVerifier};
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 

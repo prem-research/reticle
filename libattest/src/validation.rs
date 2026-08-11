@@ -5,24 +5,18 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{AttestationError, Context};
 
+/// Specifies the trait for an entity which produces
+/// claims once cryptographically verified.
+///
+/// Associated type [`Self::Claims`] might borrow from self hence
+/// the GAT containing the self-bound lifetime
 pub trait Verifiable {
     type Claims<'a>: Serialize
     where
         Self: 'a;
 
-    /// Converts this set of claims into a rego engine compatible format
-    fn claims<'a>(&'a self) -> Self::Claims<'a>;
-}
-
-impl<V: Verifiable> Verifiable for &V {
-    type Claims<'a>
-        = V::Claims<'a>
-    where
-        Self: 'a;
-
-    fn claims<'a>(&'a self) -> Self::Claims<'a> {
-        (*self).claims()
-    }
+    // Converts this set of claims into a rego engine compatible format
+    // fn claims<'a>(&'a self) -> Self::Claims<'a>;
 }
 
 pub trait AssignedPolicy {
@@ -42,13 +36,13 @@ impl<A: AssignedPolicy> AssignedPolicy for &A {
     }
 }
 
-pub struct WithPolicy<C: Verifiable> {
-    claims: C,
+pub struct WithPolicy<'a, C: Verifiable + 'a> {
+    claims: C::Claims<'a>,
     policy: Cow<'static, str>,
 }
 
-impl<C: Verifiable> WithPolicy<C> {
-    pub fn new(policy: impl Into<Cow<'static, str>>, claims: C) -> Self {
+impl<'a, C: Verifiable + 'a> WithPolicy<'a, C> {
+    pub fn new(policy: impl Into<Cow<'static, str>>, claims: C::Claims<'a>) -> Self {
         Self {
             claims,
             policy: policy.into(),
@@ -56,18 +50,7 @@ impl<C: Verifiable> WithPolicy<C> {
     }
 }
 
-impl<C: Verifiable> Verifiable for WithPolicy<C> {
-    type Claims<'a>
-        = C::Claims<'a>
-    where
-        Self: 'a;
-
-    fn claims<'a>(&'a self) -> Self::Claims<'a> {
-        self.claims.claims()
-    }
-}
-
-impl<C: Verifiable> AssignedPolicy for WithPolicy<C> {
+impl<C: Verifiable> AssignedPolicy for WithPolicy<'_, C> {
     fn policy(&self) -> Cow<'static, str> {
         self.policy.clone()
     }
@@ -144,16 +127,16 @@ impl Validator {
 
     /// gets the rego query and input from `impl Claim` and then
     /// drives the engine to verify the query
-    pub fn verify_claim<C>(&self, claims: C) -> Result<ValidationResult, AttestationError>
-    where
-        C: Verifiable + AssignedPolicy,
-    {
+    pub fn verify_claim<C: Verifiable>(
+        &self,
+        claims: WithPolicy<'_, C>,
+    ) -> Result<ValidationResult, AttestationError> {
         // avois polluting the engine for further verifications
         // and allows us to have this method &self
         let mut engine = self.engine.clone();
 
         // convert claims to rego compatible format
-        let value = serde_value::to_value(claims.claims())?;
+        let value = serde_value::to_value(&claims.claims)?; //TODO
         let value = regorus::Value::deserialize(value)?;
         // here we set what input. will be in rego
         engine.set_input(value);

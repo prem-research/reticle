@@ -1,6 +1,7 @@
 pub mod keychain;
 pub mod nonce;
 pub mod types;
+pub mod verifier;
 
 use std::{collections::HashMap, ops::Deref};
 
@@ -31,15 +32,15 @@ pub struct DecodedClaims {
     gpu_claims: HashMap<String, GpuClaims>,
 }
 
-impl Verifiable for DecodedClaims {
+impl Verifiable for EATToken {
     type Claims<'a>
-        = &'a DecodedClaims
+        = DecodedClaims
     where
         Self: 'a;
 
-    fn claims<'a>(&'a self) -> Self::Claims<'a> {
-        self
-    }
+    // fn claims<'a>(&'a self) -> Self::Claims<'a> {
+    //     self
+    // }
 }
 
 impl DecodedClaims {
@@ -78,89 +79,6 @@ impl EATToken {
             .context("gpu claims should be jwt strings")?;
 
         Ok(Self { overall, gpu })
-    }
-
-    pub fn verify(
-        self,
-        keys: &KeyChain,
-        nonce: &NvidiaNonce,
-    ) -> Result<DecodedClaims, AttestationError> {
-        // decoding the header beforehand is necessary to gain the kid
-        let jwt_header = jsonwebtoken::decode_header(&self.overall)?;
-
-        let key = jwt_header
-            .kid
-            .context("missing field kid from jwt headers")
-            .and_then(|kid| keys.find(&kid).context("missing key from jwks"))?;
-
-        let key = DecodingKey::from_jwk(key)?;
-
-        // setup validation requirements (just expiration and algorithm for now)
-        let mut validation = Validation::new(jwt_header.alg);
-        validation.set_required_spec_claims(&["exp"]); // validate expiration (internal jwt stuff should work right)
-
-        // decode and verify overall claims with the correct key
-        let overall_claims =
-            jsonwebtoken::decode::<OverallClaims>(&self.overall, &key, &validation)?.claims;
-
-        // hashes from calculated from the JWTs of the detached claims
-        let gpu_hashes: HashMap<&str, _> = self
-            .gpu
-            .iter()
-            .map(|(k, v)| (k.as_ref(), Sha256::digest(v)))
-            .collect();
-
-        // do hashed jwts match with overall claims?
-        for (gpu, digest) in &overall_claims.submods {
-            let hash = gpu_hashes.get(gpu.deref()).context(
-                "overall jwt claims require a submodule that was not found in the detached claims",
-            ).expose_error()?;
-
-            if hash.deref() != digest.digest() {
-                return AttestationError::exposed(
-                    "digest mismatch between submodule claims and detached submodules",
-                );
-            }
-        }
-
-        let mut gpu_claims = HashMap::new();
-
-        for (gpu, gpu_jwt) in self.gpu {
-            let header = jsonwebtoken::decode_header(&gpu_jwt)?;
-            let key = header
-                .kid
-                .context("missing field kid from jwt headers")
-                .and_then(|kid| keys.find(&kid).context("jwk server does not have our key"))?;
-
-            let key = DecodingKey::from_jwk(key)?;
-
-            let decoded =
-                jsonwebtoken::decode::<GpuClaims>(&gpu_jwt, &key, &Validation::new(header.alg))
-                    .context("gpu module signature error")?;
-
-            if decoded.claims.measres != MeasuresClaim::Success {
-                bail!("gpu claim contained failed measres");
-            }
-
-            gpu_claims.insert(gpu, decoded.claims);
-        }
-
-        // nonce checking
-        if overall_claims.eat_nonce != nonce.as_ref() {
-            bail!(exposed: "mismatched nvidia nonce");
-        }
-
-        if !gpu_claims
-            .iter()
-            .all(|(_, claim)| claim.eat_nonce == nonce.as_ref())
-        {
-            bail!(exposed: "mismatched nvidia nonce in one or more gpu modules");
-        }
-
-        Ok(DecodedClaims {
-            overall_claims,
-            gpu_claims,
-        })
     }
 }
 

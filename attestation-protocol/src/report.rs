@@ -5,12 +5,13 @@ use serde::{Deserialize, Serialize};
 use serde_with::base64::Base64;
 use serde_with::serde_as;
 use sha2::{Digest, Sha512};
+use snp_attest::SevQuote;
 
 #[serde_as]
 #[derive(Serialize, Deserialize)]
 pub enum CpuReport {
     /// AMD Sev-Snp
-    Sev(#[serde_as(as = "Base64")] Vec<u8>),
+    Sev(Box<SevQuote>),
     /// Intel TDX
     Tdx(#[serde_as(as = "Base64")] Vec<u8>),
     /// Hyper-V
@@ -54,3 +55,5 @@ pub struct CvmReport {
     pub cpu: CpuReport,
     pub gpu: GpuReport,
 }
+
+libattest::define_nonce_type!(pub CvmNonce, 64);
