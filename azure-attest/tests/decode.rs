@@ -1,4 +1,5 @@
 use azure_attest::{collateral::ReportVerifierBuilder, nonce::AzureNonce};
+use libattest::quote::QuoteVerifier;
 use snp_attest::{kds::Kds, verify::SevQuoteVerifier};
 
 const ATTESTATION: &'static str = include_str!("./attestation.json");
@@ -26,7 +27,7 @@ async fn verify_attestation() {
         .unwrap();
 
     let nonce = AzureNonce::from([0u8; 32]);
-    let claims = quote.verify(verifier, &nonce).unwrap();
+    let claims = verifier.verify(&quote, &nonce).unwrap();
 
     println!("{claims:?}");
 }

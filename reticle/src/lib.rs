@@ -9,7 +9,7 @@ use std::pin::Pin;
 
 use attestation_protocol::{
     modules::{CpuModule, GpuModule, Modules},
-    report::{CpuReport, CvmNonce, CvmReport},
+    report::{CpuReport, CvmNonce, CvmReport, GpuReport},
 };
 use azure_attest::{AzureQuote, collateral::ReportVerifierBuilder, nonce::AzureNonce};
 use futures::future::OptionFuture;
@@ -19,7 +19,7 @@ use libattest::{
     quote::QuoteVerifier,
     validation::{Validator, WithPolicy},
 };
-use nvidia_attest::{EATToken, keychain::KeyChain, nonce::NvidiaNonce};
+use nvidia_attest::{EATToken, keychain::KeyChain, nonce::NvidiaNonce, verifier::NvidiaVerifier};
 use snp_attest::{SevQuote, kds::Kds, nonce::SevNonce, verify::SevQuoteVerifier};
 
 pub use nvidia_attest;
@@ -440,19 +440,89 @@ impl Client {
         Ok(response)
     }
 
-    pub async fn attest2(&self) -> Result<AttestResult, AttestationError> {
-        //
-        let nonce = CvmNonce::generate();
+    fn attest_quote<Q: QuoteVerifier>(
+        &self,
+        verifier: Q,
+        quote: &Q::Quote,
+        nonce: &Q::Nonce,
+        policy: &'static str,
+    ) -> Result<(), AttestationError> {
+        let claims = verifier
+            .verify(quote, nonce)
+            .context("TDX quote verification has failed")
+            .expose_error()?;
 
+        let claims: WithPolicy<'_, Q::Quote> = WithPolicy::new(policy, claims);
+
+        self.policy_validator
+            .verify_claim(claims)?
+            .or_err("tdx claims did not match specified OPA policy")
+            .expose_error()
+    }
+
+    /// Steps:
+    /// - Gathers modules to attest from attestation server
+    /// - Iterates through each module and performs end-to-end attestation
+    /// - Returns the list of attested modules
+    pub async fn attest2(&self) -> Result<AttestResult, AttestationError> {
+        let nonce = CvmNonce::generate();
         let report = self.request_attestation(&nonce).await?;
 
+        // verify depending on the module
         match report.cpu {
-            CpuReport::Sev(items) => todo!(),
-            CpuReport::Tdx(items) => todo!(),
-            CpuReport::Azr(azure_quote) => todo!(),
+            CpuReport::Sev(attestation) => {
+                let keychain = self.kds.fetch_certificates(&attestation).await?;
+                let verifier = SevQuoteVerifier::new(keychain);
+
+                // we ""bind"" the nonce to the manifest depending on what
+                // size of nonce our downstream module (in this case sev) needs.
+                let nonce = report.manifest.bind(&*nonce).into();
+
+                self.attest_quote(verifier, &attestation, &nonce, "sev.allow")?;
+            }
+            CpuReport::Tdx(items) => {
+                let tdx = TdxQuote::from_bytes(&items).context("failed parsing tdx quote")?;
+                let collateral = self
+                    .pcs
+                    .fetch_collateral(&tdx)
+                    .await
+                    .context("failed fetching collateral from pcs server")
+                    .expose_error()?;
+
+                let verifier = TdxQuoteVerifier::new(collateral);
+                let nonce = report.manifest.bind(&*nonce).into();
+
+                self.attest_quote(verifier, &tdx, &nonce, "tdx.allow")?;
+            }
+            CpuReport::Azr(azure_quote) => {
+                let nonce = report.manifest.bind(&*nonce).into();
+                let verifier = ReportVerifierBuilder::default()
+                    .sev(async |quote| {
+                        self.kds
+                            .fetch_certificates(quote)
+                            .await
+                            .map(SevQuoteVerifier::new)
+                    })
+                    .tdx(async |_| libattest::bail!("TDX attestation is unimplemented for Azure"))
+                    .fetch_collateral(&azure_quote)
+                    .await?;
+
+                self.attest_quote(verifier, &azure_quote, &nonce, "azure.allow")?;
+            }
         }
 
-        // attest cpu report
+        // attest gpu report
+        match report.gpu {
+            GpuReport::Absent => (),
+            GpuReport::Nvidia(nvidia) => {
+                let quote = EATToken::parse(&nvidia).context("failed parsing nvidia EAT token")?;
+                let keychain = KeyChain::fetch_keychain().await?;
+                let verifier = NvidiaVerifier::new(keychain);
+
+                let nonce = report.manifest.bind(&*nonce).into();
+                self.attest_quote(verifier, &quote, &nonce, "nvidia.allow")?;
+            }
+        }
 
         todo!()
     }

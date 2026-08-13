@@ -6,11 +6,10 @@ mod modules;
 mod nonce;
 mod platforms;
 
-use std::{ops::Deref, path::PathBuf};
+use std::ops::Deref;
 
 use anyhow::{Context, bail};
 use attestation_protocol::modules::{CpuModule, GpuModule, Modules};
-use clap::Parser;
 use log::LevelFilter;
 use rocket::{State, catch, catchers, routes};
 use sev::firmware::guest::Firmware;

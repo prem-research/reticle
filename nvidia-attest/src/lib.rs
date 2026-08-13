@@ -5,24 +5,18 @@ pub mod verifier;
 
 use std::{collections::HashMap, ops::Deref};
 
-use jsonwebtoken::{DecodingKey, Validation};
 use libattest::{
     bail,
-    error::{AttestationError, Context, Expose},
+    error::{AttestationError, Context},
     validation::Verifiable,
 };
 use serde::Serialize;
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::{
-    keychain::KeyChain,
-    nonce::NvidiaNonce,
-    types::{GpuClaims, MeasuresClaim, OverallClaims},
-};
+use crate::types::{GpuClaims, OverallClaims};
 
 #[derive(Debug)]
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]

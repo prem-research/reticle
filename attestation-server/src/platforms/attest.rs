@@ -9,6 +9,7 @@ use rocket::{
     request::{FromRequest, Outcome},
 };
 use sev::firmware::guest::Firmware;
+use snp_attest::SevQuote;
 
 use crate::{
     nonce::NonceParam,
@@ -119,7 +120,12 @@ pub async fn attest(
         CpuAttestation::Sev(state) => {
             let nonce = manifest.bind(&nonce);
             let mut sev = state.lock().await;
-            attest_sev(&mut sev, nonce).map(CpuReport::Sev)?
+            let attestation = attest_sev(&mut sev, nonce)?;
+
+            SevQuote::new(&attestation)
+                .map(Box::new)
+                .map(CpuReport::Sev)
+                .map_err(anyhow::Error::from)?
         }
     };
 

@@ -10,10 +10,7 @@ use nvidia_attest::nonce::NvidiaNonce;
 use nvidia_attest::verifier::NvidiaVerifier;
 use nvml_wrapper::Nvml;
 use rocket::fairing::{Fairing, Info, Kind};
-use rocket::{Build, Rocket, State};
-
-use crate::nonce::NonceParam;
-use crate::response::ApiError;
+use rocket::{Build, Rocket};
 
 pub struct NvidiaFairing {
     handle: SdkHandle,
@@ -105,10 +102,10 @@ impl Fairing for NvidiaFairing {
     }
 }
 
-#[rocket::get("/nvidia?<nonce>")]
-pub async fn nvidia_attestation(
-    nonce: NonceParam<libattest::ByteNonce<32>, 32>,
-    sdk: &State<SdkHandle>,
-) -> Result<String, ApiError> {
-    todo!()
-}
+// #[rocket::get("/nvidia?<nonce>")]
+// pub async fn nvidia_attestation(
+//     nonce: NonceParam<libattest::ByteNonce<32>, 32>,
+//     sdk: &State<SdkHandle>,
+// ) -> Result<String, ApiError> {
+//     todo!()
+// }
