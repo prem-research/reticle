@@ -138,7 +138,7 @@ jobs:
             - name: Set shared libraries load path
               run: echo "LD_LIBRARY_PATH=${{ env.SYSROOT }}/lib" >> "$GITHUB_ENV"
             - name: Run cargo test
-              run: env -u SYSROOT RUSTFLAGS="-L${{ env.SYSROOT }}/lib" cargo test
+              run: env -u SYSROOT RUSTFLAGS="-L${{ env.SYSROOT }}/lib -lssl -lcrypto" cargo test
 
     wasm:
         name: Run wasm-pack on reticle
