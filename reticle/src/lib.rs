@@ -189,6 +189,7 @@ pub struct Client {
     policy_validator: Validator,
 }
 
+#[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl Client {
     /// Request unified `CvmReport` attestation from endpoint
     pub async fn request_attestation(
