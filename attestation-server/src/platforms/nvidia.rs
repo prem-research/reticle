@@ -1,6 +1,3 @@
-use std::collections::HashSet;
-use std::ops::Deref;
-
 use anyhow::Context;
 use libattest::quote::QuoteVerifier;
 use nvat::{AttestationBuilder, SdkHandle, nonce::NvatNonce};

@@ -1,4 +1,4 @@
-use reticle::{ClientBuilder, query::QueryParams};
+use reticle::ClientBuilder;
 use snp_attest::kds::Kds;
 
 #[tokio::main]
@@ -14,6 +14,6 @@ async fn main() {
         .await
         .unwrap();
 
-    let result = client.attest2().await.unwrap();
+    let result = client.attest().await.unwrap();
     println!("{result:?}");
 }
