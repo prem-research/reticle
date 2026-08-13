@@ -14,8 +14,6 @@ async fn main() {
         .await
         .unwrap();
 
-    // let result = client.attest().await.unwrap();
-    // println!("{result:?}");
-    //
-    todo!()
+    let result = client.attest2().await.unwrap();
+    println!("{result:?}");
 }

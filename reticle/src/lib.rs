@@ -8,16 +8,19 @@ pub mod rego;
 use std::pin::Pin;
 
 use attestation_protocol::{
-    modules::{CpuModule, GpuModule, Modules},
+    modules::{CpuModule, GpuModule, Modules, ModulesBuilder},
     report::{CpuReport, CvmNonce, CvmReport, GpuReport},
 };
-use azure_attest::{AzureQuote, collateral::ReportVerifierBuilder, nonce::AzureNonce};
+use azure_attest::{
+    AzureQuote, collateral::ReportVerifierBuilder, nonce::AzureNonce,
+    report::AttestationReportError,
+};
 use futures::future::OptionFuture;
 use libattest::{
     bail,
     error::{AttestationError, Context, Expose},
     quote::QuoteVerifier,
-    validation::{Validator, WithPolicy},
+    validation::{Validator, Verifiable, WithPolicy},
 };
 use nvidia_attest::{EATToken, keychain::KeyChain, nonce::NvidiaNonce, verifier::NvidiaVerifier};
 use snp_attest::{SevQuote, kds::Kds, nonce::SevNonce, verify::SevQuoteVerifier};
@@ -48,27 +51,9 @@ pub fn __prem_rs_start() {
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 #[derive(Clone, Debug)]
-pub struct AttestHeaders {
-    cpu: Option<ResponseHeaders>,
-    gpu: Option<ResponseHeaders>,
-}
-
-#[cfg_attr(target_family = "wasm", wasm_bindgen)]
-impl AttestHeaders {
-    pub fn cpu(&self) -> Option<ResponseHeaders> {
-        self.cpu.clone()
-    }
-
-    pub fn gpu(&self) -> Option<ResponseHeaders> {
-        self.gpu.clone()
-    }
-}
-
-#[cfg_attr(target_family = "wasm", wasm_bindgen)]
-#[derive(Clone, Debug)]
 pub struct AttestResult {
     modules: Modules,
-    headers: AttestHeaders,
+    headers: ResponseHeaders,
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
@@ -77,7 +62,7 @@ impl AttestResult {
         self.modules
     }
 
-    pub fn headers(&self) -> AttestHeaders {
+    pub fn headers(&self) -> ResponseHeaders {
         self.headers.clone()
     }
 }
@@ -100,6 +85,12 @@ impl ResponseHeaders {
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 pub struct NvidiaAttestResult {
     eat_token: EATToken,
+    headers: ResponseHeaders,
+}
+
+#[cfg_attr(target_family = "wasm", wasm_bindgen)]
+pub struct AttestResponse {
+    report: CvmReport,
     headers: ResponseHeaders,
 }
 
@@ -431,33 +422,40 @@ impl Client {
     pub async fn request_attestation(
         &self,
         nonce: &CvmNonce,
-    ) -> Result<CvmReport, AttestationError> {
+    ) -> Result<AttestResponse, AttestationError> {
         let url = self.url.join("/attestation/attest").unwrap();
         let query = [("nonce", &nonce.to_hex())];
 
-        let response = self.request(url, &query).await?.json().await?;
+        let response = self.request(url, &query).await?;
+
+        let response = AttestResponse {
+            headers: ResponseHeaders(response.headers().clone()),
+            report: response.json().await?,
+        };
 
         Ok(response)
     }
 
-    fn attest_quote<Q: QuoteVerifier>(
+    fn attest_quote<'a, Q: QuoteVerifier>(
         &self,
         verifier: Q,
-        quote: &Q::Quote,
+        quote: &'a Q::Quote,
         nonce: &Q::Nonce,
         policy: &'static str,
-    ) -> Result<(), AttestationError> {
+    ) -> Result<<Q::Quote as Verifiable>::Claims<'a>, AttestationError> {
         let claims = verifier
             .verify(quote, nonce)
-            .context("TDX quote verification has failed")
+            .context("Quote verification has failed")
             .expose_error()?;
 
         let claims: WithPolicy<'_, Q::Quote> = WithPolicy::new(policy, claims);
 
         self.policy_validator
-            .verify_claim(claims)?
-            .or_err("tdx claims did not match specified OPA policy")
-            .expose_error()
+            .verify_claim(&claims)?
+            .or_err("quote claims did not match OPA policy")
+            .expose_error()?;
+
+        Ok(claims.claims())
     }
 
     /// Steps:
@@ -466,7 +464,10 @@ impl Client {
     /// - Returns the list of attested modules
     pub async fn attest2(&self) -> Result<AttestResult, AttestationError> {
         let nonce = CvmNonce::generate();
-        let report = self.request_attestation(&nonce).await?;
+        let response = self.request_attestation(&nonce).await?;
+        let mut modules = ModulesBuilder::new();
+
+        let AttestResponse { report, headers } = response;
 
         // verify depending on the module
         match report.cpu {
@@ -479,6 +480,7 @@ impl Client {
                 let nonce = report.manifest.bind(&*nonce).into();
 
                 self.attest_quote(verifier, &attestation, &nonce, "sev.allow")?;
+                modules = modules.with_cpu(CpuModule::Sev);
             }
             CpuReport::Tdx(items) => {
                 let tdx = TdxQuote::from_bytes(&items).context("failed parsing tdx quote")?;
@@ -493,6 +495,7 @@ impl Client {
                 let nonce = report.manifest.bind(&*nonce).into();
 
                 self.attest_quote(verifier, &tdx, &nonce, "tdx.allow")?;
+                modules = modules.with_cpu(CpuModule::Tdx);
             }
             CpuReport::Azr(azure_quote) => {
                 let nonce = report.manifest.bind(&*nonce).into();
@@ -508,6 +511,7 @@ impl Client {
                     .await?;
 
                 self.attest_quote(verifier, &azure_quote, &nonce, "azure.allow")?;
+                modules = modules.with_cpu(CpuModule::Azure);
             }
         }
 
@@ -521,10 +525,15 @@ impl Client {
 
                 let nonce = report.manifest.bind(&*nonce).into();
                 self.attest_quote(verifier, &quote, &nonce, "nvidia.allow")?;
+                modules = modules.with_gpu(Some(GpuModule::Nvidia));
             }
-        }
+        };
 
-        todo!()
+        let modules = modules
+            .build()
+            .context("not enough modules were provided to complete attestation")?;
+
+        Ok(AttestResult { modules, headers })
     }
 }
 

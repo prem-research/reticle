@@ -38,7 +38,7 @@ impl Manifest {
         let manifest = postcard::to_allocvec(self).unwrap();
         let digest = Sha512::new().chain(to).chain_update(manifest).finalize();
 
-        if digest.len() > N {
+        if digest.len() < N {
             panic!("Requested digest binding of size {N} is not computable (Max size 64 bytes)");
         }
 

@@ -48,6 +48,10 @@ impl<'a, C: Verifiable + 'a> WithPolicy<'a, C> {
             policy: policy.into(),
         }
     }
+
+    pub fn claims(self) -> C::Claims<'a> {
+        self.claims
+    }
 }
 
 impl<C: Verifiable> AssignedPolicy for WithPolicy<'_, C> {
@@ -129,7 +133,7 @@ impl Validator {
     /// drives the engine to verify the query
     pub fn verify_claim<C: Verifiable>(
         &self,
-        claims: WithPolicy<'_, C>,
+        claims: &WithPolicy<'_, C>,
     ) -> Result<ValidationResult, AttestationError> {
         // avois polluting the engine for further verifications
         // and allows us to have this method &self
