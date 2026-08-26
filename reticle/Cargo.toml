@@ -25,12 +25,21 @@ futures = "0.3.32"
 web-sys = { version = "0.3.98", features = ["Request", "RequestInit"] }
 async-once-cell = "0.5.4"
 async-trait = "0.1.89"
+anyhow = { workspace = true, optional = true }
+clap = { version = "4.6.4", features = ["derive", "env"], optional = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"], optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
 
 [features]
 debug = []
+cvmcli = ["dep:anyhow", "dep:clap", "dep:tokio"]
+
+[[bin]]
+name = "cvmcli"
+path = "src/bin/cvmcli.rs"
+required-features = ["cvmcli"]
 
 [package.metadata.wasm-pack.profile.release.wasm-bindgen]
 split-linked-modules = true

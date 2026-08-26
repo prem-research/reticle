@@ -7,7 +7,7 @@ pub mod rego;
 
 use attestation_protocol::{
     modules::{CpuModule, GpuModule, Modules, ModulesBuilder},
-    report::{CpuReport, CvmNonce, CvmReport, GpuReport},
+    report::{CpuReport, CvmNonce, CvmReport, GpuReport, Manifest},
 };
 use azure_attest::collateral::ReportVerifierBuilder;
 use libattest::{
@@ -44,7 +44,9 @@ pub fn __prem_rs_start() {
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 #[derive(Clone, Debug)]
+
 pub struct AttestResult {
+    manifest: Manifest,
     modules: Modules,
     headers: ResponseHeaders,
 }
@@ -57,6 +59,13 @@ impl AttestResult {
 
     pub fn headers(&self) -> ResponseHeaders {
         self.headers.clone()
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl AttestResult {
+    pub fn manifest(&self) -> &Manifest {
+        &self.manifest
     }
 }
 
@@ -306,6 +315,10 @@ impl Client {
             .build()
             .context("not enough modules were provided to complete attestation")?;
 
-        Ok(AttestResult { modules, headers })
+        Ok(AttestResult {
+            manifest: report.manifest,
+            modules,
+            headers,
+        })
     }
 }

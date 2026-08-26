@@ -8,6 +8,8 @@ pub fn fetch_claims() -> anyhow::Result<Manifest> {
     let manifest = std::fs::read(path)
         .context("Failed fetching the manifest from /run/cvm/attestation-claim.json")?;
 
-    let manifest = serde_json::from_slice(&manifest)?;
+    let manifest = serde_json::from_slice(&manifest)
+        .context("Failed parsing the contents of attestation-claim.json")?;
+
     Ok(manifest)
 }

@@ -3128,11 +3128,13 @@ dependencies = [
 name = "reticle"
 version = "0.5.1"
 dependencies = [
+ "anyhow",
  "async-once-cell",
  "async-trait",
  "attestation-protocol",
  "azure-attest",
  "bytes",
+ "clap",
  "console_error_panic_hook",
  "futures",
  "hex",
