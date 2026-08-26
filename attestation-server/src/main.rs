@@ -45,13 +45,13 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // let settings = Settings::parse();
     let rocket = rocket::build();
-    let mut routes = routes![];
-
-    // advertise server capabilities
-    routes.extend(routes![get_modules, attest]);
-
     let modules = ModuleDetector.detect()?;
-    let rocket = rocket.manage(modules);
+    // add manifest to the application state
+    let claims = metadata::fetch_claims()?;
+
+    // attach everything to rocket so it's available
+    // in our routes
+    let rocket = rocket.manage(modules).manage(claims);
 
     let mut rocket = match modules.cpu() {
         CpuModule::Sev => {
@@ -79,7 +79,7 @@ async fn main() -> Result<(), anyhow::Error> {
     };
 
     rocket
-        .mount("/attestation", routes)
+        .mount("/attestation", routes![attest, get_modules])
         .register("/", catchers![not_found])
         .launch()
         .await?;

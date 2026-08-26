@@ -101,12 +101,14 @@ fn attest_gpu(sdk: &SdkHandle, nonce: ByteNonce<32>) -> anyhow::Result<String> {
 #[rocket::get("/attest?<nonce>")]
 pub async fn attest(
     nonce: NonceParam<libattest::ByteNonce<64>, 64>,
+    manifest: &State<Manifest>,
     cpu: CpuAttestation<'_>,
     gpu: GpuAttestation<'_>,
 ) -> ApiJsonResult<CvmReport> {
     // placeholder
     let NonceParam(nonce) = nonce;
-    let manifest = Manifest {};
+    // let manifest = Manifest {};
+    // let manifest: Manifest = todo!();
 
     let cpu_report = match cpu {
         CpuAttestation::Azure(tpm) => {
@@ -140,7 +142,7 @@ pub async fn attest(
     let report = CvmReport {
         cpu: cpu_report,
         gpu: gpu_report,
-        manifest,
+        manifest: Manifest::clone(manifest),
     };
 
     Ok(report.into())
