@@ -1,9 +1,8 @@
 use std::collections::BTreeMap;
 
-use digest::Update;
-use libattest::ByteNonce;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha512};
+
+use crate::bind::sealed::Bindable;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Manifest {
@@ -14,24 +13,7 @@ pub struct Manifest {
     pub claims: BTreeMap<String, Claim>,
 }
 
-impl Manifest {
-    /// Binds the manifest to a nonce, producing a nonce that can be used as input
-    /// for other cryptographical components to create a trust chian.
-    ///
-    /// Panics if N is larger than 64
-    pub fn bind<const N: usize>(&self, to: impl AsRef<[u8]>) -> libattest::ByteNonce<N> {
-        let manifest = postcard::to_allocvec(self).unwrap();
-        let digest = Sha512::new().chain(to).chain_update(manifest).finalize();
-
-        if digest.len() < N {
-            panic!("Requested digest binding of size {N} is not computable (Max size 64 bytes)");
-        }
-
-        let digest: &[u8; N] = digest.as_slice()[..N].try_into().unwrap();
-
-        ByteNonce::from(digest)
-    }
-}
+impl Bindable for Manifest {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

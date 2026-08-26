@@ -6,6 +6,7 @@ pub mod query;
 pub mod rego;
 
 use attestation_protocol::{
+    bind::Bind,
     modules::{CpuModule, GpuModule, Modules, ModulesBuilder},
     report::{CpuReport, CvmNonce, CvmReport, GpuReport, Manifest},
 };
@@ -252,20 +253,20 @@ impl Client {
         let AttestResponse { report, headers } = response;
 
         // verify depending on the module
-        match report.cpu {
+        match &report.cpu {
             CpuReport::Sev(attestation) => {
-                let keychain = self.kds.fetch_certificates(&attestation).await?;
+                let keychain = self.kds.fetch_certificates(attestation).await?;
                 let verifier = SevQuoteVerifier::new(keychain);
 
                 // we ""bind"" the nonce to the manifest depending on what
                 // size of nonce our downstream module (in this case sev) needs.
                 let nonce = report.manifest.bind(&*nonce).into();
 
-                self.attest_quote(verifier, &attestation, &nonce, "sev.allow")?;
+                self.attest_quote(verifier, attestation, &nonce, "sev.allow")?;
                 modules = modules.with_cpu(CpuModule::Sev);
             }
             CpuReport::Tdx(items) => {
-                let tdx = TdxQuote::from_bytes(&items).context("failed parsing tdx quote")?;
+                let tdx = TdxQuote::from_bytes(items).context("failed parsing tdx quote")?;
                 let collateral = self
                     .pcs
                     .fetch_collateral(&tdx)
@@ -289,10 +290,10 @@ impl Client {
                             .map(SevQuoteVerifier::new)
                     })
                     .tdx(async |_| libattest::bail!("TDX attestation is unimplemented for Azure"))
-                    .fetch_collateral(&azure_quote)
+                    .fetch_collateral(azure_quote)
                     .await?;
 
-                self.attest_quote(verifier, &azure_quote, &nonce, "azure.allow")?;
+                self.attest_quote(verifier, azure_quote, &nonce, "azure.allow")?;
                 modules = modules.with_cpu(CpuModule::Azure);
             }
         }
@@ -305,7 +306,7 @@ impl Client {
                 let keychain = KeyChain::fetch_keychain().await?;
                 let verifier = NvidiaVerifier::new(keychain);
 
-                let nonce = report.manifest.bind(&*nonce).into();
+                let nonce = report.cpu.bind(&*nonce).into();
                 self.attest_quote(verifier, &quote, &nonce, "nvidia.allow")?;
                 modules = modules.with_gpu(Some(GpuModule::Nvidia));
             }

@@ -1,12 +1,16 @@
 use azure_attest::AzureQuote;
+use digest::Update;
 use serde::{Deserialize, Serialize};
 use serde_with::base64::Base64;
 use serde_with::serde_as;
+use sha2::Digest;
 use snp_attest::SevQuote;
 
 pub mod manifest;
 
 pub use manifest::Manifest;
+
+use crate::bind::sealed::Bindable;
 
 #[serde_as]
 #[derive(Serialize, Deserialize)]
@@ -18,6 +22,8 @@ pub enum CpuReport {
     /// Hyper-V
     Azr(Box<AzureQuote>),
 }
+
+impl Bindable for CpuReport {}
 
 #[derive(Serialize, Deserialize)]
 pub enum GpuReport {

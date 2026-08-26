@@ -1,5 +1,8 @@
 use anyhow::Context;
-use attestation_protocol::report::{CpuReport, CvmReport, GpuReport, Manifest};
+use attestation_protocol::{
+    bind::Bind,
+    report::{CpuReport, CvmReport, GpuReport, Manifest},
+};
 use azure_attest::AzureQuote;
 use libattest::ByteNonce;
 use nvat::{AttestationBuilder, SdkHandle, nonce::NvatNonce};
@@ -134,7 +137,7 @@ pub async fn attest(
     let gpu_report = match gpu {
         GpuAttestation::Absent => GpuReport::Absent,
         GpuAttestation::Nvidia(sdk) => {
-            let nonce = manifest.bind(nonce);
+            let nonce = cpu_report.bind(nonce);
             attest_gpu(sdk, nonce).map(GpuReport::Nvidia)?
         }
     };
