@@ -28,6 +28,7 @@ pub use snp_attest;
 
 use tdx_attest::{TdxQuote, pcs::Pcs, verify::TdxQuoteVerifier};
 
+use wasm_bindgen::JsValue;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
@@ -54,19 +55,22 @@ pub struct AttestResult {
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl AttestResult {
+    /// Returns the manifest as serde serialized data. This means that it will
+    /// go through JSON representation first. You can expect this to preserve the
+    /// same format as the JSON report inside the CVM.
+    pub fn manifest(&self) -> JsValue {
+        serde_wasm_bindgen::to_value(&self.manifest)
+            .expect("Failed serializing the manifest into a JsValue. This should not ever happen.")
+    }
+
+    /// Returns the Modules that the remote party attested.
     pub fn modules(&self) -> Modules {
         self.modules
     }
 
+    /// Returns the response headers returned by the attestation request.
     pub fn headers(&self) -> ResponseHeaders {
         self.headers.clone()
-    }
-}
-
-#[cfg(not(target_family = "wasm"))]
-impl AttestResult {
-    pub fn manifest(&self) -> &Manifest {
-        &self.manifest
     }
 }
 

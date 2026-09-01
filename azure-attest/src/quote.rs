@@ -13,8 +13,6 @@ use tpm2_protocol::data::TpmsAttest;
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    collateral::ReportVerifier,
-    nonce::AzureNonce,
     quote::{claims::AzureClaims, pcr::PcrBankReading},
     report::{AttestationReport, HardwareReport},
 };

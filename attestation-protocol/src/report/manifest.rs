@@ -59,3 +59,54 @@ pub struct FileSha256Claim {
     pub path: String,
     pub sha256: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Manifest;
+
+    #[test]
+    fn json_round_trip_preserves_manifest_layout() {
+        const JSON: &str = r#"
+        {
+            "version": 1,
+            "status": "ok",
+            "generated_at": "2026-09-01T12:00:00Z",
+            "manifest": "production",
+            "claims": {
+                "rootfs": {
+                    "type": "dm-verity",
+                    "status": "ok",
+                    "device": "/dev/dm-0",
+                    "mapper": "rootfs",
+                    "root_hash": "0123456789abcdef",
+                    "data_device": "/dev/vda2",
+                    "hash_device": "/dev/vda3"
+                },
+                "container": {
+                    "type": "container_image_hash",
+                    "status": "error",
+                    "container": "api",
+                    "configured": "registry.example.com/api:latest",
+                    "ref": "registry.example.com/api@sha256:abcdef",
+                    "config_sha256": "abcdef"
+                },
+                "configuration": {
+                    "type": "file_sha256",
+                    "status": "ok",
+                    "path": "/etc/example/config.toml",
+                    "sha256": "fedcba9876543210"
+                }
+            }
+        }
+        "#;
+
+        let expected_layout: serde_json::Value = serde_json::from_str(JSON).unwrap();
+        let manifest: Manifest = serde_json::from_str(JSON).unwrap();
+
+        let serialized_layout = serde_json::to_value(&manifest).unwrap();
+        assert_eq!(serialized_layout, expected_layout);
+
+        let deserialized: Manifest = serde_json::from_value(serialized_layout).unwrap();
+        assert_eq!(deserialized, manifest);
+    }
+}

@@ -236,7 +236,7 @@ pub fn verify_impl<'a>(
     // 2: verify that AK signs Quote through leaf certificate
     verify_quote_signature(azure_quote, trust_chain).context("while verifying quote signature")?;
     // 3: verify that the hardware report signs report data
-    let hardware_claims = verify_report_digest(azure_quote, &report_verifier)
+    let hardware_claims = verify_report_digest(azure_quote, report_verifier)
         .context("while verifying report digest")?;
     // 4: verify that report data contains the correct ak key,
     // sprouting azure trust from SEV/TDX
