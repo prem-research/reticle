@@ -43,30 +43,6 @@ impl NvidiaFairing {
         let claims =
             EATToken::parse(attestation.detached_eat.as_str()?)?.verify(&keychain, &nonce)?;
 
-        // // we gather the device uuids from the claims of the attested gpus
-        // // so we don't accidentally turn on confidential computing for
-        // // gpus we didn't explicitly verify
-        // let uuids: HashSet<String> = claims
-        //     .gpu_claims()
-        //     .values()
-        //     .map(|gpu| &gpu.ueid)
-        //     .cloned()
-        //     .collect();
-
-        // for uuid in uuids {
-        //     let device = self.nvml.device_by_uuid(uuid.deref()).with_context(|| {
-        //         format!("Device with UUID: {uuid} was attested but not found by nvml")
-        //     })?;
-
-        //     // once we attest the device we can activate
-        //     // confidential compute state
-        //     device
-        //         .set_confidential_compute_state(true)
-        //         .with_context(|| {
-        //             format!("cannot activate confidential computing for gpu uuid:{uuid}")
-        //         })?;
-        // }
-
         let devices: Vec<_> = (0..self.nvml.device_count()?)
             .map(|index| self.nvml.device_by_index(index))
             .collect::<Result<_, _>>()?;
