@@ -1,6 +1,3 @@
-use std::collections::HashSet;
-use std::ops::Deref;
-
 use anyhow::Context;
 use nvat::{AttestationBuilder, SdkHandle, nonce::NvatNonce};
 use nvidia_attest::EATToken;
@@ -47,8 +44,7 @@ impl NvidiaFairing {
             .map(|index| self.nvml.device_by_index(index))
             .collect::<Result<_, _>>()?;
 
-        let count = self.nvml.device_count()? as usize;
-        if count != claims.gpu_claims().iter().count() {
+        if devices.len() != claims.gpu_claims().iter().count() {
             log::error!(
                 "there are still devices on this machine for which confidential computing wasn't enabled."
             );
