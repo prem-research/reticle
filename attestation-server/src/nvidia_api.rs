@@ -1,6 +1,3 @@
-use std::collections::HashSet;
-use std::ops::Deref;
-
 use anyhow::Context;
 use nvat::{AttestationBuilder, SdkHandle, nonce::NvatNonce};
 use nvidia_attest::EATToken;
@@ -43,36 +40,27 @@ impl NvidiaFairing {
         let claims =
             EATToken::parse(attestation.detached_eat.as_str()?)?.verify(&keychain, &nonce)?;
 
-        // we gather the device uuids from the claims of the attested gpus
-        // so we don't accidentally turn on confidential computing for
-        // gpus we didn't explicitly verify
-        let uuids: HashSet<String> = claims
-            .gpu_claims()
-            .values()
-            .map(|gpu| &gpu.ueid)
-            .cloned()
-            .collect();
+        let devices: Vec<_> = (0..self.nvml.device_count()?)
+            .map(|index| self.nvml.device_by_index(index))
+            .collect::<Result<_, _>>()?;
 
-        for uuid in uuids {
-            let device = self.nvml.device_by_uuid(uuid.deref()).with_context(|| {
-                format!("Device with UUID: {uuid} was attested but not found by nvml")
-            })?;
-
-            // once we attest the device we can activate
-            // confidential compute state
-            device
-                .set_confidential_compute_state(true)
-                .with_context(|| {
-                    format!("cannot activate confidential computing for gpu uuid:{uuid}")
-                })?;
-        }
-
-        let count = self.nvml.device_count()? as usize;
-        if count != claims.gpu_claims().iter().count() {
-            log::warn!(
+        if devices.len() != claims.gpu_claims().iter().count() {
+            log::error!(
                 "there are still devices on this machine for which confidential computing wasn't enabled."
-            )
+            );
+
+            anyhow::bail!("number of attested devices mismatch");
         }
+
+        let Some(device) = devices.first() else {
+            anyhow::bail!("No GPU was activated?");
+        };
+
+        // activate confidential mode on the first gpu because
+        // nvml implementation activates it system wide anyway
+        device
+            .set_confidential_compute_state(true)
+            .context("failed to activate confidential compute mode")?;
 
         Ok(())
     }
