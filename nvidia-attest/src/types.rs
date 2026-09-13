@@ -64,7 +64,7 @@ pub struct OverallClaims {
 #[serde(rename_all = "lowercase")]
 pub enum MeasuresClaim {
     Success,
-    Failure,
+    Fail,
 }
 
 /// Detached claims containing GPU-specific information.
@@ -85,6 +85,13 @@ pub struct GpuClaims {
 
     /// Universal entity id of the GPU
     pub ueid: String,
+
+    pub hwmodel: String,
+
+    pub oemid: String,
+
+    #[serde(rename = "x-nvidia-attestation-warning", default)]
+    pub attestation_warning: bool,
 
     /// Secure boot status.
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -31,10 +31,6 @@ impl Verifiable for EATToken {
         = DecodedClaims
     where
         Self: 'a;
-
-    // fn claims<'a>(&'a self) -> Self::Claims<'a> {
-    //     self
-    // }
 }
 
 impl DecodedClaims {
