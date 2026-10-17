@@ -1,7 +1,7 @@
 use anyhow::Context;
 use attestation_protocol::{
     bind::Bind,
-    report::{CpuReport, CvmReport, GpuReport, Manifest},
+    report::{CpuReport, CvmReport, GpuReport, manifest::PodReport},
 };
 use azure_attest::AzureQuote;
 use libattest::ByteNonce;
@@ -104,7 +104,7 @@ fn attest_gpu(sdk: &SdkHandle, nonce: ByteNonce<32>) -> anyhow::Result<String> {
 #[rocket::get("/attest?<nonce>")]
 pub async fn attest(
     nonce: NonceParam<libattest::ByteNonce<64>, 64>,
-    manifest: &State<Manifest>,
+    manifest: &State<PodReport>,
     cpu: CpuAttestation<'_>,
     gpu: GpuAttestation<'_>,
 ) -> ApiJsonResult<CvmReport> {
@@ -145,7 +145,7 @@ pub async fn attest(
     let report = CvmReport {
         cpu: cpu_report,
         gpu: gpu_report,
-        manifest: Manifest::clone(manifest),
+        manifest: PodReport::clone(manifest),
     };
 
     Ok(report.into())

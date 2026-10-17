@@ -6,9 +6,8 @@ use snp_attest::SevQuote;
 
 pub mod manifest;
 
-pub use manifest::Manifest;
-
 use crate::bind::sealed::Bindable;
+use crate::report::manifest::PodReport;
 
 #[serde_as]
 #[derive(Serialize, Deserialize)]
@@ -32,7 +31,7 @@ pub enum GpuReport {
 #[derive(Serialize, Deserialize)]
 pub struct CvmReport {
     // everything else to be defined.
-    pub manifest: Manifest,
+    pub manifest: PodReport,
     pub cpu: CpuReport,
     pub gpu: GpuReport,
 }

@@ -8,7 +8,7 @@ pub mod rego;
 use attestation_protocol::{
     bind::Bind,
     modules::{CpuModule, GpuModule, Modules, ModulesBuilder},
-    report::{CpuReport, CvmNonce, CvmReport, GpuReport, Manifest},
+    report::{CpuReport, CvmNonce, CvmReport, GpuReport, manifest::PodReport},
 };
 use azure_attest::collateral::ReportVerifierBuilder;
 use libattest::{
@@ -48,7 +48,7 @@ pub fn __prem_rs_start() {
 #[derive(Clone, Debug)]
 
 pub struct AttestResult {
-    manifest: Manifest,
+    manifest: PodReport,
     modules: Modules,
     headers: ResponseHeaders,
 }
@@ -58,7 +58,7 @@ impl AttestResult {
     /// Returns the manifest as serde serialized data. This means that it will
     /// go through JSON representation first. You can expect this to preserve the
     /// same format as the JSON report inside the CVM.
-    pub fn manifest(&self) -> JsValue {
+    pub fn pod_report(&self) -> JsValue {
         serde_wasm_bindgen::to_value(&self.manifest)
             .expect("Failed serializing the manifest into a JsValue. This should not ever happen.")
     }

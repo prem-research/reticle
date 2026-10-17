@@ -134,7 +134,7 @@ async fn main() -> Result<()> {
 
     let report = render_report(
         &args.api_url,
-        result.manifest(),
+        result.pod_report(),
         result.modules(),
         result.headers(),
         elapsed.as_millis(),
