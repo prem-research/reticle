@@ -3,8 +3,8 @@ use std::{collections::BTreeMap, path::Path};
 use anyhow::Context;
 use attestation_protocol::report::manifest::{PodReport, SevGen, Tee};
 
-const OS_RELEASE: &str = "/etc/os-release";
-const WORKLOAD_TYPE: &str = "/run/confidential-containers/initdata/";
+const OS_RELEASE: &str = "/run/host/os-release";
+const WORKLOAD_TYPE: &str = "/run/host/initdata/id";
 
 pub fn parse_env(env: &str) -> anyhow::Result<BTreeMap<String, String>> {
     let kv: Vec<(&str, &str)> = env
