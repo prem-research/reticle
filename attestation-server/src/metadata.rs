@@ -2,9 +2,27 @@ use std::{collections::BTreeMap, path::Path};
 
 use anyhow::Context;
 use attestation_protocol::report::manifest::{PodReport, SevGen, Tee};
+use serde::Deserialize;
 
-const OS_RELEASE: &str = "/run/host/os-release";
-const WORKLOAD_TYPE: &str = "/run/host/initdata/id";
+const OS_RELEASE: &str = "/run/podvm/os-release";
+const INIT_DATA: &str = "/run/podvm/initdata/id";
+
+/// Describes a Kata podvm init-data toml configuration
+#[derive(Deserialize)]
+pub struct InitData {
+    algorithm: String,
+    version: String,
+    data: BTreeMap<String, String>,
+}
+
+impl InitData {
+    pub fn read(path: impl AsRef<Path>) -> anyhow::Result<Self> {
+        let file = std::fs::read_to_string(path).context("failed reading init-data file")?;
+        let decoded = toml::from_str(&file).context("failed parsing init-data")?;
+
+        Ok(decoded)
+    }
+}
 
 pub fn parse_env(env: &str) -> anyhow::Result<BTreeMap<String, String>> {
     let kv: Vec<(&str, &str)> = env
@@ -37,28 +55,26 @@ fn identify_tee() -> Tee {
 }
 
 pub fn fetch_claims() -> anyhow::Result<PodReport> {
-    //     // identify podvm version
-    //     let os_release = Path::new(OS_RELEASE);
-    //     let os_release =
-    //         std::fs::read_to_string(os_release).context("could not read /etc/os-release")?;
-    //
-    //     let os_release = parse_env(&os_release).context("failed parsing /etc/os-release")?;
-    //
-    //     // then identify what trustbase workload type we are currently running
-    //     let workload_id = std::fs::read_to_string(WORKLOAD_TYPE)
-    //         .with_context(|| format!("couldn't read {WORKLOAD_TYPE}"))?;
-    //
-    //     Ok(PodReport {
-    //         podvm_version: os_release
-    //             .get("IMAGE_VERSION")
-    //             .context("/etc/os-release does not contain podvm image version")?
-    //             .to_string(),
-    //         workload_id,
-    //         tee_type: identify_tee(),
-    //     })
+    // identify podvm version
+    let os_release = Path::new(OS_RELEASE);
+    let os_release =
+        std::fs::read_to_string(os_release).context("could not read /etc/os-release")?;
+
+    let os_release = parse_env(&os_release).context("failed parsing /etc/os-release")?;
+    let podvm_version = os_release
+        .get("IMAGE_VERSION")
+        .context("/etc/os-release does not contain podvm image version")?
+        .to_string();
+
+    let mut init_data = InitData::read(INIT_DATA)?;
+    let workload_id = init_data
+        .data
+        .remove("id")
+        .context("missing workload id from init-data")?;
+
     Ok(PodReport {
-        podvm_version: "test".to_string(),
-        workload_id: "test".to_string(),
-        tee_type: Tee::Sev(SevGen::Genoa),
+        podvm_version,
+        workload_id,
+        tee_type: identify_tee(),
     })
 }

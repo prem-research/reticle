@@ -29,3 +29,4 @@ configfs-tsm = { version = "0.0.2" }
 nvml-wrapper = "0.12.1"
 reqwest = { workspace = true, features = ["blocking", "json"] }
 clap = { version = "4.6.4", features = ["derive", "env"] }
+toml = "1.1.8"
