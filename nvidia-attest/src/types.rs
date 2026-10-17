@@ -91,7 +91,7 @@ pub struct GpuClaims {
     pub oemid: String,
 
     #[serde(rename = "x-nvidia-attestation-warning", default)]
-    pub attestation_warning: bool,
+    pub attestation_warning: Option<String>,
 
     /// Secure boot status.
     #[serde(default, skip_serializing_if = "Option::is_none")]
