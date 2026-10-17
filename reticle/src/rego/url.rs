@@ -49,7 +49,7 @@ impl UrlPolicies {
                 .context("failed parsing url from index")?;
 
             if url.authority() != self.base_url.authority() {
-                bail!("changed authority when joining url!")
+                bail!("changed authority when joining url!");
             }
 
             let rego_fetch = async move {

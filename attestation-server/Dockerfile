@@ -1,29 +1,3 @@
-# syntax=docker/dockerfile:1.7
-
-# FROM rust:slim-bookworm AS builder
-# WORKDIR /app
-
-
-# COPY ${SYSROOT} /sysroot
-
-# COPY Cargo.toml Cargo.lock ./
-
-# COPY attestation-server/Cargo.toml attestation-server/Cargo.toml
-# COPY snp-attest/Cargo.toml snp-attest/Cargo.toml
-# COPY libattest/Cargo.toml libattest/Cargo.toml
-# COPY nvidia-attest/Cargo.toml nvidia-attest/Cargo.toml
-# COPY reticle/Cargo.toml reticle/Cargo.toml
-
-# COPY attestation-server/src attestation-server/src
-# COPY snp-attest/src snp-attest/src
-# COPY libattest/src libattest/src
-# COPY nvidia-attest/src nvidia-attest/src
-# COPY reticle/src reticle/src
-
-# RUN env -u SYSROOT -u PKG_CONFIG_SYSROOT_DIR \
-#     RUSTFLAGS="-L${SYSROOT}/lib" \
-#     cargo build --release -p attestation-server --no-default-features --features "${FEATURES}"
-
 FROM debian:trixie-slim AS runtime
 ARG SYSROOT
 
@@ -38,7 +12,7 @@ COPY ./attestation-server/entrypoint.sh /entrypoint.sh
 
 RUN apt-get update \
     && apt-get install -y \
-        ca-certificates
+    ca-certificates
 
 RUN apt-get autoremove -y \
     && apt-get clean -y \

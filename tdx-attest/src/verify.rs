@@ -171,7 +171,7 @@ fn verify_platform_tcb(quote: &TdxQuote, collateral: &Collateral) -> Result<TcbL
             .tcb
             .sgxtcbcomponents
             .iter()
-            .zip(pck_tcb.cpu_svn.into_iter())
+            .zip(pck_tcb.cpu_svn.clone())
             .all(|(collateral, quote)| quote >= collateral.svn);
 
         if !comp_svn_check {
