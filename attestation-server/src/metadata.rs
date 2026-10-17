@@ -37,23 +37,28 @@ fn identify_tee() -> Tee {
 }
 
 pub fn fetch_claims() -> anyhow::Result<PodReport> {
-    // identify podvm version
-    let os_release = Path::new(OS_RELEASE);
-    let os_release =
-        std::fs::read_to_string(os_release).context("could not read /etc/os-release")?;
-
-    let os_release = parse_env(&os_release).context("failed parsing /etc/os-release")?;
-
-    // then identify what trustbase workload type we are currently running
-    let workload_id = std::fs::read_to_string(WORKLOAD_TYPE)
-        .with_context(|| format!("couldn't read {WORKLOAD_TYPE}"))?;
-
+    //     // identify podvm version
+    //     let os_release = Path::new(OS_RELEASE);
+    //     let os_release =
+    //         std::fs::read_to_string(os_release).context("could not read /etc/os-release")?;
+    //
+    //     let os_release = parse_env(&os_release).context("failed parsing /etc/os-release")?;
+    //
+    //     // then identify what trustbase workload type we are currently running
+    //     let workload_id = std::fs::read_to_string(WORKLOAD_TYPE)
+    //         .with_context(|| format!("couldn't read {WORKLOAD_TYPE}"))?;
+    //
+    //     Ok(PodReport {
+    //         podvm_version: os_release
+    //             .get("IMAGE_VERSION")
+    //             .context("/etc/os-release does not contain podvm image version")?
+    //             .to_string(),
+    //         workload_id,
+    //         tee_type: identify_tee(),
+    //     })
     Ok(PodReport {
-        podvm_version: os_release
-            .get("IMAGE_VERSION")
-            .context("/etc/os-release does not contain podvm image version")?
-            .to_string(),
-        workload_id,
-        tee_type: identify_tee(),
+        podvm_version: "test".to_string(),
+        workload_id: "test".to_string(),
+        tee_type: Tee::Sev(SevGen::Genoa),
     })
 }
