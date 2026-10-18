@@ -5,7 +5,7 @@ use attestation_protocol::report::manifest::{PodReport, SevGen, Tee};
 use serde::Deserialize;
 
 const OS_RELEASE: &str = "/run/podvm/os-release";
-const INIT_DATA: &str = "/run/podvm/initdata/id";
+const INIT_DATA: &str = "/run/podvm/initdata.toml";
 
 /// Describes a Kata podvm init-data toml configuration
 #[derive(Deserialize)]
