@@ -47,7 +47,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let rocket = rocket::build();
     let modules = ModuleDetector.detect()?;
     // add manifest to the application state
-    let claims = metadata::fetch_claims(&modules)?;
+    let claims = metadata::fetch_claims()?;
 
     // attach everything to rocket so it's available
     // in our routes

@@ -1,10 +1,7 @@
 use std::{collections::BTreeMap, path::Path};
 
-use anyhow::{Context, bail};
-use attestation_protocol::{
-    modules::{CpuModule, Modules},
-    report::manifest::{PodReport, SevGen, Tee},
-};
+use anyhow::Context;
+use attestation_protocol::report::manifest::PodReport;
 use serde::Deserialize;
 
 const OS_RELEASE: &str = "/run/podvm/os-release";
@@ -42,18 +39,7 @@ pub fn parse_env(env: &str) -> anyhow::Result<BTreeMap<String, String>> {
     Ok(env)
 }
 
-fn get_sev_gen() -> SevGen {
-    let generation = sev::Generation::identify_host_generation().unwrap();
-
-    match generation {
-        sev::Generation::Milan => SevGen::Milan,
-        sev::Generation::Genoa => SevGen::Genoa,
-        sev::Generation::Turin => SevGen::Turin,
-        sev::Generation::Venice => SevGen::Venice,
-    }
-}
-
-pub fn fetch_claims(modules: &Modules) -> anyhow::Result<PodReport> {
+pub fn fetch_claims() -> anyhow::Result<PodReport> {
     // identify podvm version
     let os_release = Path::new(OS_RELEASE);
     let os_release =
@@ -71,15 +57,8 @@ pub fn fetch_claims(modules: &Modules) -> anyhow::Result<PodReport> {
         .remove("id")
         .context("missing workload id from init-data")?;
 
-    let tee_type = match modules.cpu() {
-        CpuModule::Sev => Tee::Sev(get_sev_gen()),
-        CpuModule::Tdx => Tee::Tdx,
-        _ => bail!("other attestation types haven't been implemented yet here"),
-    };
-
     Ok(PodReport {
         podvm_version,
         workload_id,
-        tee_type,
     })
 }
