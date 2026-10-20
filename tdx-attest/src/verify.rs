@@ -194,9 +194,7 @@ fn verify_platform_tcb(quote: &TdxQuote, collateral: &Collateral) -> Result<TcbL
             .as_ref()
             .context("missing tdx tcb components")?;
 
-        let mut comp_tee_svn_check = tdxtcbcomponents
-            .iter()
-            .zip(quote.body().tee_tcb_svn.into_iter());
+        let mut comp_tee_svn_check = tdxtcbcomponents.iter().zip(quote.body().tee_tcb_svn);
 
         // https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-tcb-info-v4:~:text=from%20index%200%20to%2015%20if%20TEE%20TCB%20SVN%20at%20index%201%20is%20set%20to%200%2C%20or%20from%20index%202%20to%2015%20otherwise
         let tee_tcb_svn_1 = tdxtcbcomponents.get(1).context("missing TEE TCB SVN")?.svn;

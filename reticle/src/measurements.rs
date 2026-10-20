@@ -12,6 +12,9 @@ pub struct Measurements {
     pub schema: String,
     pub release: Release,
     pub workloads: BTreeMap<String, Workload>,
+
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub revoked: Vec<RevokedWorkload>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -22,6 +25,29 @@ pub struct Release {
 
     #[serde(with = "hex::serde")]
     pub source_revision: [u8; 20],
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous: Option<PreviousRelease>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PreviousRelease {
+    pub version: String,
+
+    #[serde(with = "hex::serde")]
+    pub measurements_sha256: [u8; 32],
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RevokedWorkload {
+    pub id: String,
+
+    #[serde(with = "hex::serde")]
+    pub sha256: [u8; 32],
+
+    pub reason: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -38,6 +64,11 @@ pub struct InitData {
 
     #[serde(with = "hex::serde")]
     pub digest: Vec<u8>,
+
+    pub path: String,
+
+    #[serde(with = "hex::serde")]
+    pub sha256: [u8; 32],
 
     #[serde(with = "hex::serde")]
     pub host_data: [u8; 32],
@@ -61,9 +92,9 @@ pub struct SevMeasurement(#[serde(with = "hex::serde")] pub [u8; 48]);
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct TeeMeasurements {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub snp: Option<BTreeMap<VcpuType, SevMeasurement>>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tdx: Option<TdxMeasurements>,
 }
 
