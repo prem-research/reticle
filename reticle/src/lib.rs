@@ -2,21 +2,23 @@
 #[cfg(target_family = "wasm")]
 pub mod fetch;
 pub mod gateway;
+pub mod measurements;
 pub mod query;
 pub mod rego;
 
 use attestation_protocol::{
     bind::Bind,
     modules::{CpuModule, GpuModule, Modules, ModulesBuilder},
-    report::{CpuReport, CvmNonce, CvmReport, GpuReport, manifest::PodReport},
+    report::{CpuReport, CvmNonce, CvmReport, GpuReport, manifest::PodManifest},
 };
 use azure_attest::collateral::ReportVerifierBuilder;
 use libattest::{
     error::{AttestationError, Context, Expose},
     quote::QuoteVerifier,
-    validation::{Validator, Verifiable, WithPolicy},
+    validation::{Validator, Verifiable},
 };
 use nvidia_attest::{EATToken, keychain::KeyChain, verifier::NvidiaVerifier};
+use serde::Serialize;
 use snp_attest::{kds::Kds, verify::SevQuoteVerifier};
 
 pub use nvidia_attest;
@@ -33,6 +35,7 @@ use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
 
 use crate::{
+    measurements::{MeasurementsProvider, url::UrlMeasurements},
     query::QueryParams,
     rego::{PolicyProvider, UrlPolicies},
 };
@@ -48,7 +51,7 @@ pub fn __prem_rs_start() {
 #[derive(Clone, Debug)]
 
 pub struct AttestResult {
-    manifest: PodReport,
+    manifest: PodManifest,
     modules: Modules,
     headers: ResponseHeaders,
 }
@@ -103,8 +106,14 @@ pub struct ClientBuilder {
     pcs: Pcs,
     // amd collateral server
     kds: Kds,
-    // prem OPA policies url
+
+    /// Provider for Rego policies
     policies: Box<dyn PolicyProvider + Send>,
+
+    /// PodVM measurements golden reference values
+    /// to be injected into the regorous engine for
+    /// validation
+    measurements: Box<dyn MeasurementsProvider + Send>,
 
     headers: HeaderMap,
 }
@@ -112,6 +121,7 @@ pub struct ClientBuilder {
 const PREM_PCCS: &str = "https://pccs.prem.io/";
 const PREM_KCDS: &str = "https://kcds.prem.io";
 const PREM_POLICIES: &str = "https://policies.prem.io";
+const PREM_MEASUREMENTS: &str = "https://trustbase.prem.io";
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl ClientBuilder {
@@ -122,6 +132,7 @@ impl ClientBuilder {
             pcs: Pcs::new(PREM_PCCS).unwrap(),
             kds: Kds::new(PREM_KCDS).unwrap(),
             policies: Box::new(UrlPolicies::new(PREM_POLICIES).unwrap()),
+            measurements: Box::new(UrlMeasurements::new(PREM_MEASUREMENTS).unwrap()),
             headers: HeaderMap::default(),
         }
     }
@@ -152,16 +163,39 @@ impl ClientBuilder {
         Ok(self)
     }
 
+    /// Sets the Trustbase URL where to look for measurements (golden values)
+    pub fn with_measurements_url(self, url: &str) -> libattest::Result<Self> {
+        // replace measurements provider
+        Ok(Self {
+            measurements: Box::new(UrlMeasurements::new(url)?),
+            ..self
+        })
+    }
+
     pub async fn build(self) -> Result<Client, AttestationError> {
         let reqwest_client = reqwest::Client::builder()
             .default_headers(self.headers)
             .build()?;
 
+        // fetch the rego policies and output a validator
+        // for us to inject the rest of the data
         let validator = self
             .policies
             .fetch_validator()
             .await
             .context("failed fetching OPA policies from provider")?;
+
+        // fetch measurements from trustbase. these are our golden values
+        let measurements = self
+            .measurements
+            .fetch_measurements()
+            .await
+            .context("failed fetching measurements from provider")?;
+
+        let validator = validator
+            .add_meaurements(measurements)?
+            .build()
+            .context("failed building the rego engine")?;
 
         Ok(Client {
             url: self
@@ -180,10 +214,6 @@ impl ClientBuilder {
 
 impl ClientBuilder {
     /// sets custom url for OPA policies index
-    // pub fn with_policies_url(mut self, url: &str) -> Self {
-    //     self.policies = url.to_string().into();
-    //     self
-    // }
     pub fn with_policy_provider(mut self, policy: impl PolicyProvider + Send + 'static) -> Self {
         self.policies = Box::new(policy);
         self
@@ -226,6 +256,7 @@ impl Client {
     fn attest_quote<'a, Q: QuoteVerifier>(
         &self,
         verifier: Q,
+        manifest: &PodManifest,
         quote: &'a Q::Quote,
         nonce: &Q::Nonce,
         policy: &'static str,
@@ -235,14 +266,23 @@ impl Client {
             .context("Quote verification has failed")
             .expose_error()?;
 
-        let claims: WithPolicy<'_, Q::Quote> = WithPolicy::new(policy, claims);
+        #[derive(Serialize)]
+        struct Input<M, C> {
+            manifest: M,
+            claims: C,
+        }
+
+        let input = Input {
+            manifest,
+            claims: &claims,
+        };
 
         self.policy_validator
-            .verify_claim(&claims)?
+            .evaluate(policy, &input)?
             .or_err("quote claims did not match OPA policy")
             .expose_error()?;
 
-        Ok(claims.claims())
+        Ok(claims)
     }
 
     /// Steps:
@@ -266,7 +306,7 @@ impl Client {
                 // size of nonce our downstream module (in this case sev) needs.
                 let nonce = report.manifest.bind(&*nonce).into();
 
-                self.attest_quote(verifier, attestation, &nonce, "sev.allow")?;
+                self.attest_quote(verifier, &report.manifest, attestation, &nonce, "sev.allow")?;
                 modules = modules.with_cpu(CpuModule::Sev);
             }
             CpuReport::Tdx(items) => {
@@ -281,7 +321,7 @@ impl Client {
                 let verifier = TdxQuoteVerifier::new(collateral);
                 let nonce = report.manifest.bind(&*nonce).into();
 
-                self.attest_quote(verifier, &tdx, &nonce, "tdx.allow")?;
+                self.attest_quote(verifier, &report.manifest, &tdx, &nonce, "tdx.allow")?;
                 modules = modules.with_cpu(CpuModule::Tdx);
             }
             CpuReport::Azr(azure_quote) => {
@@ -297,7 +337,13 @@ impl Client {
                     .fetch_collateral(azure_quote)
                     .await?;
 
-                self.attest_quote(verifier, azure_quote, &nonce, "azure.allow")?;
+                self.attest_quote(
+                    verifier,
+                    &report.manifest,
+                    azure_quote,
+                    &nonce,
+                    "azure.allow",
+                )?;
                 modules = modules.with_cpu(CpuModule::Azure);
             }
         }
@@ -311,7 +357,7 @@ impl Client {
                 let verifier = NvidiaVerifier::new(keychain);
 
                 let nonce = report.cpu.bind(&*nonce).into();
-                self.attest_quote(verifier, &quote, &nonce, "nvidia.allow")?;
+                self.attest_quote(verifier, &report.manifest, &quote, &nonce, "nvidia.allow")?;
                 modules = modules.with_gpu(Some(GpuModule::Nvidia));
             }
         };

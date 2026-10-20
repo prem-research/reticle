@@ -1,5 +1,9 @@
 use futures::{TryStreamExt, stream::FuturesUnordered};
-use libattest::{AttestationError, bail, error::Context, validation::Validator};
+use libattest::{
+    AttestationError, bail,
+    error::Context,
+    validation::{ValidationBuilder, Validator},
+};
 use reqwest::{IntoUrl, Url};
 use serde::Deserialize;
 
@@ -76,16 +80,16 @@ impl UrlPolicies {
 
 #[async_trait::async_trait(?Send)]
 impl PolicyProvider for UrlPolicies {
-    async fn fetch_validator(&self) -> Result<Validator, AttestationError> {
+    async fn fetch_validator(&self) -> Result<ValidationBuilder, AttestationError> {
         let index = self.fetch_index("policies.json").await?;
         let policies = self.fetch_multiple(index.policies).await?;
-        let data = self.fetch_multiple(index.data).await?;
 
-        let validator = Validator::builder()
-            .add_policies(policies)
-            .add_datas_json(data)?
-            .build()
-            .context("failed building validator from source")?;
+        let _data = self.fetch_multiple(index.data).await?;
+        if !_data.is_empty() {
+            libattest::bail!("policies-supplied data is no longer supported");
+        }
+
+        let validator = Validator::builder().add_policies(policies);
 
         Ok(validator)
     }

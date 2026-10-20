@@ -9,7 +9,7 @@ use wasm_bindgen::prelude::*;
 #[macro_export]
 macro_rules! bail {
     ($msg:expr) => {
-        return libattest::error::AttestationError::internal($msg);
+        return libattest::error::AttestationError::internal($msg)
     };
 
     (exposed: $msg:expr) => {
