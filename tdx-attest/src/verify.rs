@@ -9,13 +9,14 @@ use zerocopy::IntoBytes;
 
 use crate::{
     TdxCertification, TdxQuote,
+    certificates::extensions::TcbExtension,
     dcap::types::{ReportData, TdxQuoteBody},
     error::TdxError,
     nonce::TdxNonce,
     pcs::{
         Collateral,
         qe::QeTcbLevel,
-        tcb::{self, Tcb, TcbLevel, TcbStatus},
+        tcb::{TcbInfo, TcbLevel, TcbStatus, TdxModuleTcbStatus},
     },
 };
 
@@ -162,7 +163,32 @@ fn verify_platform_tcb(quote: &TdxQuote, collateral: &Collateral) -> Result<TcbL
         .tcb()
         .context("failed to get tcb from sgx extension")?;
 
-    for tcb_level in &collateral.tcb_info.tcb_levels {
+    match_platform_tcb(
+        pck_tcb,
+        &quote.body().tee_tcb_svn,
+        &collateral.tcb_info.tcb_levels,
+    )
+    .cloned()
+}
+
+fn match_platform_tcb<'a>(
+    pck_tcb: &TcbExtension,
+    tee_tcb_svn: &[u8; 16],
+    levels: &'a [TcbLevel],
+) -> Result<&'a TcbLevel, TdxError> {
+    // PCS TDX TCB Info v4: module versions above zero are appraised separately.
+    // https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-tcb-info-v4
+    let start = if tee_tcb_svn[1] == 0 { 0 } else { 2 };
+
+    for tcb_level in levels {
+        let tdxtcbcomponents = tcb_level
+            .tcb
+            .tdxtcbcomponents
+            .as_ref()
+            .context("missing tdx tcb components")?;
+        if tcb_level.tcb.sgxtcbcomponents.len() != 16 || tdxtcbcomponents.len() != 16 {
+            return TdxError::internal("TCB component arrays must contain exactly 16 entries");
+        }
         // Compare all of the SGX TCB Comp SVNs retrieved from the SGX PCK Certificate (from 01 to 16)
         // with the corresponding values of SVNs in sgxtcbcomponents array of TCB Level.
         // If all SGX TCB Comp SVNs in the certificate are greater or equal to the corresponding values in TCB Level, go to 3.b,
@@ -171,8 +197,8 @@ fn verify_platform_tcb(quote: &TdxQuote, collateral: &Collateral) -> Result<TcbL
             .tcb
             .sgxtcbcomponents
             .iter()
-            .zip(pck_tcb.cpu_svn.clone())
-            .all(|(collateral, quote)| quote >= collateral.svn);
+            .zip(pck_tcb.cpu_svn.iter())
+            .all(|(collateral, quote)| *quote >= collateral.svn);
 
         if !comp_svn_check {
             continue;
@@ -184,36 +210,97 @@ fn verify_platform_tcb(quote: &TdxQuote, collateral: &Collateral) -> Result<TcbL
             continue;
         }
 
-        // Compare SVNs in TEE TCB SVN array retrieved from TD Report in Quote (from index 0 to 15 if TEE TCB SVN at index 1 is set to 0,
-        // or from index 2 to 15 otherwise) with the corresponding values of SVNs in tdxtcbcomponents array of TCB Level.
-        // If all TEE TCB SVNs in the TD Report are greater or equal to the corresponding values in TCB Level,
-        // read tcbStatus assigned to this TCB level. Otherwise, move to the next item on TCB Levels list.\
-        let tdxtcbcomponents = tcb_level
-            .tcb
-            .tdxtcbcomponents
-            .as_ref()
-            .context("missing tdx tcb components")?;
-
-        let mut comp_tee_svn_check = tdxtcbcomponents.iter().zip(quote.body().tee_tcb_svn);
-
-        // https://api.portal.trustedservices.intel.com/content/documentation.html#pcs-tcb-info-v4:~:text=from%20index%200%20to%2015%20if%20TEE%20TCB%20SVN%20at%20index%201%20is%20set%20to%200%2C%20or%20from%20index%202%20to%2015%20otherwise
-        let tee_tcb_svn_1 = tdxtcbcomponents.get(1).context("missing TEE TCB SVN")?.svn;
-        if tee_tcb_svn_1 == 0 {
-            comp_tee_svn_check.by_ref().take(2).count(); // skip 2 items from the iterator if tee_tcb_svn = 0
-        }
-
-        let comp_tee_svn_check =
-            comp_tee_svn_check.all(|(collateral, quote)| u32::from(quote) >= collateral.svn);
+        let comp_tee_svn_check = tdxtcbcomponents
+            .iter()
+            .zip(tee_tcb_svn)
+            .skip(start)
+            .all(|(collateral, quote)| u32::from(*quote) >= collateral.svn);
 
         if !comp_tee_svn_check {
             continue;
         }
 
         // we found our tcb level
-        return Ok(tcb_level.clone());
+        return Ok(tcb_level);
     }
 
     TdxError::internal("Could not find an appropriate TCB Level for this quote")
+}
+
+fn verify_tdx_module(body: &TdxQuoteBody, tcb_info: &TcbInfo) -> Result<TcbStatus, TdxError> {
+    let version = body.tee_tcb_svn[1];
+    let (mrsigner, attributes, attributes_mask, status) = if version == 0 {
+        let module = tcb_info
+            .tdx_module
+            .as_ref()
+            .context("missing base TDX module")?;
+        (
+            &module.mrsigner,
+            &module.attributes,
+            &module.attributes_mask,
+            TcbStatus::UpToDate,
+        )
+    } else {
+        let id = format!("TDX_{version:02X}");
+        let module = tcb_info
+            .tdx_module_identities
+            .as_ref()
+            .and_then(|identities| {
+                identities
+                    .iter()
+                    .find(|module| module.id.eq_ignore_ascii_case(&id))
+            })
+            .context("TDX module identity not supported")?;
+        let level = module
+            .tcb_levels
+            .iter()
+            .find(|level| level.tcb.isvsvn <= u32::from(body.tee_tcb_svn[0]))
+            .context("TDX module TCB level not supported")?;
+        let status = match level.tcb_status {
+            TdxModuleTcbStatus::UpToDate => TcbStatus::UpToDate,
+            TdxModuleTcbStatus::OutOfDate => TcbStatus::OutOfDate,
+            TdxModuleTcbStatus::Revoked => TcbStatus::Revoked,
+        };
+        (
+            &module.mrsigner,
+            &module.attributes,
+            &module.attributes_mask,
+            status,
+        )
+    };
+
+    let mut signer = [0; 48];
+    let mut attrs = [0; 8];
+    let mut mask = [0; 8];
+    hex::decode_to_slice(mrsigner, &mut signer).context("invalid TDX module mrsigner")?;
+    hex::decode_to_slice(attributes, &mut attrs).context("invalid TDX module attributes")?;
+    hex::decode_to_slice(attributes_mask, &mut mask)
+        .context("invalid TDX module attributes mask")?;
+    if body.mrsignerseam.as_bytes() != signer {
+        return TdxError::internal("TDX module mrsigner mismatch");
+    }
+    // QVL QuoteVerifier.cpp (d12717e3): SEAMATTRIBUTES are reserved and must
+    // equal the collateral attributes and zero, regardless of the mask.
+    if body.seamsttributes != attrs || attrs != [0; 8] {
+        return TdxError::internal("TDX module attributes mismatch or nonzero reserved attributes");
+    }
+
+    Ok(status)
+}
+
+fn effective_tcb_status(platform: &TcbStatus, module: &TcbStatus, qe: &TcbStatus) -> TcbStatus {
+    use TcbStatus::*;
+
+    // Intel QVL EvaluateTcb.cpp (d12717e3), convergeTcbStatuses.
+    match (platform, module, qe) {
+        (Revoked, _, _) | (_, Revoked, _) | (_, _, Revoked) => Revoked,
+        (_, OutOfDate, _) | (_, _, OutOfDate) => match platform {
+            UpToDate | SWHardeningNeeded => OutOfDate,
+            ConfigurationNeeded | ConfigurationAndSWHardeningNeeded => OutOfDateConfigurationNeeded,
+            Revoked | OutOfDate | OutOfDateConfigurationNeeded => platform.clone(),
+        },
+        _ => platform.clone(),
+    }
 }
 
 fn verify_report_data(quote: &TdxQuote, report_data: &TdxNonce) -> Result<(), TdxError> {
@@ -228,6 +315,25 @@ fn verify_report_data(quote: &TdxQuote, report_data: &TdxNonce) -> Result<(), Td
 pub struct TcbLevels {
     qe_tcb: QeTcbLevel,
     isv_tcb: TcbLevel,
+    effective_tcb_status: TcbStatus,
+}
+
+impl TcbLevels {
+    fn verify_minimum(&self, minimum_tcb: &TcbStatus) -> Result<(), TdxError> {
+        if self.qe_tcb.tcb_status < *minimum_tcb {
+            let tcb_status = &self.qe_tcb.tcb_status;
+            return TdxError::internal("minimum qe_tcb not matched")
+                .with_context(|| format!("expected {minimum_tcb} got {tcb_status}"));
+        }
+
+        if self.effective_tcb_status < *minimum_tcb {
+            let tcb_status = &self.effective_tcb_status;
+            return TdxError::internal("minimum effective TCB not matched")
+                .with_context(|| format!("expected {minimum_tcb} got {tcb_status}"));
+        }
+
+        Ok(())
+    }
 }
 
 // #[cfg_attr(target_family = "wasm", wasm_bindgen)]
@@ -244,10 +350,18 @@ fn verify(
         .context("error while verifying qe identity policy")?;
     let isv_tcb = verify_platform_tcb(quote, collateral)
         .context("failed to match a tcb level for this quote")?;
+    let module_tcb = verify_tdx_module(quote.body(), &collateral.tcb_info)
+        .context("failed to verify TDX module")?;
+    let effective_tcb_status =
+        effective_tcb_status(&isv_tcb.tcb_status, &module_tcb, &qe_tcb.tcb_status);
 
     verify_report_data(quote, report_data).context("error while matching report data")?;
 
-    let tcb_levels = TcbLevels { qe_tcb, isv_tcb };
+    let tcb_levels = TcbLevels {
+        qe_tcb,
+        isv_tcb,
+        effective_tcb_status,
+    };
     Ok(tcb_levels)
 }
 
@@ -289,19 +403,7 @@ impl QuoteVerifier for TdxQuoteVerifier {
         nonce: &TdxNonce,
     ) -> Result<&'a TdxQuoteBody, TdxError> {
         let tcb_levels = verify(quote, &self.collateral, nonce)?;
-        let minimum_tcb = &self.minimum_tcb_level;
-
-        if tcb_levels.qe_tcb.tcb_status < self.minimum_tcb_level {
-            let tcb_status = tcb_levels.qe_tcb.tcb_status;
-            return TdxError::internal("minimum qe_tcb not matched")
-                .with_context(|| format!("expected {minimum_tcb} got {tcb_status}"));
-        }
-
-        if tcb_levels.isv_tcb.tcb_status < self.minimum_tcb_level {
-            let tcb_status = tcb_levels.isv_tcb.tcb_status;
-            return TdxError::internal("minimum isv_tcb not matched")
-                .with_context(|| format!("expected {minimum_tcb} got {tcb_status}"));
-        }
+        tcb_levels.verify_minimum(&self.minimum_tcb_level)?;
 
         Ok(&quote.body)
     }
