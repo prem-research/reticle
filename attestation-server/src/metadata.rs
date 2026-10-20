@@ -1,10 +1,7 @@
 use std::{collections::BTreeMap, path::Path};
 
 use anyhow::Context;
-use attestation_protocol::{
-    modules::{CpuModule, Modules},
-    report::manifest::PodManifest,
-};
+use attestation_protocol::report::manifest::PodManifest;
 use serde::Deserialize;
 
 const OS_RELEASE: &str = "/run/podvm/os-release";
@@ -42,7 +39,7 @@ pub fn parse_env(env: &str) -> anyhow::Result<BTreeMap<String, String>> {
     Ok(env)
 }
 
-pub fn fetch_claims(modules: &Modules) -> anyhow::Result<PodManifest> {
+pub fn fetch_claims() -> anyhow::Result<PodManifest> {
     // identify podvm version
     let os_release = Path::new(OS_RELEASE);
     let os_release =
