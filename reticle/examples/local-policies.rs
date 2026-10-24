@@ -10,7 +10,10 @@ async fn main() -> libattest::Result<()> {
     let kds = Kds::default();
     let client = ClientBuilder::new(&api_url)
         .with_kds(kds)
-        .with_policy_provider(FilePolicies::new("./examples/policies/"))
+        .with_policy_provider(FilePolicies::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/examples/policies/"
+        )))
         .build()
         .await?;
 

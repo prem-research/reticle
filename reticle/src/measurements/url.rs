@@ -1,7 +1,10 @@
 use libattest::AttestationError;
 use reqwest::{IntoUrl, Url};
 
-use crate::measurements::{Measurements, MeasurementsProvider};
+use crate::{
+    measurements::{Measurements, MeasurementsProvider},
+    sigstore::SigstoreVerifier,
+};
 
 pub struct UrlMeasurements {
     base_url: Url,
@@ -17,10 +20,16 @@ impl UrlMeasurements {
 
 #[async_trait::async_trait(?Send)]
 impl MeasurementsProvider for UrlMeasurements {
-    async fn fetch_measurements(&self) -> Result<Measurements, AttestationError> {
+    async fn fetch_measurements(
+        &self,
+        sigstore: &SigstoreVerifier,
+    ) -> Result<Measurements, AttestationError> {
         let measurements = self.base_url.join("measurements.json")?;
-        let measurements = reqwest::get(measurements).await?.json().await?;
+        let measurements = reqwest::get(measurements).await?.text().await?;
 
+        sigstore.verify_file("measurements.json", measurements.as_bytes())?;
+
+        let measurements = serde_json::from_str(&measurements)?;
         Ok(measurements)
     }
 }

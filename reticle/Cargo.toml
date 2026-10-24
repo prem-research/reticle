@@ -7,6 +7,7 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+tinysig = { git = "https://github.com/prem-research/tinysig.git" }
 bytes = "1.11.0"
 nvidia-attest = { path = "../nvidia-attest" }
 reqwest.workspace = true
@@ -28,7 +29,11 @@ async-once-cell = "0.5.4"
 async-trait = "0.1.89"
 anyhow = { workspace = true, optional = true }
 clap = { version = "4.6.4", features = ["derive", "env"], optional = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"], optional = true }
+tokio = { workspace = true, features = [
+    "macros",
+    "rt-multi-thread",
+], optional = true }
+serde_json.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }

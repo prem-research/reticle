@@ -5,6 +5,8 @@ use std::collections::BTreeMap;
 use libattest::AttestationError;
 use serde::{Deserialize, Serialize};
 
+use crate::sigstore::SigstoreVerifier;
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Measurements {
@@ -152,7 +154,10 @@ pub enum VcpuType {
 
 #[async_trait::async_trait(?Send)]
 pub trait MeasurementsProvider {
-    async fn fetch_measurements(&self) -> Result<Measurements, AttestationError>;
+    async fn fetch_measurements(
+        &self,
+        sigstore: &SigstoreVerifier,
+    ) -> Result<Measurements, AttestationError>;
 }
 
 #[cfg(test)]

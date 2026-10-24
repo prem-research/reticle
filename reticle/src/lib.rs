@@ -5,6 +5,7 @@ pub mod gateway;
 pub mod measurements;
 pub mod query;
 pub mod rego;
+pub mod sigstore;
 
 use attestation_protocol::{
     bind::Bind,
@@ -102,6 +103,8 @@ pub struct AttestResponse {
 pub struct ClientBuilder {
     /// base url for PREM attestation server
     url: String,
+    /// base url for sigstore repository
+    sigstore_url: String,
     /// intel collateral server
     pcs: Pcs,
     // amd collateral server
@@ -120,7 +123,6 @@ pub struct ClientBuilder {
 
 const PREM_PCCS: &str = "https://pccs.prem.io/";
 const PREM_KCDS: &str = "https://kcds.prem.io";
-const PREM_POLICIES: &str = "https://policies.prem.io";
 const PREM_MEASUREMENTS: &str = "https://trustbase.prem.io";
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
@@ -131,9 +133,10 @@ impl ClientBuilder {
             url: url.to_string(),
             pcs: Pcs::new(PREM_PCCS).unwrap(),
             kds: Kds::new(PREM_KCDS).unwrap(),
-            policies: Box::new(UrlPolicies::new(PREM_POLICIES).unwrap()),
+            policies: Box::new(UrlPolicies::new(PREM_MEASUREMENTS).unwrap()),
             measurements: Box::new(UrlMeasurements::new(PREM_MEASUREMENTS).unwrap()),
             headers: HeaderMap::default(),
+            sigstore_url: PREM_MEASUREMENTS.to_string(),
         }
     }
 
@@ -177,18 +180,22 @@ impl ClientBuilder {
             .default_headers(self.headers)
             .build()?;
 
+        let sigstore = sigstore::fetch_sigstore(self.sigstore_url)
+            .await
+            .context("failed fetching sigstore verifier")?;
+
         // fetch the rego policies and output a validator
         // for us to inject the rest of the data
         let validator = self
             .policies
-            .fetch_validator()
+            .fetch_validator(&sigstore)
             .await
             .context("failed fetching OPA policies from provider")?;
 
         // fetch measurements from trustbase. these are our golden values
         let measurements = self
             .measurements
-            .fetch_measurements()
+            .fetch_measurements(&sigstore)
             .await
             .context("failed fetching measurements from provider")?;
 

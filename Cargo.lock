@@ -3209,9 +3209,11 @@ dependencies = [
  "reqwest",
  "serde",
  "serde-wasm-bindgen",
+ "serde_json",
  "snp-attest",
  "tdx-attest",
  "thiserror 2.0.18",
+ "tinysig",
  "tokio",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -4195,6 +4197,22 @@ checksum = "2e70e4c5a0e0a8a4823ad65dfe1a6930e4f4d756dcd9dd7939022b5e8c501215"
 dependencies = [
  "num-conv",
  "time-core",
+]
+
+[[package]]
+name = "tinysig"
+version = "0.1.0"
+source = "git+https://github.com/prem-research/tinysig.git#5f7f68317e7d94bceb5088c3b1092359169b6b03"
+dependencies = [
+ "base64",
+ "der 0.7.10",
+ "ed25519-dalek",
+ "p256 0.13.2",
+ "p384",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "x509-cert 0.2.5",
 ]
 
 [[package]]
