@@ -206,7 +206,7 @@ dependencies = [
 
 [[package]]
 name = "attestation-server"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "attestation-protocol",
@@ -2137,7 +2137,7 @@ checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 
 [[package]]
 name = "libattest"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "der 0.8.0",
@@ -2459,7 +2459,7 @@ dependencies = [
 
 [[package]]
 name = "nvidia-attest"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "getrandom 0.2.16",
  "hex",
@@ -3192,7 +3192,7 @@ dependencies = [
 
 [[package]]
 name = "reticle"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "async-once-cell",
@@ -3887,7 +3887,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "snp-attest"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "der 0.7.10",
@@ -4081,7 +4081,7 @@ checksum = "61c41af27dd6d1e27b1b16b489db798443478cef1f06a660c96db617ba5de3b1"
 
 [[package]]
 name = "tdx-attest"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
