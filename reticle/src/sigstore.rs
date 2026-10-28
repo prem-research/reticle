@@ -1,7 +1,4 @@
-use std::{
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{sync::Arc, time::UNIX_EPOCH};
 
 use libattest::error::Context;
 use reqwest::IntoUrl;
@@ -36,7 +33,7 @@ impl SigstoreVerifier {
                 self.bundle.as_bytes(),
                 TRUSTBASE_IDENTITY,
                 GITHUB_ISSUER,
-                SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+                libattest::time::now().duration_since(UNIX_EPOCH)?.as_secs(),
             )
             .with_context(|| format!("sigstore verification failed for {file_name}"))?;
 

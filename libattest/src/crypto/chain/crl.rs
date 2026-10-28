@@ -46,7 +46,7 @@ impl Crl {
         let expired = list
             .tbs_cert_list
             .next_update
-            .is_some_and(|a| a.to_system_time() < crate::now());
+            .is_some_and(|a| a.to_system_time() < crate::time::now());
 
         if expired {
             return Err(CertificateError::Expired);
