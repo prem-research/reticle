@@ -16,7 +16,7 @@ der = { version = "0.8.0-rc.10", features = ["derive", "oid", "std"] }
 signature = "3.0"
 sec1 = "0.7.3"
 reqwest = { workspace = true, features = ["json", "query"] }
-chrono = { version = "0.4.44", features = ["serde"] }
+chrono = { version = "0.4.44", default-features = false, features = ["serde", "std"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["preserve_order"] }
 anyhow.workspace = true

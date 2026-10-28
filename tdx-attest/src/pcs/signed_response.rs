@@ -41,7 +41,7 @@ impl<T> SignedResponse<T> {
     where
         T: DeserializeOwned,
     {
-        let now = chrono::Utc::now();
+        let now: chrono::DateTime<Utc> = libattest::time::now().into();
 
         if self.header.issue_date > now {
             return TdxError::internal("pcs response signature has a later issue_date than now");

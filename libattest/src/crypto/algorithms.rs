@@ -42,7 +42,7 @@ fn verify_cert_common(certificate: &x509_cert::Certificate) -> Result<(), Certif
         .not_before
         .to_system_time();
 
-    let now = crate::now();
+    let now = crate::time::now();
 
     if not_before > now || not_after < now {
         return Err(CertificateError::Expired);
