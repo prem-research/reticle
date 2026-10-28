@@ -1,11 +1,12 @@
 use azure_attest::{collateral::ReportVerifierBuilder, nonce::AzureNonce};
+use libattest::quote::QuoteVerifier;
 use snp_attest::{kds::Kds, verify::SevQuoteVerifier};
 
-const ATTESTATION: &'static str = include_str!("./attestation.json");
+const ATTESTATION: &str = include_str!("./attestation.json");
 
 #[test]
 fn decode_attestation() {
-    let attestation: azure_attest::AzureQuote = serde_json::from_str(ATTESTATION).unwrap();
+    let _: azure_attest::AzureQuote = serde_json::from_str(ATTESTATION).unwrap();
 }
 
 #[tokio::test]
@@ -26,7 +27,7 @@ async fn verify_attestation() {
         .unwrap();
 
     let nonce = AzureNonce::from([0u8; 32]);
-    let claims = quote.verify(verifier, &nonce).unwrap();
+    let claims = verifier.verify(&quote, &nonce).unwrap();
 
     println!("{claims:?}");
 }

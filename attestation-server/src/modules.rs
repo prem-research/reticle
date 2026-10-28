@@ -1,5 +1,5 @@
 use anyhow::Context;
-use libattest::{CpuModule, GpuModule, Modules, ModulesBuilder};
+use attestation_protocol::modules::{CpuModule, GpuModule, Modules, ModulesBuilder};
 use serde::Deserialize;
 use std::{path::Path, time::Duration};
 

@@ -11,6 +11,7 @@ use libattest::{
     validation::Verifiable,
 };
 
+use serde::{Deserialize, Serialize};
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
@@ -27,11 +28,11 @@ use self::chain::VerifiedChain;
 /// Represents a parsed attestation report with some already
 /// parsed commonly accessed fields
 #[allow(unused)]
+#[derive(Serialize, Deserialize)]
 pub struct SevQuote {
     cpu_fam_id: CpuFamily,
     cpu_mod_id: CpuModel,
-    generation: Generation,
-
+    // generation: Generation,
     report: AttestationReport,
 }
 
@@ -49,13 +50,9 @@ impl SevQuote {
             .cpuid_mod_id
             .context("missing cpuid_mod_id from attestation report")?;
 
-        let generation = sev::Generation::identify_cpu(cpu_fam_id, cpu_mod_id)
-            .context("could not identify cpu from attestation report")?;
-
         Ok(SevQuote {
             cpu_fam_id,
             cpu_mod_id,
-            generation,
             report,
         })
     }
@@ -84,21 +81,20 @@ impl SevQuote {
             .context("failed to check spl from attestation report")
             .expose_error()?;
 
+        let generation = self.generation()?;
+
         /* Compare HWID */
         if let Some(hwid) = exts_map.get(&oid::HWID) {
-            oid::compare_bytes(
-                hwid,
-                chipid_from_gen(&self.report.chip_id, self.generation()),
-            )
-            .then_some(())
-            .context("mismatched chip id")?
+            oid::compare_bytes(hwid, chipid_from_gen(&self.report.chip_id, generation))
+                .then_some(())
+                .context("mismatched chip id")?
         }
 
         let product_name_ext = exts_map.get(&oid::PRODUCT_NAME).unwrap();
         let (product_name, _) = kds::decode_product_name(product_name_ext.value.to_vec())
             .context("could not get product name")?;
 
-        if product_name != self.generation.titlecase() {
+        if product_name != generation.titlecase() {
             return AttestationError::internal(
                 "mismatched product name from one gathered from kds",
             );
@@ -124,20 +120,17 @@ impl SevQuote {
 }
 
 impl SevQuote {
-    pub fn generation(&self) -> Generation {
-        self.generation
-    }
-
     pub fn report(&self) -> &AttestationReport {
         &self.report
+    }
+
+    pub fn generation(&self) -> libattest::Result<Generation> {
+        sev::Generation::identify_cpu(self.cpu_fam_id, self.cpu_mod_id)
+            .context("could not identify cpu from attestation report")
     }
 }
 
 impl Verifiable for SevQuote {
-    fn claims(&self) -> SevClaims {
-        SevClaims::from(self.report())
-    }
-
     type Claims<'a>
         = SevClaims
     where

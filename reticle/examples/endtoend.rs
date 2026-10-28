@@ -1,4 +1,4 @@
-use reticle::{ClientBuilder, query::QueryParams};
+use reticle::ClientBuilder;
 use snp_attest::kds::Kds;
 
 #[tokio::main]

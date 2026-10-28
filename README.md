@@ -57,7 +57,8 @@ Includes an attestation server serving REST APIs and a portable SDK with support
 make nvidia-cpp-sdk
 ```
 
-This clones, builds, and installs the NVIDIA attestation SDK (`libnvat`).
+This clones, builds, and installs the NVIDIA attestation SDK (`libnvat`) into
+the local `./sysroot` directory without `sudo`.
 
 ### Rust binaries
 
@@ -81,7 +82,26 @@ Produces the `@premai/reticle` npm package in `reticle/pkg/`.
 
 ### Docker (attestation-server)
 
-The attestation server ships as a Docker image built via the CI pipeline. See [`attestation-server/Dockerfile`](./attestation-server/Dockerfile).
+Build the attestation server image locally:
+
+```bash
+make attestation-server-image
+```
+
+This first builds and caches the required runtime libraries in the gitignored
+`./sysroot` directory, then tags the image as `attestation-server:local`.
+Override the image name as needed:
+
+```bash
+make attestation-server-image \
+  ATTESTATION_SERVER_IMAGE=attestation-server:dev
+```
+
+Remove the cached local sysroot with:
+
+```bash
+make clean-sysroot
+```
 
 ## Development
 

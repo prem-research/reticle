@@ -29,7 +29,9 @@ impl ToString for Fmspc {
 }
 
 #[repr(C, packed)]
-#[derive(FromBytes, KnownLayout, IntoBytes, Immutable, Unaligned, Debug, Clone)]
+#[derive(
+    FromBytes, KnownLayout, IntoBytes, Immutable, Unaligned, Debug, Clone, Serialize, Deserialize,
+)]
 pub struct TdxQuoteHeader {
     pub version: u16,
     pub attestation_type: u16,
@@ -41,7 +43,9 @@ pub struct TdxQuoteHeader {
     pub user_data: [u8; 20],
 }
 
-#[derive(Serialize, Debug, FromBytes, Immutable, KnownLayout, IntoBytes, Clone, Copy)]
+#[derive(
+    Serialize, Debug, FromBytes, Immutable, KnownLayout, IntoBytes, Clone, Copy, Deserialize,
+)]
 #[repr(transparent)]
 #[serde(transparent)]
 pub struct Sha384(#[serde(with = "hex::serde")] [u8; 48]);
@@ -49,7 +53,9 @@ pub struct Sha384(#[serde(with = "hex::serde")] [u8; 48]);
 pub type ReportData = [u8; 64];
 
 #[repr(C, packed)]
-#[derive(FromBytes, KnownLayout, Immutable, Unaligned, Debug, IntoBytes, Clone, Serialize)]
+#[derive(
+    FromBytes, KnownLayout, Immutable, Unaligned, Debug, IntoBytes, Clone, Serialize, Deserialize,
+)]
 pub struct TdxQuoteBody {
     pub tee_tcb_svn: SVNs,
     pub mrseam: Sha384,

@@ -1,8 +1,11 @@
 use std::path::PathBuf;
 
-use libattest::{AttestationError, validation::Validator};
+use libattest::{
+    AttestationError,
+    validation::{ValidationBuilder, Validator},
+};
 
-use crate::rego::PolicyProvider;
+use crate::{rego::PolicyProvider, sigstore::SigstoreVerifier};
 
 /// fetch rego policies from the filesystem. Useful for local testing.
 /// Will just list all .rego files in a directory and load them all
@@ -18,7 +21,10 @@ impl FilePolicies {
 
 #[async_trait::async_trait(?Send)]
 impl PolicyProvider for FilePolicies {
-    async fn fetch_validator(&self) -> Result<Validator, AttestationError> {
+    async fn fetch_validator(
+        &self,
+        _: &SigstoreVerifier,
+    ) -> Result<ValidationBuilder, AttestationError> {
         if !self.path.is_dir() {
             libattest::bail!("not a directory");
         }
@@ -30,6 +36,6 @@ impl PolicyProvider for FilePolicies {
             policies.push(policy);
         }
 
-        Validator::builder().add_policies(policies).build()
+        Ok(Validator::builder().add_policies(policies))
     }
 }

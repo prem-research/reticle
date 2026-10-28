@@ -1,7 +1,11 @@
+use libattest::quote::QuoteVerifier;
 use snp_attest::{SevQuote, verify::SevQuoteVerifier};
 use tdx_attest::{TdxQuote, verify::TdxQuoteVerifier};
 
-use crate::quote::{AzureQuote, ParsedHardwareReport};
+use crate::{
+    nonce::AzureNonce,
+    quote::{AzureQuote, ParsedHardwareReport, verify},
+};
 
 /// Construct the builder providing two async functions
 /// that fetch collateral and build a quote verifier
@@ -92,5 +96,20 @@ impl ReportVerifier {
             ReportVerifier::Sev(sev) => Some(sev),
             _ => None,
         }
+    }
+}
+
+impl QuoteVerifier for ReportVerifier {
+    type Nonce = AzureNonce;
+    type Quote = AzureQuote;
+
+    /// performs cryptographic verification of the whole azure stack
+    /// and returns a set of verified claims on which the client can apply policies
+    fn verify<'a>(
+        &self,
+        quote: &'a Self::Quote,
+        nonce: &Self::Nonce,
+    ) -> libattest::Result<<Self::Quote as libattest::validation::Verifiable>::Claims<'a>> {
+        verify::verify_impl(quote, self, nonce)
     }
 }

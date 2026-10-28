@@ -5,6 +5,7 @@ use libattest::{
     validation::Verifiable,
 };
 use p256::ecdsa::{Signature, VerifyingKey};
+use serde::{Deserialize, Serialize};
 
 use crate::{
     certificates::{ca, extensions::SgxExtensions},
@@ -127,9 +128,9 @@ impl TdxQuote {
 impl Verifiable for TdxQuote {
     type Claims<'a> = &'a TdxQuoteBody;
 
-    fn claims(&self) -> Self::Claims<'_> {
-        &self.body
-    }
+    // fn claims(&self) -> Self::Claims<'_> {
+    //     &self.body
+    // }
 }
 
 /// public keys are encoded in dcap without the header for sec1 (0x04)

@@ -4,6 +4,7 @@ target/
 # others
 *.bck/
 /attestation-sdk
+/sysroot
 
 # AI assist
 CLAUDE.local.[mM][dD]

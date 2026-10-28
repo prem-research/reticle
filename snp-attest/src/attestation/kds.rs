@@ -1,7 +1,21 @@
+use std::{collections::HashMap, sync::LazyLock};
+
 use libattest::error::AttestationError;
 use reqwest::{Client, Url};
-use sev::{Generation, firmware::host::TcbVersion};
+use sev::{Generation, certs::snp::Certificate, firmware::host::TcbVersion};
 use x509_cert::certificate::{CertificateInner, Rfc5280};
+
+static ARK: LazyLock<HashMap<&str, Certificate>> = LazyLock::new(|| {
+    [
+        ("Genoa", include_bytes!("./certificates/genoa.pem").as_ref()),
+        ("Milan", include_bytes!("./certificates/milan.pem")),
+        ("Turin", include_bytes!("./certificates/turin.pem")),
+        ("Venice", include_bytes!("./certificates/venice.pem")),
+    ]
+    .into_iter()
+    .map(|(gener, cert)| (gener, Certificate::from_pem(cert).unwrap()))
+    .collect()
+});
 
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -18,12 +32,6 @@ pub struct Kds {
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl Kds {
-    // pub fn new() -> Self {
-    //     Self {
-    //         kds: Url::parse("https://kdsintf.amd.com/").unwrap(),
-    //     }
-    // }
-
     #[cfg_attr(target_family = "wasm", wasm_bindgen(constructor))]
     pub fn new(cache_url: &str) -> Result<Self, AttestationError> {
         let kds = cache_url.parse()?;
@@ -54,9 +62,19 @@ impl Kds {
             return AttestationError::internal("missing ask or ark certificate from kds response");
         };
 
+        let received_ark: Certificate = ark.into();
+        let pinned_ark = &ARK[generation.titlecase().as_str()];
+
+        // we compare what we received in the KDS
+        // with our own pinned CA
+        if !pinned_ark.eq(&received_ark) {
+            println!("Received CA: {received_ark:?}, Stored CA: {ARK:?}");
+            libattest::bail!("Critical mismatch in AMD's Root CA");
+        }
+
         Ok(sev::certs::snp::ca::Chain {
             ask: ask.into(),
-            ark: ark.into(), // TODO: should be embedded? they're being pulled from https so it might not matter that much
+            ark: received_ark, // TODO: should be embedded? they're being pulled from https so it might not matter that much
         })
     }
 
@@ -114,7 +132,7 @@ impl Kds {
             .get_chain(
                 &attestation.report.chip_id,
                 attestation.report.reported_tcb,
-                attestation.generation,
+                attestation.generation()?,
             )
             .await?;
 
@@ -128,7 +146,7 @@ impl Kds {
         let client = Client::new();
         let req = client.get(format!(
             "{}/crl",
-            self.get_base_url(attestation.generation())
+            self.get_base_url(attestation.generation()?)
         ));
 
         let resp = req.send().await?.bytes().await?;

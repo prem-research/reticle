@@ -3,13 +3,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use azure_attest::{AzureQuote, host::vtpm::AzureTpmCtx, nonce::AzureNonce};
+use azure_attest::host::vtpm::AzureTpmCtx;
 use rocket::{
-    Build, Rocket, State,
+    Build, Rocket,
     fairing::{Fairing, Kind},
 };
-
-use crate::{nonce::NonceParam, response::ApiJsonResult};
 
 #[derive(Clone)]
 pub struct TpmDevice {
@@ -82,16 +80,16 @@ impl Fairing for AzureFairing {
     }
 }
 
-#[rocket::get("/azure?<nonce>")]
-pub async fn azure_attestation(
-    nonce: NonceParam<libattest::ByteNonce<32>, 32>,
-    tpm: &State<TpmDevice>,
-) -> ApiJsonResult<AzureQuote> {
-    let NonceParam(nonce) = nonce;
-    let nonce = AzureNonce::new(nonce);
+// #[rocket::get("/azure?<nonce>")]
+// pub async fn azure_attestation(
+//     nonce: NonceParam<libattest::ByteNonce<32>, 32>,
+//     tpm: &State<TpmDevice>,
+// ) -> ApiJsonResult<AzureQuote> {
+//     let NonceParam(nonce) = nonce;
+//     let nonce = AzureNonce::new(nonce);
 
-    let tpm = tpm.create_context()?;
-    let quote = azure_attest::host::azure_attest(tpm, &nonce)?;
+//     let tpm = tpm.create_context()?;
+//     let quote = azure_attest::host::azure_attest(tpm, &nonce)?;
 
-    Ok(quote.into())
-}
+//     Ok(quote.into())
+// }

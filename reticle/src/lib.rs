@@ -2,21 +2,25 @@
 #[cfg(target_family = "wasm")]
 pub mod fetch;
 pub mod gateway;
+pub mod measurements;
 pub mod query;
 pub mod rego;
+pub mod sigstore;
 
-use std::pin::Pin;
-
-use azure_attest::{AzureQuote, collateral::ReportVerifierBuilder, nonce::AzureNonce};
-use futures::future::OptionFuture;
+use attestation_protocol::{
+    bind::Bind,
+    modules::{CpuModule, GpuModule, Modules, ModulesBuilder},
+    report::{CpuReport, CvmNonce, CvmReport, GpuReport, manifest::PodManifest},
+};
+use azure_attest::collateral::ReportVerifierBuilder;
 use libattest::{
-    CpuModule, GpuModule, Modules, bail,
     error::{AttestationError, Context, Expose},
     quote::QuoteVerifier,
-    validation::{Validator, WithPolicy},
+    validation::{Validator, Verifiable},
 };
-use nvidia_attest::{EATToken, keychain::KeyChain, nonce::NvidiaNonce};
-use snp_attest::{SevQuote, kds::Kds, nonce::SevNonce, verify::SevQuoteVerifier};
+use nvidia_attest::{EATToken, keychain::KeyChain, verifier::NvidiaVerifier};
+use serde::Serialize;
+use snp_attest::{kds::Kds, verify::SevQuoteVerifier};
 
 pub use nvidia_attest;
 use reqwest::{
@@ -25,12 +29,14 @@ use reqwest::{
 };
 pub use snp_attest;
 
-use tdx_attest::{TdxQuote, nonce::TdxNonce, pcs::Pcs, verify::TdxQuoteVerifier};
+use tdx_attest::{TdxQuote, pcs::Pcs, verify::TdxQuoteVerifier};
 
+use wasm_bindgen::JsValue;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
 use crate::{
+    measurements::{MeasurementsProvider, url::UrlMeasurements},
     query::QueryParams,
     rego::{PolicyProvider, UrlPolicies},
 };
@@ -44,36 +50,30 @@ pub fn __prem_rs_start() {
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 #[derive(Clone, Debug)]
-pub struct AttestHeaders {
-    cpu: Option<ResponseHeaders>,
-    gpu: Option<ResponseHeaders>,
-}
 
-#[cfg_attr(target_family = "wasm", wasm_bindgen)]
-impl AttestHeaders {
-    pub fn cpu(&self) -> Option<ResponseHeaders> {
-        self.cpu.clone()
-    }
-
-    pub fn gpu(&self) -> Option<ResponseHeaders> {
-        self.gpu.clone()
-    }
-}
-
-#[cfg_attr(target_family = "wasm", wasm_bindgen)]
-#[derive(Clone, Debug)]
 pub struct AttestResult {
+    manifest: PodManifest,
     modules: Modules,
-    headers: AttestHeaders,
+    headers: ResponseHeaders,
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl AttestResult {
+    /// Returns the manifest as serde serialized data. This means that it will
+    /// go through JSON representation first. You can expect this to preserve the
+    /// same format as the JSON report inside the CVM.
+    pub fn pod_report(&self) -> JsValue {
+        serde_wasm_bindgen::to_value(&self.manifest)
+            .expect("Failed serializing the manifest into a JsValue. This should not ever happen.")
+    }
+
+    /// Returns the Modules that the remote party attested.
     pub fn modules(&self) -> Modules {
         self.modules
     }
 
-    pub fn headers(&self) -> AttestHeaders {
+    /// Returns the response headers returned by the attestation request.
+    pub fn headers(&self) -> ResponseHeaders {
         self.headers.clone()
     }
 }
@@ -94,8 +94,8 @@ impl ResponseHeaders {
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
-pub struct NvidiaAttestResult {
-    eat_token: EATToken,
+pub struct AttestResponse {
+    report: CvmReport,
     headers: ResponseHeaders,
 }
 
@@ -103,19 +103,27 @@ pub struct NvidiaAttestResult {
 pub struct ClientBuilder {
     /// base url for PREM attestation server
     url: String,
+    /// base url for sigstore repository
+    sigstore_url: String,
     /// intel collateral server
     pcs: Pcs,
     // amd collateral server
     kds: Kds,
-    // prem OPA policies url
+
+    /// Provider for Rego policies
     policies: Box<dyn PolicyProvider + Send>,
+
+    /// PodVM measurements golden reference values
+    /// to be injected into the regorous engine for
+    /// validation
+    measurements: Box<dyn MeasurementsProvider + Send>,
 
     headers: HeaderMap,
 }
 
 const PREM_PCCS: &str = "https://pccs.prem.io/";
 const PREM_KCDS: &str = "https://kcds.prem.io";
-const PREM_POLICIES: &str = "https://policies.prem.io";
+const PREM_MEASUREMENTS: &str = "https://trustbase.prem.io";
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl ClientBuilder {
@@ -125,8 +133,10 @@ impl ClientBuilder {
             url: url.to_string(),
             pcs: Pcs::new(PREM_PCCS).unwrap(),
             kds: Kds::new(PREM_KCDS).unwrap(),
-            policies: Box::new(UrlPolicies::new(PREM_POLICIES).unwrap()),
+            policies: Box::new(UrlPolicies::new(PREM_MEASUREMENTS).unwrap()),
+            measurements: Box::new(UrlMeasurements::new(PREM_MEASUREMENTS).unwrap()),
             headers: HeaderMap::default(),
+            sigstore_url: PREM_MEASUREMENTS.to_string(),
         }
     }
 
@@ -156,16 +166,43 @@ impl ClientBuilder {
         Ok(self)
     }
 
+    /// Sets the Trustbase URL where to look for measurements (golden values)
+    pub fn with_measurements_url(self, url: &str) -> libattest::Result<Self> {
+        // replace measurements provider
+        Ok(Self {
+            measurements: Box::new(UrlMeasurements::new(url)?),
+            ..self
+        })
+    }
+
     pub async fn build(self) -> Result<Client, AttestationError> {
         let reqwest_client = reqwest::Client::builder()
             .default_headers(self.headers)
             .build()?;
 
+        let sigstore = sigstore::fetch_sigstore(self.sigstore_url)
+            .await
+            .context("failed fetching sigstore verifier")?;
+
+        // fetch the rego policies and output a validator
+        // for us to inject the rest of the data
         let validator = self
             .policies
-            .fetch_validator()
+            .fetch_validator(&sigstore)
             .await
             .context("failed fetching OPA policies from provider")?;
+
+        // fetch measurements from trustbase. these are our golden values
+        let measurements = self
+            .measurements
+            .fetch_measurements(&sigstore)
+            .await
+            .context("failed fetching measurements from provider")?;
+
+        let validator = validator
+            .add_meaurements(measurements)?
+            .build()
+            .context("failed building the rego engine")?;
 
         Ok(Client {
             url: self
@@ -184,10 +221,6 @@ impl ClientBuilder {
 
 impl ClientBuilder {
     /// sets custom url for OPA policies index
-    // pub fn with_policies_url(mut self, url: &str) -> Self {
-    //     self.policies = url.to_string().into();
-    //     self
-    // }
     pub fn with_policy_provider(mut self, policy: impl PolicyProvider + Send + 'static) -> Self {
         self.policies = Box::new(policy);
         self
@@ -209,173 +242,54 @@ pub struct Client {
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl Client {
-    /// Gather available attestable modules from remote attestation endpoint
-    pub async fn request_modules(&self) -> Result<libattest::Modules, AttestationError> {
-        let url = self.url.join("/attestation/modules").unwrap();
-        let response = self.request(url, &()).await?.json().await?;
-
-        Ok(response)
-    }
-
-    /// Requests and parses a SEV-SNP attestation from the attestation server.
-    ///
-    /// ### Warning
-    /// This method exposes core functionality and does not perform cryptographic
-    /// or measurement checks on the attestation. If you want to perform end-to-end attestation
-    /// please refer to [`Self::attest_sev`]
-    pub async fn request_sev(&self, nonce: &SevNonce) -> Result<SevQuote, AttestationError> {
-        let url = self.url.join("/attestation/sev").unwrap();
-
-        let query = [("nonce", &nonce.to_hex())];
-        let response = self.request(url, &query).await?.bytes().await?;
-        let attestation = SevQuote::new(&response)?;
-
-        Ok(attestation)
-    }
-
-    /// Requests and parses an Nvidia EATToken attestation from the attestation server
-    ///
-    /// ### Warning
-    /// This method exposes core functionality and does not perform cryptographic
-    /// or measurement checks on the attestation. If you want to perform end-to-end attestation
-    /// please refer to [`Self::attest_nvidia`]
-    pub async fn request_nvidia(
+    /// Request unified `CvmReport` attestation from endpoint
+    pub async fn request_attestation(
         &self,
-        nonce: &NvidiaNonce,
-    ) -> Result<NvidiaAttestResult, AttestationError> {
-        let url = self.url.join("/attestation/nvidia").unwrap();
-
+        nonce: &CvmNonce,
+    ) -> Result<AttestResponse, AttestationError> {
+        let url = self.url.join("/attestation/attest").unwrap();
         let query = [("nonce", &nonce.to_hex())];
+
         let response = self.request(url, &query).await?;
 
-        let headers = response.headers().clone();
-        let response_text = response.text().await?;
-        let eat_token = EATToken::parse(&response_text)?;
-
-        Ok(NvidiaAttestResult {
-            eat_token,
-            headers: ResponseHeaders(headers),
-        })
-    }
-
-    /// Requests and parses a TDX quote
-    ///
-    /// ### Warning
-    /// This method exposes core functionality and does not perform cryptographic
-    /// or measurement checks on the attestation. If you want to perform end-to-end attestation
-    /// please refer to [`Self::attest_tdx`]
-    pub async fn request_tdx(&self, nonce: &TdxNonce) -> Result<TdxQuote, AttestationError> {
-        let url = self.url.join("/attestation/tdx").unwrap();
-        let query = [("nonce", &nonce.to_hex())];
-
-        let response = self.request(url, &query).await?.bytes().await?;
-        let quote =
-            TdxQuote::from_bytes(&response).context("error while parsing tdx attestation")?;
-
-        Ok(quote)
-    }
-
-    /// Requests and parses an Azure Quote
-    ///
-    pub async fn request_azure(&self, nonce: &AzureNonce) -> Result<AzureQuote, AttestationError> {
-        let url = self.url.join("/attestation/azure").unwrap();
-        let query = [("nonce", &nonce.to_hex())];
-
-        let response: AzureQuote = self.request(url, &query).await?.json().await?;
+        let response = AttestResponse {
+            headers: ResponseHeaders(response.headers().clone()),
+            report: response.json().await?,
+        };
 
         Ok(response)
     }
 
-    pub async fn attest_azure(&self) -> Result<(), AttestationError> {
-        let nonce = AzureNonce::generate();
+    fn attest_quote<'a, Q: QuoteVerifier>(
+        &self,
+        verifier: Q,
+        manifest: &PodManifest,
+        quote: &'a Q::Quote,
+        nonce: &Q::Nonce,
+        policy: &'static str,
+    ) -> Result<<Q::Quote as Verifiable>::Claims<'a>, AttestationError> {
+        let claims = verifier
+            .verify(quote, nonce)
+            .context("Quote verification has failed")
+            .expose_error()?;
 
-        let quote = self.request_azure(&nonce).await?;
-        let verifier = ReportVerifierBuilder::default()
-            .sev(async |quote| {
-                self.kds
-                    .fetch_certificates(quote)
-                    .await
-                    .map(SevQuoteVerifier::new)
-            })
-            .tdx(async |_| unimplemented!())
-            .fetch_collateral(&quote)
-            .await?;
+        #[derive(Serialize)]
+        struct Input<M, C> {
+            manifest: M,
+            claims: C,
+        }
 
-        let evidence = quote.verify(verifier, &nonce)?;
-
-        let claims = WithPolicy::new("azure.allow", evidence);
+        let input = Input {
+            manifest,
+            claims: &claims,
+        };
 
         self.policy_validator
-            .verify_claim(claims)?
-            .or_err("azure claims did not match specified opa policy")
+            .evaluate(policy, &input)?
+            .or_err("quote claims did not match OPA policy")
             .expose_error()?;
 
-        Ok(())
-    }
-
-    /// Performs end-to-end sev-snp attestation. Generates nonce and validates claims all in one
-    pub async fn attest_sev(&self) -> Result<(), AttestationError> {
-        let nonce = SevNonce::generate();
-        let attestation = self.request_sev(&nonce).await?;
-        let keychain = self.kds.fetch_certificates(&attestation).await?;
-
-        let verifier = SevQuoteVerifier::new(keychain);
-        verifier.verify(&attestation, &nonce)?;
-
-        let claims = WithPolicy::new("sev.allow", attestation);
-
-        self.policy_validator
-            .verify_claim(&claims)?
-            .or_err("sev claims did not match specified OPA policy")
-            .expose_error()?;
-
-        Ok(())
-    }
-
-    /// Performs end-to-end tdx attestation. Generates nonce and validates claims all in one
-    pub async fn attest_tdx(&self) -> Result<(), AttestationError> {
-        let nonce = TdxNonce::generate();
-
-        let quote = self.request_tdx(&nonce).await?;
-        let collateral = self
-            .pcs
-            .fetch_collateral(&quote)
-            .await
-            .context("failed fetching collateral from pcs server")
-            .expose_error()?;
-
-        let verifier = TdxQuoteVerifier::new(collateral);
-        verifier
-            .verify(&quote, &nonce)
-            .context("TDX quote verification has failed")
-            .expose_error()?;
-
-        let claims = WithPolicy::new("tdx.allow", quote);
-
-        self.policy_validator
-            .verify_claim(&claims)?
-            .or_err("tdx claims did not match specified OPA policy")
-            .expose_error()?;
-
-        Ok(())
-    }
-
-    /// Completes end-to-end nvidia attestation. Generates nonce and validates claims all in one
-    pub async fn attest_nvidia(&self) -> Result<ResponseHeaders, AttestationError> {
-        let nonce = NvidiaNonce::generate();
-        let keychain = KeyChain::fetch_keychain().await?;
-
-        let attest_result = self.request_nvidia(&nonce).await?;
-
-        let claims = attest_result.eat_token.verify(&keychain, &nonce)?;
-        let claims = WithPolicy::new("nvidia.allow", claims);
-
-        self.policy_validator
-            .verify_claim(claims)?
-            .or_err("nvidia claims did not match specified OPA policy")
-            .expose_error()?;
-
-        Ok(attest_result.headers)
+        Ok(claims)
     }
 
     /// Steps:
@@ -383,41 +297,86 @@ impl Client {
     /// - Iterates through each module and performs end-to-end attestation
     /// - Returns the list of attested modules
     pub async fn attest(&self) -> Result<AttestResult, AttestationError> {
-        // get modules
-        let modules = self
-            .request_modules()
-            .await
-            .context("failed to request modules from attestation server")
-            .expose_error()?;
+        let nonce = CvmNonce::generate();
+        let response = self.request_attestation(&nonce).await?;
+        let mut modules = ModulesBuilder::new();
 
-        let cpu_attest: Pin<Box<dyn Future<Output = Result<(), AttestationError>>>> =
-            match modules.cpu() {
-                CpuModule::Sev => Box::pin(self.attest_sev()),
-                CpuModule::Tdx => Box::pin(self.attest_tdx()),
-                CpuModule::Azure => Box::pin(self.attest_azure()),
-                _ => bail!("we do not yet support the advertised cpu platform"),
-            };
+        let AttestResponse { report, headers } = response;
 
-        let gpu_attest = match modules.gpu() {
-            None => None,
-            Some(GpuModule::Nvidia) => Some(self.attest_nvidia()),
-            _ => bail!("we do not yet support the advertised gpu platform"),
+        // verify depending on the module
+        match &report.cpu {
+            CpuReport::Sev(attestation) => {
+                let keychain = self.kds.fetch_certificates(attestation).await?;
+                let verifier = SevQuoteVerifier::new(keychain);
+
+                // we ""bind"" the nonce to the manifest depending on what
+                // size of nonce our downstream module (in this case sev) needs.
+                let nonce = report.manifest.bind(&*nonce).into();
+
+                self.attest_quote(verifier, &report.manifest, attestation, &nonce, "sev.allow")?;
+                modules = modules.with_cpu(CpuModule::Sev);
+            }
+            CpuReport::Tdx(items) => {
+                let tdx = TdxQuote::from_bytes(items).context("failed parsing tdx quote")?;
+                let collateral = self
+                    .pcs
+                    .fetch_collateral(&tdx)
+                    .await
+                    .context("failed fetching collateral from pcs server")
+                    .expose_error()?;
+
+                let verifier = TdxQuoteVerifier::new(collateral);
+                let nonce = report.manifest.bind(&*nonce).into();
+
+                self.attest_quote(verifier, &report.manifest, &tdx, &nonce, "tdx.allow")?;
+                modules = modules.with_cpu(CpuModule::Tdx);
+            }
+            CpuReport::Azr(azure_quote) => {
+                let nonce = report.manifest.bind(&*nonce).into();
+                let verifier = ReportVerifierBuilder::default()
+                    .sev(async |quote| {
+                        self.kds
+                            .fetch_certificates(quote)
+                            .await
+                            .map(SevQuoteVerifier::new)
+                    })
+                    .tdx(async |_| libattest::bail!("TDX attestation is unimplemented for Azure"))
+                    .fetch_collateral(azure_quote)
+                    .await?;
+
+                self.attest_quote(
+                    verifier,
+                    &report.manifest,
+                    azure_quote,
+                    &nonce,
+                    "azure.allow",
+                )?;
+                modules = modules.with_cpu(CpuModule::Azure);
+            }
+        }
+
+        // attest gpu report
+        match report.gpu {
+            GpuReport::Absent => (),
+            GpuReport::Nvidia(nvidia) => {
+                let quote = EATToken::parse(&nvidia).context("failed parsing nvidia EAT token")?;
+                let keychain = KeyChain::fetch_keychain().await?;
+                let verifier = NvidiaVerifier::new(keychain);
+
+                let nonce = report.cpu.bind(&*nonce).into();
+                self.attest_quote(verifier, &report.manifest, &quote, &nonce, "nvidia.allow")?;
+                modules = modules.with_gpu(Some(GpuModule::Nvidia));
+            }
         };
-        let gpu_attest = OptionFuture::from(gpu_attest);
 
-        // join futures for concurrent requests and attestation execution
-        let (cpu, gpu) = futures::join!(cpu_attest, gpu_attest);
-
-        // error handling
-        let gpu_headers = gpu.transpose()?;
-        cpu?;
+        let modules = modules
+            .build()
+            .context("not enough modules were provided to complete attestation")?;
 
         Ok(AttestResult {
+            manifest: report.manifest,
             modules,
-            headers: AttestHeaders {
-                cpu: None,
-                gpu: gpu_headers,
-            },
+            headers,
         })
     }
 }

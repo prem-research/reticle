@@ -41,6 +41,8 @@ pub struct SevClaims {
     pub vmpl: u32,
     #[serde(with = "hex::serde")]
     pub measurement: [u8; 48],
+    #[serde(with = "hex::serde")]
+    pub host_data: [u8; 32],
     pub reported_tcb: sev::firmware::host::TcbVersion,
     pub current_tcb: sev::firmware::host::TcbVersion,
 }
@@ -52,6 +54,7 @@ impl From<&AttestationReport> for SevClaims {
             policy: GuestPolicyClaims::from(&report.policy),
             vmpl: report.vmpl,
             measurement: report.measurement,
+            host_data: report.host_data,
             reported_tcb: report.reported_tcb,
             current_tcb: report.current_tcb,
         }
