@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::LazyLock};
+use std::{collections::HashMap, sync::LazyLock, time::Duration};
 
 use libattest::error::AttestationError;
 use reqwest::{Client, Url};
@@ -28,6 +28,7 @@ use crate::{
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 pub struct Kds {
     kds: Url,
+    timeout: Duration,
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
@@ -35,7 +36,10 @@ impl Kds {
     #[cfg_attr(target_family = "wasm", wasm_bindgen(constructor))]
     pub fn new(cache_url: &str) -> Result<Self, AttestationError> {
         let kds = cache_url.parse()?;
-        Ok(Self { kds })
+        Ok(Self {
+            kds,
+            timeout: libattest::HTTP_TIMEOUT,
+        })
     }
 
     fn get_base_url(&self, product: Generation) -> Url {
@@ -52,7 +56,7 @@ impl Kds {
     ) -> libattest::Result<sev::certs::snp::ca::Chain> {
         let client = Client::new();
         let url = format!("{}/cert_chain", self.get_base_url(generation));
-        let req = client.get(&url);
+        let req = client.get(&url).timeout(self.timeout);
         let resp = req.send().await?.bytes().await?;
 
         log::debug!("Requesting {url}");
@@ -102,7 +106,8 @@ impl Kds {
                 self.get_base_url(generation),
                 encode_hw_id(chip_id, generation)
             ))
-            .query(&query);
+            .query(&query)
+            .timeout(self.timeout);
 
         let resp = req.send().await?.error_for_status()?.bytes().await?;
         Ok(sev::certs::snp::Certificate::from_der(&resp).expect("invalid vcek from AMD KDS"))
@@ -144,14 +149,24 @@ impl Kds {
     /// Fetches the certificate revocation list from AMD's KDS
     pub async fn fetch_crl(&self, attestation: &SevQuote) -> Result<CRL, AttestationError> {
         let client = Client::new();
-        let req = client.get(format!(
-            "{}/crl",
-            self.get_base_url(attestation.generation()?)
-        ));
+        let req = client
+            .get(format!(
+                "{}/crl",
+                self.get_base_url(attestation.generation()?)
+            ))
+            .timeout(self.timeout);
 
         let resp = req.send().await?.bytes().await?;
 
         CRL::from_der(&resp)
+    }
+}
+
+impl Kds {
+    /// Sets the timeout for each request to the KDS
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self
     }
 }
 

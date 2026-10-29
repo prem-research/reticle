@@ -157,6 +157,7 @@ pub trait MeasurementsProvider {
     async fn fetch_measurements(
         &self,
         sigstore: &SigstoreVerifier,
+        timeout: std::time::Duration,
     ) -> Result<Measurements, AttestationError>;
 }
 

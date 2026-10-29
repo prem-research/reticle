@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 
 use libattest::{
     AttestationError,
@@ -24,6 +24,7 @@ impl PolicyProvider for FilePolicies {
     async fn fetch_validator(
         &self,
         _: &SigstoreVerifier,
+        _: Duration,
     ) -> Result<ValidationBuilder, AttestationError> {
         if !self.path.is_dir() {
             libattest::bail!("not a directory");

@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::UNIX_EPOCH};
+use std::{sync::Arc, time::Duration, time::UNIX_EPOCH};
 
 use libattest::error::Context;
 use reqwest::IntoUrl;
@@ -72,7 +72,18 @@ struct ArtifactDigest {
     sha256: String,
 }
 
-pub async fn fetch_sigstore(base_url: impl IntoUrl) -> libattest::Result<SigstoreVerifier> {
+pub async fn fetch_sigstore(
+    base_url: impl IntoUrl,
+    timeout: Duration,
+) -> libattest::Result<SigstoreVerifier> {
     let url = base_url.into_url()?.join("./provenance.sigstore.json")?;
-    SigstoreVerifier::from_bundle(reqwest::get(url).await?.error_for_status()?.text().await?)
+    let bundle = reqwest::Client::new()
+        .get(url)
+        .timeout(timeout)
+        .send()
+        .await?
+        .error_for_status()?
+        .text()
+        .await?;
+    SigstoreVerifier::from_bundle(bundle)
 }
