@@ -119,6 +119,7 @@ pub struct ClientBuilder {
     measurements: Box<dyn MeasurementsProvider + Send>,
 
     headers: HeaderMap,
+    gpu_required: bool,
 }
 
 const PREM_PCCS: &str = "https://pccs.prem.io/";
@@ -136,6 +137,7 @@ impl ClientBuilder {
             policies: Box::new(UrlPolicies::new(PREM_MEASUREMENTS).unwrap()),
             measurements: Box::new(UrlMeasurements::new(PREM_MEASUREMENTS).unwrap()),
             headers: HeaderMap::default(),
+            gpu_required: false,
             sigstore_url: PREM_MEASUREMENTS.to_string(),
         }
     }
@@ -146,6 +148,12 @@ impl ClientBuilder {
             .insert("Authorization", HeaderValue::from_str(token)?);
 
         Ok(self)
+    }
+
+    /// Require verified GPU evidence regardless of the signed Init-Data policy.
+    pub fn with_gpu_required(mut self, required: bool) -> Self {
+        self.gpu_required = required;
+        self
     }
 
     /// Sets custom KDS for AMD collateral server
@@ -200,7 +208,7 @@ impl ClientBuilder {
             .context("failed fetching measurements from provider")?;
 
         let validator = validator
-            .add_meaurements(measurements)?
+            .add_meaurements(&measurements)?
             .build()
             .context("failed building the rego engine")?;
 
@@ -215,6 +223,8 @@ impl ClientBuilder {
             query_params: QueryParams::new(),
             policy_validator: validator,
             reqwest_client,
+            gpu_required: self.gpu_required,
+            measurements,
         })
     }
 }
@@ -238,6 +248,8 @@ pub struct Client {
     kds: Kds,
     pcs: Pcs,
     policy_validator: Validator,
+    gpu_required: bool,
+    measurements: measurements::Measurements,
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
@@ -353,6 +365,14 @@ impl Client {
                 )?;
                 modules = modules.with_cpu(CpuModule::Azure);
             }
+        }
+
+        if matches!(report.gpu, GpuReport::Absent)
+            && (self.gpu_required
+                || measurements::initdata::requires_gpu(&self.measurements, &report.manifest)
+                    .await?)
+        {
+            libattest::bail!(exposed: "GPU evidence is required for this workload");
         }
 
         // attest gpu report

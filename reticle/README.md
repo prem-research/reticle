@@ -36,6 +36,7 @@ const client = await new ClientBuilder(url)
   .with_kds(new Kds(kdsUrl))             // optional: custom AMD KDS cache
   .with_pcs(new Pcs(pcsUrl))             // optional: custom Intel PCS cache
   .with_policies_url(policiesUrl)        // optional: custom OPA policies index URL
+  .with_gpu_required(true)               // optional: require GPU evidence for every workload
   .build();
 ```
 
