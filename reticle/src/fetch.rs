@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicU32, Ordering};
+
 use async_once_cell::OnceCell;
 use libattest::{
     bail,
@@ -21,6 +23,14 @@ extern "C" {
 }
 
 static FETCH_CLIENT: OnceCell<crate::Client> = OnceCell::new();
+static FETCH_TIMEOUT_MS: AtomicU32 = AtomicU32::new(libattest::HTTP_TIMEOUT.as_millis() as u32);
+
+/// Sets the HTTP timeout used by `fetch`, in milliseconds.
+/// Only takes effect if called before the first `fetch`.
+#[wasm_bindgen(js_name = setFetchTimeout)]
+pub fn set_fetch_timeout(timeout_ms: u32) {
+    FETCH_TIMEOUT_MS.store(timeout_ms, Ordering::Relaxed);
+}
 
 #[wasm_bindgen(js_name = fetch)]
 pub async fn fetch(input: JsValue, init: Option<JsValue>) -> Result<JsValue, JsValue> {
@@ -31,7 +41,12 @@ pub async fn fetch(input: JsValue, init: Option<JsValue>) -> Result<JsValue, JsV
     url.set_path("/");
 
     let client = FETCH_CLIENT
-        .get_or_try_init(async { crate::ClientBuilder::new(url.as_str()).build().await })
+        .get_or_try_init(async {
+            crate::ClientBuilder::new(url.as_str())
+                .with_timeout_ms(FETCH_TIMEOUT_MS.load(Ordering::Relaxed))
+                .build()
+                .await
+        })
         .await?;
 
     // Build the attestation client and perform full attestation

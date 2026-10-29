@@ -2,7 +2,7 @@ pub mod qe;
 pub mod signed_response;
 pub mod tcb;
 
-use std::str::FromStr;
+use std::{str::FromStr, time::Duration};
 
 use libattest::{
     crypto::{CertificateChain, algorithms::ecdsa::EcdsaCert, chain::crl::Crl},
@@ -29,6 +29,7 @@ use wasm_bindgen::prelude::*;
 pub struct Pcs {
     base_url: Url,
     client: Client,
+    timeout: Duration,
 }
 
 impl Default for Pcs {
@@ -36,7 +37,16 @@ impl Default for Pcs {
         Self {
             base_url: INTEL_PCS.parse().unwrap(),
             client: Client::default(),
+            timeout: libattest::HTTP_TIMEOUT,
         }
+    }
+}
+
+impl Pcs {
+    /// Sets the timeout for each request to the PCS
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self
     }
 }
 
@@ -47,7 +57,11 @@ impl Pcs {
         let base_url = Url::from_str(base_url)?;
         let client = Client::default();
 
-        Ok(Pcs { base_url, client })
+        Ok(Pcs {
+            base_url,
+            client,
+            timeout: libattest::HTTP_TIMEOUT,
+        })
     }
 
     async fn fetch_crl(&self, intermediate_ca: IntermediateCa) -> Result<Crl, TdxError> {
@@ -56,7 +70,13 @@ impl Pcs {
             .append_pair("ca", intermediate_ca.as_str())
             .append_pair("encoding", "pem");
 
-        let response = self.client.get(url).send().await?.error_for_status()?;
+        let response = self
+            .client
+            .get(url)
+            .timeout(self.timeout)
+            .send()
+            .await?
+            .error_for_status()?;
         let certificate_chain = response
             .headers()
             .get("SGX-PCK-CRL-Issuer-Chain")
@@ -84,6 +104,7 @@ impl Pcs {
         let signed_response = self
             .client
             .get(url)
+            .timeout(self.timeout)
             .send()
             .await?
             .error_for_status()?
@@ -106,6 +127,7 @@ impl Pcs {
             .client
             .get(url)
             .query(&[("fmspc", fmspc.to_string())])
+            .timeout(self.timeout)
             .send()
             .await
             .context("failed sending tcb_info request")?
