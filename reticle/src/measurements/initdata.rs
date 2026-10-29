@@ -96,6 +96,8 @@ fn policy_requires_gpu(policy: &str) -> Result<bool, AttestationError> {
 
 #[cfg(test)]
 mod tests {
+    use super::policy_requires_gpu;
+
     #[test]
     fn gpu_devices_and_annotations_require_evidence() {
         let device = r#"package agent_policy
