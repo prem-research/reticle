@@ -7,10 +7,12 @@ const TRUSTBASE: &str = "https://trustbase.prem.io";
 
 #[tokio::test]
 async fn fetch_validator() {
-    let sigstore = fetch_sigstore(TRUSTBASE).await.unwrap();
+    let sigstore = fetch_sigstore(TRUSTBASE, libattest::HTTP_TIMEOUT)
+        .await
+        .unwrap();
     let policies = UrlPolicies::new(TRUSTBASE).unwrap();
     let validator = policies
-        .fetch_validator(&sigstore)
+        .fetch_validator(&sigstore, libattest::HTTP_TIMEOUT)
         .await
         .unwrap()
         .build()
