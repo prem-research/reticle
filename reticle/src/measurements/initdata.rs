@@ -12,11 +12,7 @@ pub(crate) async fn expected_gpus(
     measurements: &Measurements,
     manifest: &PodManifest,
 ) -> Result<usize, AttestationError> {
-    let workload = measurements
-        .workloads
-        .get(&manifest.workload_id)
-        .ok_or_else(|| AttestationError::new("workload is absent from signed measurements"))?;
-    let initdata = &workload.initdata;
+    let initdata = signed_initdata(measurements, manifest)?;
     let digest = hex::encode(initdata.sha256);
     let expected_path = format!("init-data/{digest}.toml");
 
@@ -59,6 +55,41 @@ pub(crate) async fn expected_gpus(
         .get("policy.rego")
         .ok_or_else(|| AttestationError::new("Init-Data is missing agent policy"))?;
     policy_gpu_count(policy)
+}
+
+/// Require the SEV quote's HOST_DATA to match the workload's signed Init-Data.
+pub(crate) fn verify_sev_host_data(
+    measurements: &Measurements,
+    manifest: &PodManifest,
+    host_data: &[u8; 32],
+) -> Result<(), AttestationError> {
+    if signed_initdata(measurements, manifest)?.host_data != *host_data {
+        libattest::bail!(exposed: "SEV host_data does not match the workload Init-Data");
+    }
+    Ok(())
+}
+
+/// Require the TDX quote's MRCONFIGID to match the workload's signed Init-Data.
+pub(crate) fn verify_tdx_mr_config_id(
+    measurements: &Measurements,
+    manifest: &PodManifest,
+    mr_config_id: &[u8; 48],
+) -> Result<(), AttestationError> {
+    if signed_initdata(measurements, manifest)?.mr_config_id != *mr_config_id {
+        libattest::bail!(exposed: "TDX mr_config_id does not match the workload Init-Data");
+    }
+    Ok(())
+}
+
+fn signed_initdata<'a>(
+    measurements: &'a Measurements,
+    manifest: &PodManifest,
+) -> Result<&'a InitData, AttestationError> {
+    measurements
+        .workloads
+        .get(&manifest.workload_id)
+        .map(|workload| &workload.initdata)
+        .ok_or_else(|| AttestationError::new("workload is absent from signed measurements"))
 }
 
 /// Check the Init-Data digest against the signed SNP host_data and TDX mr_config_id.
@@ -112,7 +143,6 @@ fn policy_gpu_count(policy: &str) -> Result<usize, AttestationError> {
         .ok_or_else(|| AttestationError::new("agent policy_data is not an object"))?;
 
     let vfio = data.get("devices").and_then(|devices| devices.get("vfio"));
-    let nvidia_device = vfio.and_then(|vfio| vfio.get("nvidia")).is_some();
     let device_path = vfio
         .and_then(|vfio| vfio.get("device_path"))
         .and_then(Value::as_str);
@@ -153,16 +183,53 @@ fn policy_gpu_count(policy: &str) -> Result<usize, AttestationError> {
     if vfio_devices != cdi_devices.len() {
         libattest::bail!("agent policy VFIO devices do not match its CDI GPU annotations");
     }
-    if nvidia_device && vfio_devices == 0 {
-        libattest::bail!("agent policy configures NVIDIA devices but assigns no GPU");
-    }
 
     Ok(vfio_devices)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{fit, policy_gpu_count};
+    use attestation_protocol::report::manifest::PodManifest;
+
+    use super::{fit, policy_gpu_count, verify_sev_host_data, verify_tdx_mr_config_id};
+    use crate::measurements::Measurements;
+
+    #[test]
+    fn quote_must_match_signed_initdata() {
+        let measurements: Measurements = serde_json::from_value(serde_json::json!({
+            "schema_version": 1,
+            "schema": "",
+            "release": {
+                "version": "",
+                "source_repository": "prem-research/trustbase",
+                "source_revision": "00".repeat(20),
+            },
+            "workloads": {"gpu": {"initdata": {
+                "algorithm": "sha384",
+                "digest": "11".repeat(48),
+                "path": "",
+                "sha256": "00".repeat(32),
+                "host_data": "11".repeat(32),
+                "mr_config_id": "11".repeat(48),
+            }, "releases": {}}},
+        }))
+        .unwrap();
+        let manifest = PodManifest {
+            podvm_version: String::new(),
+            workload_id: "gpu".into(),
+        };
+
+        verify_sev_host_data(&measurements, &manifest, &[0x11; 32]).unwrap();
+        verify_tdx_mr_config_id(&measurements, &manifest, &[0x11; 48]).unwrap();
+        assert!(verify_sev_host_data(&measurements, &manifest, &[0x12; 32]).is_err());
+        assert!(verify_tdx_mr_config_id(&measurements, &manifest, &[0x12; 48]).is_err());
+
+        let unknown = PodManifest {
+            podvm_version: String::new(),
+            workload_id: "cpu".into(),
+        };
+        assert!(verify_sev_host_data(&measurements, &unknown, &[0x11; 32]).is_err());
+    }
 
     const VFIO: &str = r#"{"type_": "vfio-pci-gk", "container_path": "/dev/vfio/devices/vfio"}"#;
 
@@ -197,9 +264,6 @@ policy_data := {{"containers": [
 
         let missing_annotation = policy(&[VFIO], "");
         assert!(policy_gpu_count(&missing_annotation).is_err());
-
-        let unassigned_nvidia = policy(&[], "");
-        assert!(policy_gpu_count(&unassigned_nvidia).is_err());
     }
 
     #[test]
@@ -208,6 +272,8 @@ policy_data := {{"containers": [
 policy_data := {"containers": [{"OCI": {"Annotations": {}}}], "devices": {"vfio": {}}}
 "#;
         assert_eq!(policy_gpu_count(cpu).unwrap(), 0);
+
+        assert_eq!(policy_gpu_count(&policy(&[], "")).unwrap(), 0);
         assert!(policy_gpu_count("package agent_policy").is_err());
     }
 

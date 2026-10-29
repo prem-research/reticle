@@ -325,7 +325,13 @@ impl Client {
                 // size of nonce our downstream module (in this case sev) needs.
                 let nonce = report.manifest.bind(&*nonce).into();
 
-                self.attest_quote(verifier, &report.manifest, attestation, &nonce, "sev.allow")?;
+                let claims =
+                    self.attest_quote(verifier, &report.manifest, attestation, &nonce, "sev.allow")?;
+                measurements::initdata::verify_sev_host_data(
+                    &self.measurements,
+                    &report.manifest,
+                    &claims.host_data,
+                )?;
                 modules = modules.with_cpu(CpuModule::Sev);
             }
             CpuReport::Tdx(items) => {
@@ -340,7 +346,13 @@ impl Client {
                 let verifier = TdxQuoteVerifier::new(collateral);
                 let nonce = report.manifest.bind(&*nonce).into();
 
-                self.attest_quote(verifier, &report.manifest, &tdx, &nonce, "tdx.allow")?;
+                let claims =
+                    self.attest_quote(verifier, &report.manifest, &tdx, &nonce, "tdx.allow")?;
+                measurements::initdata::verify_tdx_mr_config_id(
+                    &self.measurements,
+                    &report.manifest,
+                    &claims.mrconfigid,
+                )?;
                 modules = modules.with_cpu(CpuModule::Tdx);
             }
             CpuReport::Azr(azure_quote) => {
