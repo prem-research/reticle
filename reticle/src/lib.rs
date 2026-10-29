@@ -119,6 +119,7 @@ pub struct ClientBuilder {
     measurements: Box<dyn MeasurementsProvider + Send>,
 
     headers: HeaderMap,
+    gpu_required: bool,
 }
 
 const PREM_PCCS: &str = "https://pccs.prem.io/";
@@ -136,6 +137,7 @@ impl ClientBuilder {
             policies: Box::new(UrlPolicies::new(PREM_MEASUREMENTS).unwrap()),
             measurements: Box::new(UrlMeasurements::new(PREM_MEASUREMENTS).unwrap()),
             headers: HeaderMap::default(),
+            gpu_required: false,
             sigstore_url: PREM_MEASUREMENTS.to_string(),
         }
     }
@@ -146,6 +148,12 @@ impl ClientBuilder {
             .insert("Authorization", HeaderValue::from_str(token)?);
 
         Ok(self)
+    }
+
+    /// Require verified GPU evidence regardless of the signed Init-Data policy.
+    pub fn with_gpu_required(mut self, required: bool) -> Self {
+        self.gpu_required = required;
+        self
     }
 
     /// Sets custom KDS for AMD collateral server
@@ -200,7 +208,7 @@ impl ClientBuilder {
             .context("failed fetching measurements from provider")?;
 
         let validator = validator
-            .add_meaurements(measurements)?
+            .add_meaurements(&measurements)?
             .build()
             .context("failed building the rego engine")?;
 
@@ -215,6 +223,8 @@ impl ClientBuilder {
             query_params: QueryParams::new(),
             policy_validator: validator,
             reqwest_client,
+            gpu_required: self.gpu_required,
+            measurements,
         })
     }
 }
@@ -238,6 +248,8 @@ pub struct Client {
     kds: Kds,
     pcs: Pcs,
     policy_validator: Validator,
+    gpu_required: bool,
+    measurements: measurements::Measurements,
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
@@ -313,7 +325,13 @@ impl Client {
                 // size of nonce our downstream module (in this case sev) needs.
                 let nonce = report.manifest.bind(&*nonce).into();
 
-                self.attest_quote(verifier, &report.manifest, attestation, &nonce, "sev.allow")?;
+                let claims =
+                    self.attest_quote(verifier, &report.manifest, attestation, &nonce, "sev.allow")?;
+                measurements::initdata::verify_sev_host_data(
+                    &self.measurements,
+                    &report.manifest,
+                    &claims.host_data,
+                )?;
                 modules = modules.with_cpu(CpuModule::Sev);
             }
             CpuReport::Tdx(items) => {
@@ -328,7 +346,13 @@ impl Client {
                 let verifier = TdxQuoteVerifier::new(collateral);
                 let nonce = report.manifest.bind(&*nonce).into();
 
-                self.attest_quote(verifier, &report.manifest, &tdx, &nonce, "tdx.allow")?;
+                let claims =
+                    self.attest_quote(verifier, &report.manifest, &tdx, &nonce, "tdx.allow")?;
+                measurements::initdata::verify_tdx_mr_config_id(
+                    &self.measurements,
+                    &report.manifest,
+                    &claims.mrconfigid,
+                )?;
                 modules = modules.with_cpu(CpuModule::Tdx);
             }
             CpuReport::Azr(azure_quote) => {
@@ -355,16 +379,31 @@ impl Client {
             }
         }
 
+        if matches!(report.gpu, GpuReport::Absent) && self.gpu_required {
+            libattest::bail!(exposed: "GPU evidence is required for this workload");
+        }
+
+        let expected_gpus =
+            measurements::initdata::expected_gpus(&self.measurements, &report.manifest).await?;
+
         // attest gpu report
         match report.gpu {
-            GpuReport::Absent => (),
+            GpuReport::Absent => {
+                if expected_gpus > 0 {
+                    libattest::bail!(exposed: "GPU evidence is required for this workload");
+                }
+            }
             GpuReport::Nvidia(nvidia) => {
                 let quote = EATToken::parse(&nvidia).context("failed parsing nvidia EAT token")?;
                 let keychain = KeyChain::fetch_keychain().await?;
                 let verifier = NvidiaVerifier::new(keychain);
 
                 let nonce = report.cpu.bind(&*nonce).into();
-                self.attest_quote(verifier, &report.manifest, &quote, &nonce, "nvidia.allow")?;
+                let claims =
+                    self.attest_quote(verifier, &report.manifest, &quote, &nonce, "nvidia.allow")?;
+                if claims.gpu_claims().len() != expected_gpus {
+                    libattest::bail!(exposed: "attested GPU count does not match the workload Init-Data");
+                }
                 modules = modules.with_gpu(Some(GpuModule::Nvidia));
             }
         };
