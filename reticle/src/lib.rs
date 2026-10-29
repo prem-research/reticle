@@ -367,24 +367,31 @@ impl Client {
             }
         }
 
-        if matches!(report.gpu, GpuReport::Absent)
-            && (self.gpu_required
-                || measurements::initdata::requires_gpu(&self.measurements, &report.manifest)
-                    .await?)
-        {
+        if matches!(report.gpu, GpuReport::Absent) && self.gpu_required {
             libattest::bail!(exposed: "GPU evidence is required for this workload");
         }
 
+        let expected_gpus =
+            measurements::initdata::expected_gpus(&self.measurements, &report.manifest).await?;
+
         // attest gpu report
         match report.gpu {
-            GpuReport::Absent => (),
+            GpuReport::Absent => {
+                if expected_gpus > 0 {
+                    libattest::bail!(exposed: "GPU evidence is required for this workload");
+                }
+            }
             GpuReport::Nvidia(nvidia) => {
                 let quote = EATToken::parse(&nvidia).context("failed parsing nvidia EAT token")?;
                 let keychain = KeyChain::fetch_keychain().await?;
                 let verifier = NvidiaVerifier::new(keychain);
 
                 let nonce = report.cpu.bind(&*nonce).into();
-                self.attest_quote(verifier, &report.manifest, &quote, &nonce, "nvidia.allow")?;
+                let claims =
+                    self.attest_quote(verifier, &report.manifest, &quote, &nonce, "nvidia.allow")?;
+                if claims.gpu_claims().len() != expected_gpus {
+                    libattest::bail!(exposed: "attested GPU count does not match the workload Init-Data");
+                }
                 modules = modules.with_gpu(Some(GpuModule::Nvidia));
             }
         };
