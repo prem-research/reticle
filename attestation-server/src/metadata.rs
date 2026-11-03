@@ -39,7 +39,7 @@ pub fn parse_env(env: &str) -> anyhow::Result<BTreeMap<String, String>> {
     Ok(env)
 }
 
-pub fn fetch_claims() -> anyhow::Result<PodManifest> {
+pub fn fetch_claims(ohttp_config: &ohttp::KeyConfig) -> anyhow::Result<PodManifest> {
     // identify podvm version
     let os_release = Path::new(OS_RELEASE);
     let os_release =
@@ -58,6 +58,7 @@ pub fn fetch_claims() -> anyhow::Result<PodManifest> {
         .context("missing workload id from init-data")?;
 
     Ok(PodManifest {
+        ohttp_key_config: ohttp_config.clone(),
         podvm_version,
         workload_id,
     })

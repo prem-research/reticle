@@ -9,13 +9,17 @@ edition = "2024"
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
-sev = { workspace = true, default-features = false, features = ["crypto_nossl", "snp"] }
+sev = { workspace = true, default-features = false, features = [
+    "crypto_nossl",
+    "snp",
+] }
 rocket = { version = "0.5.1", features = ["json"] }
 anyhow = { workspace = true }
 base64 = { workspace = true }
 hex = { workspace = true }
 thiserror = { workspace = true }
 nvat = { git = "https://github.com/prem-research/nvat-rs.git", branch = "main" }
+tokio-util = { version = "0.7.20", features = ["compat"] }
 
 libattest = { path = "../libattest" }
 nvidia-attest = { path = "../nvidia-attest" }
@@ -27,6 +31,12 @@ env_logger = "0.11.8"
 log = "0.4.29"
 configfs-tsm = { version = "0.0.2" }
 nvml-wrapper = "0.12.1"
-reqwest = { workspace = true, features = ["blocking", "json"] }
+reqwest = { workspace = true, features = ["blocking", "json", "stream"] }
 clap = { version = "4.6.4", features = ["derive", "env"] }
 toml = "1.1.8"
+ohttp = { version = "0.8.0", default-features = false, features = [
+    "server",
+    "stream",
+    "rust-hpke",
+] }
+bhttp = { version = "0.8.0", features = ["http", "stream"] }

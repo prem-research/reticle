@@ -4,6 +4,7 @@ mod response;
 mod metadata;
 mod modules;
 mod nonce;
+mod ohttp;
 mod platforms;
 
 use std::ops::Deref;
@@ -11,6 +12,7 @@ use std::ops::Deref;
 use anyhow::{Context, bail};
 use attestation_protocol::modules::{CpuModule, GpuModule, Modules};
 use log::LevelFilter;
+
 use rocket::{State, catch, catchers, routes};
 use sev::firmware::guest::Firmware;
 use tokio::sync::Mutex;
@@ -43,15 +45,18 @@ async fn main() -> Result<(), anyhow::Error> {
         .parse_default_env()
         .init();
 
-    // let settings = Settings::parse();
+    // generate a new ohttp server private key valid for this
+    // run of reticle. The key config will be sent to the client
+    // during attestation
+    let ohttp_server = ohttp::generate_key_server();
+
     let rocket = rocket::build();
     let modules = ModuleDetector.detect()?;
-    // add manifest to the application state
-    let claims = metadata::fetch_claims()?;
+    let claims = metadata::fetch_claims(ohttp_server.config())?;
 
     // attach everything to rocket so it's available
     // in our routes
-    let rocket = rocket.manage(modules).manage(claims);
+    let rocket = rocket.manage(modules).manage(claims).manage(ohttp_server);
 
     let mut rocket = match modules.cpu() {
         CpuModule::Sev => {
