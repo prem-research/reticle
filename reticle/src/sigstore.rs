@@ -23,9 +23,9 @@ impl SigstoreVerifier {
 
     pub fn verify_file(&self, file_name: &str, file: impl AsRef<[u8]>) -> libattest::Result<()> {
         let identity = Identity::builder()
+            .repository("prem-research/trustbase")
             .branch("main")
             .semver_range("^1.0")
-            .workflow_path(".github/workflows/release.yaml")
             .build()
             .unwrap();
 
