@@ -3,11 +3,7 @@ use std::{sync::Arc, time::UNIX_EPOCH};
 use libattest::error::Context;
 use reqwest::IntoUrl;
 use serde::Deserialize;
-use tinysig::public::PublicVerifier;
-
-const TRUSTBASE_IDENTITY: &str =
-    "https://github.com/prem-research/trustbase/.github/workflows/release.yml@refs/tags/v1.1.1";
-const GITHUB_ISSUER: &str = "https://token.actions.githubusercontent.com";
+use tinysig::{Identity, public::PublicVerifier};
 
 #[derive(Clone)]
 pub struct SigstoreVerifier {
@@ -26,13 +22,19 @@ impl SigstoreVerifier {
     }
 
     pub fn verify_file(&self, file_name: &str, file: impl AsRef<[u8]>) -> libattest::Result<()> {
+        let identity = Identity::builder()
+            .branch("main")
+            .semver_range("^1.0")
+            .workflow_path(".github/workflows/release.yaml")
+            .build()
+            .unwrap();
+
         let verified = self
             .verifier
             .verify(
                 file.as_ref(),
                 self.bundle.as_bytes(),
-                TRUSTBASE_IDENTITY,
-                GITHUB_ISSUER,
+                &identity,
                 libattest::time::now().duration_since(UNIX_EPOCH)?.as_secs(),
             )
             .with_context(|| format!("sigstore verification failed for {file_name}"))?;
