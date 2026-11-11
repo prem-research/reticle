@@ -1,10 +1,18 @@
+use std::{marker::PhantomData, panic};
+
 use anyhow::Context;
-use bhttp::stream::AsyncMessage;
+use bhttp::{ControlData, Mode, stream::AsyncMessage};
 use reqwest::{
     Method, Url,
     header::{CONNECTION, HeaderMap, HeaderName, HeaderValue},
+    redirect::Policy,
 };
-use rocket::{futures::AsyncReadExt, http::uri::Origin};
+use rocket::{
+    http::{ContentType, uri::Origin},
+    response::Responder,
+};
+use tokio::io::{AsyncWrite, AsyncWriteExt, SimplexStream, WriteHalf};
+use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
 
 static NOPROXY_HEADERS: &[&str] = &[
     "connection",
@@ -100,150 +108,205 @@ pub struct ProxyClient {
 }
 
 impl ProxyClient {
-    pub fn reroute<S>(&self, request: BHTTPRequest<S>, to: Url) -> anyhow::Result<reqwest::Request>
-    where
-        S: rocket::futures::AsyncRead + Unpin + Send + 'static,
-    {
-        let body = rocket::response::stream::stream! {
-            let mut body = request.body;
-            {
-                let mut body = body.body().context("failed opening BHTTP body")?;
-                let mut buffer = [0u8; 16 * 1024];
-                loop {
-                    let read = body.read(&mut buffer).await.context("failed reading BHTTP body")?;
-                    if read == 0 {
-                        break;
-                    }
-                    yield Ok::<_, anyhow::Error>(buffer[..read].to_vec());
-                }
-            }
-            let trailer = body.trailer().await.context("failed reading BHTTP trailers")?;
-            if !trailer.is_empty() {
-                yield Err(anyhow::anyhow!("BHTTP request trailers are unsupported"));
-            }
-        };
-
-        self.client
-            .request(request.method, to)
-            .headers(request.headers)
-            .body(reqwest::Body::wrap_stream(body))
+    pub fn new() -> Self {
+        let client = reqwest::ClientBuilder::new()
+            .redirect(Policy::limited(0))
             .build()
-            .context("failed building outbound request")
+            .unwrap();
+
+        Self { client }
     }
 }
 
-/// Builds an outbound request from a BHTTP header and its remaining message.
-/// The header must already have been read; body errors surface when sending.
-pub fn bhttp_to_reqwest<S>(
-    client: &reqwest::Client,
-    header: bhttp::Header,
-    mut message: bhttp::stream::AsyncMessage<S>,
-) -> anyhow::Result<reqwest::Request>
+impl ProxyClient {
+    pub async fn reroute<S>(
+        &self,
+        mut request: BHTTPRequest<S>,
+        to: Url,
+    ) -> anyhow::Result<reqwest::Response>
+    where
+        S: rocket::futures::AsyncRead + Unpin,
+    {
+        // due to lifetime requirements we spin a
+        // simplex writer coroutine to transport bytes from
+        // the ohttp request to the underlying request
+        let (rx, mut tx) = tokio::io::simplex(1024);
+
+        let relay = async move {
+            let mut req = request.body.body().context("cannot open")?.compat();
+            tokio::io::copy(&mut req, &mut tx).await?;
+
+            let trailer = request
+                .body
+                .trailer()
+                .await
+                .context("failed getting trailed")?;
+
+            if !trailer.is_empty() {
+                anyhow::bail!("OHTTP trailer is unsupported");
+            }
+
+            // shutdown means we're done and the response
+            // cleanly flushes through
+            tx.shutdown().await?;
+
+            Ok::<(), anyhow::Error>(())
+        };
+
+        let request_dump = async {
+            self.client
+                .request(request.method, to)
+                .headers(request.headers)
+                .body(reqwest::Body::wrap_stream(
+                    tokio_util::io::ReaderStream::new(rx),
+                ))
+                .send()
+                .await
+                .context("failed building outbound request")
+        };
+
+        let (_, response) = tokio::try_join!(relay, request_dump)?;
+
+        // flush out the remaining request bytes
+
+        Ok(response)
+    }
+}
+
+pub struct OHTTPResponder<W, S>
 where
-    S: rocket::futures::AsyncRead + Unpin + Send + 'static,
+    W: futures::io::AsyncWrite + Send + Sync,
+    S: FnOnce(WriteHalf<SimplexStream>) -> W + Send,
 {
-    use reqwest::header::{CONNECTION, HeaderMap, HeaderName, HeaderValue};
-    use rocket::futures::AsyncReadExt;
+    ohttp_encrypter: S,
+    response: reqwest::Response,
 
-    let bhttp::ControlData::Request {
-        method,
-        scheme,
-        authority,
-        path,
-    } = header.control()
-    else {
-        anyhow::bail!("expected a BHTTP request, received a response");
-    };
+    _rewriter_variance: PhantomData<fn(()) -> W>,
+}
 
-    let method = reqwest::Method::from_bytes(method).context("invalid BHTTP request method")?;
-    anyhow::ensure!(method != reqwest::Method::CONNECT, "CONNECT is unsupported");
-    let scheme = std::str::from_utf8(scheme).context("invalid BHTTP scheme")?;
-    let authority = std::str::from_utf8(authority).context("invalid BHTTP authority")?;
-    let path = std::str::from_utf8(path).context("invalid BHTTP path")?;
-    anyhow::ensure!(
-        matches!(scheme, "http" | "https"),
-        "expected HTTP(S) scheme"
-    );
-    anyhow::ensure!(
-        !authority.is_empty()
-            && !authority.chars().any(|c| {
-                c.is_whitespace() || c.is_control() || matches!(c, '/' | '\\' | '?' | '#' | '@')
-            }),
-        "invalid BHTTP authority"
-    );
-    anyhow::ensure!(
-        path.starts_with('/')
-            && !path
-                .chars()
-                .any(|c| { c.is_whitespace() || c.is_control() || matches!(c, '#' | '\\') }),
-        "expected an origin-form BHTTP path"
-    );
-    let url = reqwest::Url::parse(&format!("{scheme}://{authority}{path}"))
-        .context("invalid BHTTP request URL")?;
-
-    let mut headers = HeaderMap::new();
-    for field in header.iter() {
-        let name = HeaderName::from_bytes(field.name()).context("invalid BHTTP header name")?;
-        let value = HeaderValue::from_bytes(field.value()).context("invalid BHTTP header value")?;
-        headers.append(name, value);
+impl<W, S> OHTTPResponder<W, S>
+where
+    W: futures::io::AsyncWrite + Send + Sync,
+    S: FnOnce(WriteHalf<SimplexStream>) -> W + Send,
+{
+    pub fn new(response: reqwest::Response, ohttp_encrypter: S) -> Self {
+        Self {
+            ohttp_encrypter,
+            response,
+            _rewriter_variance: PhantomData,
+        }
     }
-    let mut connection_headers = Vec::new();
-    for value in headers.get_all(CONNECTION) {
+}
+
+impl<'r, 'o, W, S> Responder<'r, 'o> for OHTTPResponder<W, S>
+where
+    'o: 'r,
+    W: futures::io::AsyncWrite + Send + Sync + Unpin + 'static,
+    S: FnOnce(WriteHalf<SimplexStream>) -> W + Send,
+{
+    fn respond_to(self, _request: &'r rocket::Request<'_>) -> rocket::response::Result<'o> {
+        let (reader, writer) = tokio::io::simplex(64 * 1024);
+        let mut encrypter = (self.ohttp_encrypter)(writer).compat_write();
+
+        tokio::spawn(async move {
+            let res = async move {
+                // we pipe the body into the encrypter
+                // which encrypts and pipes the body into the response
+                pipe_http_to_bhttp(self.response, &mut encrypter).await?;
+                encrypter.shutdown().await?;
+
+                Ok::<(), anyhow::Error>(())
+            };
+
+            if let Err(error) = res.await {
+                log::error!("Pipe closed unexpectedly: {error:#?}");
+            }
+        });
+
+        rocket::Response::build()
+            .header(ContentType::new("message", "ohttp-chunked-res"))
+            .streamed_body(reader)
+            .ok()
+    }
+}
+
+async fn pipe_http_to_bhttp<A: AsyncWrite + Unpin>(
+    mut response: reqwest::Response,
+    writer: &mut A,
+) -> anyhow::Result<()> {
+    // fields
+    let mut fields = bhttp::FieldSection::default();
+    let mut headers = response.headers().clone();
+
+    // remove all connection-dependent headers
+    for value in response.headers().get_all(CONNECTION) {
         for name in value
-            .to_str()
-            .context("invalid Connection header")?
+            .to_str()?
             .split(',')
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
         {
-            let name = name.trim();
-            if !name.is_empty() {
-                connection_headers.push(
-                    HeaderName::from_bytes(name.as_bytes())
-                        .context("invalid Connection header token")?,
-                );
-            }
+            headers.remove(HeaderName::from_bytes(name.as_bytes())?);
         }
-    }
-    for name in connection_headers {
-        headers.remove(name);
-    }
-    for name in [
-        "connection",
-        "keep-alive",
-        "proxy-connection",
-        "proxy-authenticate",
-        "proxy-authorization",
-        "te",
-        "trailer",
-        "transfer-encoding",
-        "upgrade",
-        "host",
-        "content-length",
-    ] {
-        headers.remove(name);
     }
 
-    let body = rocket::response::stream::stream! {
-        {
-            let mut body = message.body().context("failed opening BHTTP body")?;
-            let mut buffer = [0u8; 16 * 1024];
-            loop {
-                let read = body.read(&mut buffer).await.context("failed reading BHTTP body")?;
-                if read == 0 {
-                    break;
-                }
-                yield Ok::<_, anyhow::Error>(buffer[..read].to_vec());
-            }
+    headers
+        .iter()
+        .filter(|(name, _)| !NOPROXY_HEADERS.contains(&name.as_str()))
+        .for_each(|(name, value)| fields.put(name.as_str(), value.as_bytes()));
+
+    // we produce a handcrafted bhttp header because
+    // we need to stream the body back to the client
+    let mut header = vec![3]; // 3 is for an indeterminate-length BHTTP response
+
+    // encode status code
+    let status = bhttp::StatusCode::try_from(response.status().as_u16())?;
+    ControlData::Response(status)
+        .write_bhttp(&mut header)
+        .unwrap();
+
+    // encode the headers
+    fields
+        .write_bhttp(Mode::IndeterminateLength, &mut header)
+        .unwrap();
+
+    // stream the header to the client before we start streaming the body
+    writer.write_all(&header).await?;
+
+    while let Some(chunk) = response.chunk().await? {
+        if chunk.is_empty() {
+            continue;
         }
-        let trailer = message.trailer().await.context("failed reading BHTTP trailers")?;
-        if !trailer.is_empty() {
-            yield Err(anyhow::anyhow!("BHTTP request trailers are unsupported"));
-        }
+
+        let mut size_header_buffer = [0u8; 8];
+        let chunk_size = chunk.len();
+
+        let size = write_bhttp_varint(chunk_size as u64, &mut size_header_buffer);
+
+        writer.write_all(&size_header_buffer[..size]).await?;
+        writer.write_all(&chunk).await?;
+        writer.flush().await?;
+    }
+
+    // trailing 0-chunk means no more chunks
+    writer.write_all(&[0, 0]).await?;
+    writer.flush().await?;
+
+    Ok(())
+}
+
+// BHTTP uses QUIC variable-length integers.
+fn write_bhttp_varint(n: u64, out: &mut [u8]) -> usize {
+    debug_assert!(out.len() >= 8);
+
+    let (tagged, width) = match n {
+        0..=63 => (n, 1),
+        64..=16383 => (n | (1u64 << 14), 2),
+        16384..=1073741823 => (n | (2u64 << 30), 4),
+        1073741824..=4_611_686_018_427_387_903 => (n | (3u64 << 62), 8),
+        _ => panic!("how did we get here?"),
     };
 
-    client
-        .request(method, url)
-        .headers(headers)
-        .body(reqwest::Body::wrap_stream(body))
-        .build()
-        .context("failed building outbound request")
+    out[..width].copy_from_slice(&tagged.to_be_bytes()[8 - width..]);
+    width
 }

@@ -85,6 +85,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     rocket
         .mount("/attestation", routes![attest, get_modules])
+        .mount("/gateway", routes![ohttp::ohttp_tunnel])
         .register("/", catchers![not_found])
         .launch()
         .await?;

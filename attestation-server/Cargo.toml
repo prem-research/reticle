@@ -19,7 +19,7 @@ base64 = { workspace = true }
 hex = { workspace = true }
 thiserror = { workspace = true }
 nvat = { git = "https://github.com/prem-research/nvat-rs.git", branch = "main" }
-tokio-util = { version = "0.7.20", features = ["compat"] }
+tokio-util = { version = "0.7.20", features = ["compat", "io"] }
 
 libattest = { path = "../libattest" }
 nvidia-attest = { path = "../nvidia-attest" }
@@ -40,3 +40,5 @@ ohttp = { version = "0.8.0", default-features = false, features = [
     "rust-hpke",
 ] }
 bhttp = { version = "0.8.0", features = ["http", "stream"] }
+futures = "0.3.34"
+# futures-io = "0.3.34"

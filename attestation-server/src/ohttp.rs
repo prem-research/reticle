@@ -13,8 +13,9 @@ use rocket::{
     Data, State,
     data::ToByteUnit,
     http::uri::{Origin, Path},
+    response::Responder,
 };
-use tokio_util::compat::TokioAsyncReadCompatExt;
+use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 pub struct RouteSettings {
     base_url: Url,
@@ -36,7 +37,7 @@ impl ReverseProxy {
                 })
         })?;
 
-        Some((path.clone(), route))
+        Some((*path, route))
     }
 
     pub fn client(&self) -> &ProxyClient {
@@ -68,7 +69,7 @@ impl ReverseProxy {
 }
 
 use crate::{
-    ohttp::rewrite::{BHTTPRequest, ProxyClient},
+    ohttp::rewrite::{BHTTPRequest, OHTTPResponder, ProxyClient},
     response::ApiResult,
 };
 
@@ -90,27 +91,44 @@ pub fn generate_key_server() -> ohttp::Server {
 }
 
 #[rocket::post("/gateway", data = "<request>")]
-pub async fn ohttp_tunnel(
-    request: Data<'_>,
-    reverse_proxy: &State<ReverseProxy>,
-    ohttp_server: &State<ohttp::Server>,
-) -> ApiResult<()> {
+pub async fn ohttp_tunnel<'r>(
+    request: Data<'r>,
+    reverse_proxy: &'r State<ReverseProxy>,
+    ohttp_server: &'r State<ohttp::Server>,
+) -> ApiResult<impl Responder<'r, 'static>> {
+    // request.
     let server = ohttp::Server::clone(ohttp_server);
     let request = request.open(20.megabytes());
-    let request = server.decapsulate_stream(request.compat());
+    let mut request = server.decapsulate_stream(request.compat());
+    // request.
 
-    let mut request = bhttp::Message::async_read(request);
-    let header = request
+    let mut async_request = bhttp::Message::async_read(&mut request);
+    let header = async_request
         .header()
         .await
         .context("failed getting headers from OHTTP request")?;
 
-    let forwarded_request = BHTTPRequest::from_bhttp(header, request)?;
-    let rerouted = reverse_proxy
+    let forwarded_request = BHTTPRequest::from_bhttp(header, async_request)?;
+    let rerouted = State::inner(reverse_proxy)
         .reroute(forwarded_request.path())
         .context("couldn't find the correct route where to reroute the OHTTP request")?;
 
-    reverse_proxy.client();
+    // forwarded_request.
+    // make the request to the backend server
+    let response = reverse_proxy
+        .client()
+        .reroute(forwarded_request, rerouted)
+        .await?;
 
-    todo!()
+    // Consume remaining BHTTP padding and verify OHTTP's final chunk.
+    // Missing or invalid final authentication causes an error here.
+    futures::io::copy(&mut request, &mut futures::io::sink())
+        .await
+        .context("failed sinking the rest of the request")?;
+
+    let responder = OHTTPResponder::new(response, move |to| {
+        request.response(to.compat_write()).unwrap()
+    });
+
+    Ok(responder)
 }
