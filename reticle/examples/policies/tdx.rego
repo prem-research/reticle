@@ -6,6 +6,8 @@
 # ClientBuilder loads https://trustbase.prem.io/measurements.json into
 # data.measurements. Require the named workload/release and its TDX
 # measurements; missing references and revoked Init-Data deny access.
+# TDX references are keyed by host processor (the processor is measured into
+# RTMR0); one record must match the quote in full.
 # The manifest selects reference values, while the quote must prove a match.
 # This admits any matching workload/release in the catalog. Add an explicit
 # workload/version allowlist if the caller requires a narrower selection.
@@ -40,12 +42,14 @@ allow if {
 }
 
 measurements_match if {
-	hex_equal(reference.mr_td, input.claims.mrtd)
+	is_object(reference)
 	is_array(input.claims.rtmr)
 	count(input.claims.rtmr) == 4
-	hex_equal(reference.rtmr_0, input.claims.rtmr[0])
-	hex_equal(reference.rtmr_1, input.claims.rtmr[1])
-	hex_equal(reference.rtmr_2, input.claims.rtmr[2])
+	some processor, expected in reference
+	hex_equal(expected.mr_td, input.claims.mrtd)
+	hex_equal(expected.rtmr_0, input.claims.rtmr[0])
+	hex_equal(expected.rtmr_1, input.claims.rtmr[1])
+	hex_equal(expected.rtmr_2, input.claims.rtmr[2])
 
 	# Bind the selected workload's init-data to the measured configuration.
 	hex_equal(workload.initdata.mr_config_id, input.claims.mrconfigid)

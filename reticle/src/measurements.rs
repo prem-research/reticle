@@ -97,7 +97,7 @@ pub struct TeeMeasurements {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub snp: Option<BTreeMap<VcpuType, SevMeasurement>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tdx: Option<TdxMeasurements>,
+    pub tdx: Option<BTreeMap<String, TdxMeasurements>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -162,17 +162,139 @@ pub trait MeasurementsProvider {
 
 #[cfg(test)]
 mod test {
+    use libattest::validation::{ValidationResult, Validator};
+    use serde_json::json;
+
     use crate::measurements::Measurements;
 
-    #[tokio::test]
-    async fn measurements_deserialize() {
-        let measurements = reqwest::get("https://trustbase.prem.io/measurements.json")
-            .await
-            .unwrap()
-            .json::<Measurements>()
-            .await
-            .expect("format to be parsable");
+    const TDX_RELEASE: &str = "/workloads/deepseek/releases/v0.3.19/tdx";
 
-        println!("Measurement test: {measurements:?}")
+    fn catalog() -> serde_json::Value {
+        let initdata = json!({
+            "algorithm": "sha384",
+            "digest": "22".repeat(48),
+            "path": format!("init-data/{}.toml", "00".repeat(32)),
+            "sha256": "00".repeat(32),
+            "host_data": "00".repeat(32),
+            "mr_config_id": "00".repeat(48),
+        });
+
+        json!({
+            "schema_version": 1,
+            "schema": "schemas/measurements.schema.json",
+            "release": {
+                "version": "v1.1.3",
+                "source_repository": "https://github.com/prem-research/trustbase",
+                "source_revision": "00".repeat(20),
+            },
+            "workloads": {
+                "deepseek": {
+                    "initdata": initdata.clone(),
+                    "releases": {
+                        "v0.3.19": {
+                            "tdx": {
+                                "granite-rapids-a06d1": {
+                                    "mr_td": "11".repeat(48),
+                                    "rtmr_0": "22".repeat(48),
+                                    "rtmr_1": "33".repeat(48),
+                                    "rtmr_2": "44".repeat(48),
+                                }
+                            }
+                        }
+                    }
+                },
+                "qwen": {
+                    "initdata": initdata,
+                    "releases": {
+                        "v0.3.18": {
+                            "snp": {
+                                "EPYC-Milan": "55".repeat(48),
+                            }
+                        }
+                    }
+                }
+            }
+        })
+    }
+
+    #[test]
+    fn processor_keyed_tdx_catalog_deserializes_and_round_trips() {
+        let catalog = catalog();
+        let measurements: Measurements = serde_json::from_value(catalog.clone())
+            .expect("processor-keyed TDX and SNP catalog should parse");
+
+        assert_eq!(
+            serde_json::to_value(measurements).expect("catalog should serialize"),
+            catalog
+        );
+    }
+
+    #[test]
+    fn processor_keyed_tdx_catalog_feeds_rego() {
+        let measurements: Measurements = serde_json::from_value(catalog())
+            .expect("processor-keyed TDX and SNP catalog should parse");
+        let validator = Validator::builder()
+            .add_meaurements(measurements)
+            .expect("catalog should convert to Rego data")
+            .add_policy(format!(
+                r#"
+package measurements_test
+
+import rego.v1
+
+default allow := false
+
+allow if {{
+    reference := data.measurements.workloads.deepseek.releases["v0.3.19"].tdx
+    some processor, expected in reference
+    processor == "granite-rapids-a06d1"
+    expected == {{
+        "mr_td": "{mr_td}",
+        "rtmr_0": "{rtmr_0}",
+        "rtmr_1": "{rtmr_1}",
+        "rtmr_2": "{rtmr_2}",
+    }}
+    data.measurements.workloads.qwen.releases["v0.3.18"].snp["EPYC-Milan"] == "{snp}"
+}}
+"#,
+                mr_td = "11".repeat(48),
+                rtmr_0 = "22".repeat(48),
+                rtmr_1 = "33".repeat(48),
+                rtmr_2 = "44".repeat(48),
+                snp = "55".repeat(48),
+            ))
+            .build()
+            .expect("Rego policy should compile");
+
+        assert!(matches!(
+            validator.evaluate("measurements_test.allow", &json!({})),
+            Ok(ValidationResult::Success)
+        ));
+    }
+
+    #[test]
+    fn flat_tdx_catalog_is_rejected() {
+        let mut catalog = catalog();
+        *catalog
+            .pointer_mut(TDX_RELEASE)
+            .expect("TDX fixture should exist") = json!({
+            "mr_td": "11".repeat(48),
+            "rtmr_0": "22".repeat(48),
+            "rtmr_1": "33".repeat(48),
+            "rtmr_2": "44".repeat(48),
+        });
+
+        serde_json::from_value::<Measurements>(catalog)
+            .expect_err("flat TDX records must not be accepted as a processor map");
+    }
+
+    #[test]
+    fn tdx_record_rejects_unknown_fields() {
+        let mut catalog = catalog();
+        catalog["workloads"]["deepseek"]["releases"]["v0.3.19"]["tdx"]["granite-rapids-a06d1"]["unexpected"] =
+            json!("00".repeat(48));
+
+        serde_json::from_value::<Measurements>(catalog)
+            .expect_err("TDX measurement records must reject unknown fields");
     }
 }

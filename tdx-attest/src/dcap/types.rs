@@ -50,6 +50,14 @@ pub struct TdxQuoteHeader {
 #[serde(transparent)]
 pub struct Sha384(#[serde(with = "hex::serde")] [u8; 48]);
 
+impl Sha384 {
+    /// Wraps raw digest bytes, e.g. a synthetic register value in a test.
+    #[must_use]
+    pub const fn from_bytes(bytes: [u8; 48]) -> Self {
+        Self(bytes)
+    }
+}
+
 pub type ReportData = [u8; 64];
 
 #[repr(C, packed)]
