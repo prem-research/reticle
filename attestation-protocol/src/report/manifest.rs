@@ -34,11 +34,16 @@ mod ohttp_key {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PodKey {
+    #[serde(with = "ohttp_key")]
+    pub key_config: ohttp::KeyConfig,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PodManifest {
     pub podvm_version: String,
     pub workload_id: String,
-    #[serde(with = "ohttp_key")]
-    pub ohttp_key_config: ohttp::KeyConfig,
+    pub ohttp_key_config: Option<PodKey>,
 }
 
 impl Bindable for PodManifest {}

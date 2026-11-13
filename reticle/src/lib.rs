@@ -3,6 +3,7 @@
 pub mod fetch;
 pub mod gateway;
 pub mod measurements;
+pub mod ohttp;
 pub mod query;
 pub mod rego;
 pub mod sigstore;
@@ -37,6 +38,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::{
     measurements::{MeasurementsProvider, url::UrlMeasurements},
+    ohttp::AttestedHttp,
     query::QueryParams,
     rego::{PolicyProvider, UrlPolicies},
 };
@@ -52,6 +54,7 @@ pub fn __prem_rs_start() {
 #[derive(Clone, Debug)]
 
 pub struct AttestResult {
+    attested_url: Url,
     manifest: PodManifest,
     modules: Modules,
     headers: ResponseHeaders,
@@ -75,6 +78,10 @@ impl AttestResult {
     /// Returns the response headers returned by the attestation request.
     pub fn headers(&self) -> ResponseHeaders {
         self.headers.clone()
+    }
+
+    pub fn ohttp_client(&self) -> AttestedHttp {
+        todo!()
     }
 }
 
@@ -374,6 +381,7 @@ impl Client {
             .context("not enough modules were provided to complete attestation")?;
 
         Ok(AttestResult {
+            attested_url: self.url.clone(),
             manifest: report.manifest,
             modules,
             headers,

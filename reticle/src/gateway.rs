@@ -1,4 +1,4 @@
-use std::{convert::Infallible, fmt::Display};
+use std::fmt::Display;
 
 use libattest::error::AttestationError;
 use reqwest::{IntoUrl, Response};
@@ -23,7 +23,7 @@ impl Display for GatewayError {
     }
 }
 
-async fn response_to_error(response: Response) -> Result<Infallible, AttestationError> {
+async fn response_to_error(response: Response) -> Result<!, AttestationError> {
     let error: GatewayError = response.json().await?;
     let error = AttestationError::with_root(error);
 
@@ -47,7 +47,6 @@ impl Client {
 
         if !response.status().is_success() {
             response_to_error(response).await?;
-            unreachable!()
         }
 
         Ok(response)

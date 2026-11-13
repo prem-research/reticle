@@ -13,6 +13,7 @@ members = [
 
 [patch.crates-io]
 sev = { git = "https://github.com/BRA1L0R/sev", branch = "prem" }
+ohttp = { git = "https://github.com/prem-research/ohttp.git" }
 
 [workspace.dependencies]
 anyhow = "1.0.100"

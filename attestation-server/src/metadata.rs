@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, path::Path};
 
 use anyhow::Context;
-use attestation_protocol::report::manifest::PodManifest;
+use attestation_protocol::report::manifest::{PodKey, PodManifest};
 use serde::Deserialize;
 
 const OS_RELEASE: &str = "/run/podvm/os-release";
@@ -58,7 +58,9 @@ pub fn fetch_claims(ohttp_config: &ohttp::KeyConfig) -> anyhow::Result<PodManife
         .context("missing workload id from init-data")?;
 
     Ok(PodManifest {
-        ohttp_key_config: ohttp_config.clone(),
+        ohttp_key_config: Some(PodKey {
+            key_config: ohttp_config.clone(),
+        }),
         podvm_version,
         workload_id,
     })

@@ -90,7 +90,7 @@ pub fn generate_key_server() -> ohttp::Server {
     ohttp::Server::new(config).expect("unable to create ohttp server with this configuration")
 }
 
-#[rocket::post("/gateway", data = "<request>")]
+#[rocket::post("/", data = "<request>")]
 pub async fn ohttp_tunnel<'r>(
     request: Data<'r>,
     reverse_proxy: &'r State<ReverseProxy>,

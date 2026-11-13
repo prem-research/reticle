@@ -25,6 +25,7 @@ fn manifest() -> PodManifest {
     PodManifest {
         workload_id: "deepseek".to_owned(),
         podvm_version: "v0.3.19".to_owned(),
+        ohttp_key_config: None,
     }
 }
 

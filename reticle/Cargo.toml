@@ -34,6 +34,15 @@ tokio = { workspace = true, features = [
     "rt-multi-thread",
 ], optional = true }
 serde_json.workspace = true
+ohttp = { version = "0.8.0", default-features = false, features = [
+    "rust-hpke",
+    "client",
+    "stream",
+] }
+bhttp = { version = "0.8.0", features = ["http", "stream"] }
+reqwest-middleware = { version = "0.5.2", features = ["stream"] }
+http = "1.5.0"
+
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
