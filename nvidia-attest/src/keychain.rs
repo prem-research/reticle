@@ -1,4 +1,4 @@
-use std::{ops::Deref, sync::LazyLock};
+use std::{ops::Deref, sync::LazyLock, time::Duration};
 
 use libattest::error::AttestationError;
 #[cfg(target_family = "wasm")]
@@ -15,7 +15,17 @@ pub struct KeyChain(jwk::JwkSet);
 
 impl KeyChain {
     pub async fn fetch_keychain() -> Result<KeyChain, AttestationError> {
-        let well_known = reqwest::get(NVIDIA_NRAS.join(".well-known/jwks.json").unwrap()).await?;
+        Self::fetch_keychain_with_timeout(libattest::HTTP_TIMEOUT).await
+    }
+
+    pub async fn fetch_keychain_with_timeout(
+        timeout: Duration,
+    ) -> Result<KeyChain, AttestationError> {
+        let well_known = reqwest::Client::new()
+            .get(NVIDIA_NRAS.join(".well-known/jwks.json").unwrap())
+            .timeout(timeout)
+            .send()
+            .await?;
         let jwk_set: jwk::JwkSet = well_known.json().await?;
 
         Ok(KeyChain(jwk_set))

@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use libattest::AttestationError;
 use reqwest::{IntoUrl, Url};
 
@@ -23,9 +25,16 @@ impl MeasurementsProvider for UrlMeasurements {
     async fn fetch_measurements(
         &self,
         sigstore: &SigstoreVerifier,
+        timeout: Duration,
     ) -> Result<Measurements, AttestationError> {
         let measurements = self.base_url.join("measurements.json")?;
-        let measurements = reqwest::get(measurements).await?.text().await?;
+        let measurements = reqwest::Client::new()
+            .get(measurements)
+            .timeout(timeout)
+            .send()
+            .await?
+            .text()
+            .await?;
 
         sigstore.verify_file("measurements.json", measurements.as_bytes())?;
 

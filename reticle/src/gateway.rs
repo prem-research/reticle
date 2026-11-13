@@ -42,6 +42,7 @@ impl Client {
             .get(url)
             .query(&self.query_params)
             .query(&query)
+            .timeout(self.timeout)
             .send()
             .await?;
 

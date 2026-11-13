@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use futures::{TryStreamExt, stream::FuturesUnordered};
 use libattest::{
     AttestationError, bail,
@@ -26,11 +28,13 @@ impl UrlPolicies {
         &self,
         index_file: &str,
         sigstore: &SigstoreVerifier,
+        timeout: Duration,
     ) -> Result<Index, AttestationError> {
         let url = self.base_url.join(index_file).unwrap();
         let index = self
             .client
             .get(url)
+            .timeout(timeout)
             .send()
             .await?
             .error_for_status()?
@@ -49,6 +53,7 @@ impl UrlPolicies {
         &self,
         paths: I,
         sigstore: &SigstoreVerifier,
+        timeout: Duration,
     ) -> Result<Vec<String>, AttestationError>
     where
         S: AsRef<str>,
@@ -70,6 +75,7 @@ impl UrlPolicies {
                 let policy = self
                     .client
                     .get(url)
+                    .timeout(timeout)
                     .send()
                     .await?
                     .error_for_status()?
@@ -97,11 +103,14 @@ impl PolicyProvider for UrlPolicies {
     async fn fetch_validator(
         &self,
         sigstore: &SigstoreVerifier,
+        timeout: Duration,
     ) -> Result<ValidationBuilder, AttestationError> {
-        let index = self.fetch_index("policies.json", sigstore).await?;
-        let policies = self.fetch_multiple(index.policies, sigstore).await?;
+        let index = self.fetch_index("policies.json", sigstore, timeout).await?;
+        let policies = self
+            .fetch_multiple(index.policies, sigstore, timeout)
+            .await?;
 
-        let _data = self.fetch_multiple(index.data, sigstore).await?;
+        let _data = self.fetch_multiple(index.data, sigstore, timeout).await?;
         if !_data.is_empty() {
             libattest::bail!("policies-supplied data is no longer supported");
         }

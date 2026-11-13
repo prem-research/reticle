@@ -7,6 +7,8 @@ pub mod query;
 pub mod rego;
 pub mod sigstore;
 
+use std::time::Duration;
+
 use attestation_protocol::{
     bind::Bind,
     modules::{CpuModule, GpuModule, Modules, ModulesBuilder},
@@ -119,6 +121,9 @@ pub struct ClientBuilder {
     measurements: Box<dyn MeasurementsProvider + Send>,
 
     headers: HeaderMap,
+
+    /// timeout for each HTTP request
+    timeout: Duration,
 }
 
 const PREM_PCCS: &str = "https://pccs.prem.io/";
@@ -137,7 +142,13 @@ impl ClientBuilder {
             measurements: Box::new(UrlMeasurements::new(PREM_MEASUREMENTS).unwrap()),
             headers: HeaderMap::default(),
             sigstore_url: PREM_MEASUREMENTS.to_string(),
+            timeout: libattest::HTTP_TIMEOUT,
         }
+    }
+
+    /// Sets the timeout for each HTTP request, in milliseconds
+    pub fn with_timeout_ms(self, timeout_ms: u32) -> Self {
+        self.with_timeout(Duration::from_millis(timeout_ms.into()))
     }
 
     /// Sets `Authorization` header
@@ -180,7 +191,7 @@ impl ClientBuilder {
             .default_headers(self.headers)
             .build()?;
 
-        let sigstore = sigstore::fetch_sigstore(self.sigstore_url)
+        let sigstore = sigstore::fetch_sigstore(self.sigstore_url, self.timeout)
             .await
             .context("failed fetching sigstore verifier")?;
 
@@ -188,14 +199,14 @@ impl ClientBuilder {
         // for us to inject the rest of the data
         let validator = self
             .policies
-            .fetch_validator(&sigstore)
+            .fetch_validator(&sigstore, self.timeout)
             .await
             .context("failed fetching OPA policies from provider")?;
 
         // fetch measurements from trustbase. these are our golden values
         let measurements = self
             .measurements
-            .fetch_measurements(&sigstore)
+            .fetch_measurements(&sigstore, self.timeout)
             .await
             .context("failed fetching measurements from provider")?;
 
@@ -210,16 +221,23 @@ impl ClientBuilder {
                 .parse::<Url>()
                 .context("cannot build client with supplied url because it is invalid")
                 .expose_error()?,
-            kds: self.kds,
-            pcs: self.pcs,
+            kds: self.kds.with_timeout(self.timeout),
+            pcs: self.pcs.with_timeout(self.timeout),
             query_params: QueryParams::new(),
             policy_validator: validator,
             reqwest_client,
+            timeout: self.timeout,
         })
     }
 }
 
 impl ClientBuilder {
+    /// Sets the timeout for each HTTP request, including KDS, PCS and NVIDIA
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self
+    }
+
     /// sets custom url for OPA policies index
     pub fn with_policy_provider(mut self, policy: impl PolicyProvider + Send + 'static) -> Self {
         self.policies = Box::new(policy);
@@ -232,6 +250,7 @@ pub struct Client {
     /// base url
     url: Url,
     reqwest_client: reqwest::Client,
+    timeout: Duration,
 
     query_params: QueryParams,
 
@@ -360,7 +379,7 @@ impl Client {
             GpuReport::Absent => (),
             GpuReport::Nvidia(nvidia) => {
                 let quote = EATToken::parse(&nvidia).context("failed parsing nvidia EAT token")?;
-                let keychain = KeyChain::fetch_keychain().await?;
+                let keychain = KeyChain::fetch_keychain_with_timeout(self.timeout).await?;
                 let verifier = NvidiaVerifier::new(keychain);
 
                 let nonce = report.cpu.bind(&*nonce).into();
