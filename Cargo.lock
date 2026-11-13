@@ -200,6 +200,7 @@ dependencies = [
  "serde_with",
  "sha2 0.11.0",
  "snp-attest",
+ "toml 1.1.8+spec-1.1.0",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -229,7 +230,6 @@ dependencies = [
  "snp-attest",
  "thiserror 2.0.18",
  "tokio",
- "toml 1.1.8+spec-1.1.0",
 ]
 
 [[package]]
@@ -3208,6 +3208,7 @@ dependencies = [
  "serde",
  "serde-wasm-bindgen",
  "serde_json",
+ "sha2 0.11.0",
  "snp-attest",
  "tdx-attest",
  "thiserror 2.0.18",
