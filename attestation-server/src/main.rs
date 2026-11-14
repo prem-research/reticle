@@ -14,11 +14,13 @@ use attestation_protocol::modules::{CpuModule, GpuModule, Modules};
 use log::LevelFilter;
 
 use rocket::{State, catch, catchers, routes};
+use serde::Deserialize;
 use sev::firmware::guest::Firmware;
 use tokio::sync::Mutex;
 
 use crate::{
     modules::ModuleDetector,
+    ohttp::ReverseProxyConfig,
     platforms::{
         attest::attest,
         azure::{AzureFairing, TpmDevice},
@@ -38,12 +40,25 @@ fn not_found() -> &'static str {
     "route not found"
 }
 
+#[derive(Deserialize)]
+struct Config {
+    gateway: ReverseProxyConfig,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     env_logger::builder()
         .filter_level(LevelFilter::Info)
         .parse_default_env()
         .init();
+
+    let config_path = std::env::var_os("RETICLE_CONFIG").unwrap_or_else(|| "./config.toml".into());
+    let config: Config = toml::from_str(
+        &std::fs::read_to_string(&config_path)
+            .with_context(|| format!("failed to read configuration {config_path:?}"))?,
+    )
+    .context("failed to parse configuration")?;
+    let reverse_proxy = config.gateway.build()?;
 
     // generate a new ohttp server private key valid for this
     // run of reticle. The key config will be sent to the client
@@ -56,7 +71,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // attach everything to rocket so it's available
     // in our routes
-    let rocket = rocket.manage(modules).manage(claims).manage(ohttp_server);
+    let rocket = rocket
+        .manage(modules)
+        .manage(claims)
+        .manage(ohttp_server)
+        .manage(reverse_proxy);
 
     let mut rocket = match modules.cpu() {
         CpuModule::Sev => {

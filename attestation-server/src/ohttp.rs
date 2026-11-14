@@ -2,6 +2,10 @@ pub mod rewrite;
 
 use std::collections::BTreeMap;
 
+use crate::{
+    ohttp::rewrite::{BHTTPRequest, OHTTPResponder, ProxyClient},
+    response::ApiResult,
+};
 use anyhow::Context;
 use bhttp::stream::AsyncReadMessage;
 use ohttp::{
@@ -9,25 +13,56 @@ use ohttp::{
     hpke::{Aead, Kdf, Kem},
 };
 use reqwest::Url;
-use rocket::{
-    Data, State,
-    data::ToByteUnit,
-    http::uri::{Origin, Path},
-    response::Responder,
-};
+use rocket::{Data, State, data::ToByteUnit, http::uri::Origin, response::Responder};
+use serde::Deserialize;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
+#[derive(Deserialize)]
+struct RouteEntry {
+    path: String,
+    forward_to: Url,
+}
+
+#[derive(Deserialize)]
+pub struct ReverseProxyConfig {
+    routes: Vec<RouteEntry>,
+}
+
+impl ReverseProxyConfig {
+    pub fn build(self) -> anyhow::Result<ReverseProxy> {
+        let client = ProxyClient::new();
+        let routes = self
+            .routes
+            .into_iter()
+            .map(|RouteEntry { path, forward_to }| {
+                let origin = Origin::parse(&path).map_err(|error| {
+                    anyhow::anyhow!("invalid reverse proxy route {path:?}: {error}")
+                })?;
+                Ok((
+                    origin.path().as_str().to_owned(),
+                    RouteSettings {
+                        base_url: forward_to,
+                    },
+                ))
+            })
+            .collect::<anyhow::Result<BTreeMap<_, _>>>()?;
+
+        Ok(ReverseProxy { client, routes })
+    }
+}
+
+#[derive(Deserialize)]
 pub struct RouteSettings {
     base_url: Url,
 }
 
 pub struct ReverseProxy {
     client: ProxyClient,
-    routes: BTreeMap<Path<'static>, RouteSettings>,
+    routes: BTreeMap<String, RouteSettings>,
 }
 
 impl ReverseProxy {
-    pub fn search(&self, path: &Origin<'_>) -> Option<(Path<'_>, &RouteSettings)> {
+    pub fn search(&self, path: &Origin<'_>) -> Option<(&str, &RouteSettings)> {
         let (path, route) = self.routes.iter().rev().find(|(route, _)| {
             path.path()
                 .as_str()
@@ -37,7 +72,7 @@ impl ReverseProxy {
                 })
         })?;
 
-        Some((*path, route))
+        Some((path.as_str(), route))
     }
 
     pub fn client(&self) -> &ProxyClient {
@@ -46,7 +81,7 @@ impl ReverseProxy {
 
     pub fn reroute(&self, url: &Origin<'static>) -> Option<Url> {
         let (prefix, settings) = self.search(url)?;
-        let suffix = url.path().as_str().strip_prefix(prefix.as_str())?;
+        let suffix = url.path().as_str().strip_prefix(prefix)?;
         let mut target = settings.base_url.clone();
         if target.cannot_be_a_base() {
             return None;
@@ -67,11 +102,6 @@ impl ReverseProxy {
         Some(target)
     }
 }
-
-use crate::{
-    ohttp::rewrite::{BHTTPRequest, OHTTPResponder, ProxyClient},
-    response::ApiResult,
-};
 
 /// Audit: Cloudflare has verified that the key generation
 /// behind the ohttp rust library uses a secure system random generator
