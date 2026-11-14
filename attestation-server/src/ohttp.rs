@@ -4,16 +4,17 @@ use std::collections::BTreeMap;
 
 use crate::{
     ohttp::rewrite::{BHTTPRequest, OHTTPResponder, ProxyClient},
-    response::ApiResult,
+    response::{ApiJsonResult, ApiResult},
 };
 use anyhow::Context;
+use attestation_protocol::report::manifest::{PodKey, PodManifest};
 use bhttp::stream::AsyncReadMessage;
 use ohttp::{
     KeyConfig,
     hpke::{Aead, Kdf, Kem},
 };
 use reqwest::Url;
-use rocket::{Data, State, data::ToByteUnit, http::uri::Origin, response::Responder};
+use rocket::{Data, State, data::ToByteUnit, get, http::uri::Origin, response::Responder};
 use serde::Deserialize;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
@@ -161,4 +162,10 @@ pub async fn ohttp_tunnel<'r>(
     });
 
     Ok(responder)
+}
+
+#[get("/key_config")]
+/// INSECURELY (for the client ofc) return the key information without performing attestation.
+pub async fn key_config(ohttp_server: &State<PodManifest>) -> ApiJsonResult<Option<PodKey>> {
+    Ok(ohttp_server.ohttp_key_config.clone().into())
 }

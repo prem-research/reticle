@@ -1,10 +1,9 @@
-mod response;
+use attestation_server::{ohttp, response};
 
 // pub mod modules;
 mod metadata;
 mod modules;
 mod nonce;
-mod ohttp;
 mod platforms;
 
 use std::ops::Deref;
@@ -104,7 +103,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     rocket
         .mount("/attestation", routes![attest, get_modules])
-        .mount("/gateway", routes![ohttp::ohttp_tunnel])
+        .mount("/gateway", routes![ohttp::ohttp_tunnel, ohttp::key_config])
         .register("/", catchers![not_found])
         .launch()
         .await?;

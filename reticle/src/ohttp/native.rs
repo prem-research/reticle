@@ -29,10 +29,8 @@ pub(super) type Producer = futures::future::BoxFuture<'static, io::Result<()>>;
 pub struct OhttpReqwest(OhttpMiddleware);
 
 impl OhttpReqwest {
-    pub fn new(endpoint: Url, key_config: ohttp::KeyConfig) -> reqwest_middleware::Result<Self> {
-        OhttpMiddleware::new(endpoint, key_config)
-            .map(Self)
-            .map_err(reqwest_middleware::Error::middleware)
+    pub fn new(endpoint: Url, key_config: ohttp::KeyConfig) -> Self {
+        Self(OhttpMiddleware::new(endpoint, key_config))
     }
 }
 

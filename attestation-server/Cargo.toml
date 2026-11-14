@@ -43,3 +43,6 @@ url = { version = "2", features = ["serde"] }
 bhttp = { version = "0.8.0", features = ["http", "stream"] }
 futures = "0.3.34"
 # futures-io = "0.3.34"
+
+[dev-dependencies]
+reticle = { path = "../reticle" }

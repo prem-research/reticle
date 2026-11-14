@@ -261,6 +261,7 @@ dependencies = [
  "nvml-wrapper",
  "ohttp",
  "reqwest",
+ "reticle",
  "rocket",
  "serde",
  "serde_json",

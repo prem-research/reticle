@@ -12,6 +12,7 @@
 
 use std::rc::Rc;
 
+use attestation_protocol::report::manifest::PodKey;
 use http::{HeaderMap, Method, StatusCode};
 use libattest::error::Context;
 use reqwest::Url;
@@ -67,7 +68,7 @@ impl AttestedHttp {
         self
     }
 
-    #[wasm_bindgen(constructor)]
+    #[cfg_attr(target_family = "wasm", wasm_bindgen(constructor))]
     pub fn new(attestation: &AttestResult) -> libattest::Result<AttestedHttp> {
         let gateway_url = attestation.attested_url.join("/gateway")?;
 
@@ -79,6 +80,19 @@ impl AttestedHttp {
 
         let provider = transport::Provider::new(OhttpMiddleware::new(gateway_url, key.key_config))
             .context("could not build http provider")?;
+
+        Ok(AttestedHttp { provider })
+    }
+
+    /// generate a new attested http tunnel but without sourcing
+    /// it from a valid attestation reply from the server.
+    /// Debug use only.
+    pub fn new_insecure(gateway_url: Url, key_config: &PodKey) -> libattest::Result<AttestedHttp> {
+        let provider = transport::Provider::new(OhttpMiddleware::new(
+            gateway_url,
+            key_config.key_config.clone(),
+        ))
+        .context("could not build http provider")?;
 
         Ok(AttestedHttp { provider })
     }
