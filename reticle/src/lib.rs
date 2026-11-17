@@ -79,10 +79,6 @@ impl AttestResult {
     pub fn headers(&self) -> ResponseHeaders {
         self.headers.clone()
     }
-
-    pub fn ohttp_client(&self) -> AttestedHttp {
-        todo!()
-    }
 }
 
 #[derive(Clone, Debug)]

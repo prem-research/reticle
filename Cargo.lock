@@ -263,6 +263,7 @@ dependencies = [
  "reqwest",
  "reticle",
  "rocket",
+ "rocket_cors",
  "serde",
  "serde_json",
  "sev",
@@ -3630,6 +3631,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "rocket_cors"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfac3a1df83f8d4fc96aa41dba3b86c786417b7fc0f52ec76295df2ba781aa69"
+dependencies = [
+ "http 0.2.12",
+ "log",
+ "regex",
+ "rocket",
+ "unicase",
+ "url",
+]
+
+[[package]]
 name = "rocket_http"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4949,6 +4964,12 @@ dependencies = [
  "serde",
  "version_check",
 ]
+
+[[package]]
+name = "unicase"
+version = "2.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "357cc3acc6a036009fd6c973ed009037c732d60d0b4f6c673e9041497482a28f"
 
 [[package]]
 name = "unicode-ident"

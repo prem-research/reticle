@@ -23,6 +23,8 @@ Clients must verify the evidence, bindings, and manifest policy before trusting 
 
 Handler errors return HTTP 500 with `{"failed":true,"error":"..."}`; Rocket handles request-validation errors separately. Unknown routes return HTTP 404 with `route not found`. No application-level authentication is implemented.
 
+Browser CORS is handled by `rocket_cors` and allows any origin (`*`), GET/POST, and `Content-Type`/`Authorization` headers. Valid unrouted CORS OPTIONS preflights return an empty HTTP 204; disallowed methods or headers return HTTP 403. Cookie credentials are not supported. This applies only to this server; collateral and policy services need their own CORS configuration.
+
 ## Configuration
 
 `RETICLE_CONFIG` selects the required TOML file; default: `./config.toml`, relative to the working directory.

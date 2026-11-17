@@ -1,4 +1,4 @@
-use attestation_server::{ohttp, response};
+use attestation_server::{cors::cors, ohttp, response};
 
 // pub mod modules;
 mod metadata;
@@ -64,7 +64,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // during attestation
     let ohttp_server = ohttp::generate_key_server();
 
-    let rocket = rocket::build();
+    let rocket = rocket::build().attach(cors()?);
     let modules = ModuleDetector.detect()?;
     let claims = metadata::fetch_claims(ohttp_server.config())?;
 
