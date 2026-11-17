@@ -4,16 +4,15 @@ use std::{
     time::Instant,
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use attestation_protocol::{
     modules::{CpuModule, GpuModule, Modules},
-    report::{
-        Manifest,
-        manifest::{Claim, Status},
-    },
+    report::manifest::PodManifest,
 };
 use clap::{Parser, ValueEnum};
 use reticle::{ClientBuilder, ResponseHeaders, snp_attest::kds::Kds};
+use serde::Deserialize;
+use tdx_attest::pcs::Pcs;
 
 const REPORT_WIDTH: usize = 68;
 
@@ -33,7 +32,19 @@ struct Args {
     #[arg(long, value_name = "URL")]
     kds_url: Option<String>,
 
-    /// Bearer value sent in the Authorization header
+    /// Override the Intel collateral service
+    #[arg(long, value_name = "URL")]
+    pcs_url: Option<String>,
+
+    /// Override the signed Rego policy source
+    #[arg(long, value_name = "URL")]
+    policies_url: Option<String>,
+
+    /// Override the signed reference measurements source
+    #[arg(long, value_name = "URL")]
+    measurements_url: Option<String>,
+
+    /// Full Authorization header value (for example, "Bearer TOKEN")
     #[arg(
         long,
         env = "RETICLE_AUTHORIZATION",
@@ -42,13 +53,30 @@ struct Args {
     )]
     authorization: Option<String>,
 
-    /// Include all attestation response headers
+    /// Output format; JSON includes the complete serialized attestation result
+    #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+    output: OutputFormat,
+
+    /// Include response headers in the text report (always included in JSON)
     #[arg(long)]
     show_headers: bool,
 
-    /// Control ANSI styling
+    /// Control ANSI styling in the text report
     #[arg(long, value_enum, default_value_t = ColorMode::Auto)]
     color: ColorMode,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum OutputFormat {
+    Text,
+    Json,
+}
+
+// Read native report fields through the serialized API; pod_report() returns a JsValue.
+#[derive(Deserialize)]
+struct ReportView {
+    attested_url: String,
+    manifest: PodManifest,
 }
 
 #[derive(Clone, Copy, Debug, Default, ValueEnum)]
@@ -90,10 +118,6 @@ impl Theme {
         self.paint("1;36", text)
     }
 
-    fn red(self, text: impl AsRef<str>) -> String {
-        self.paint("1;31", text)
-    }
-
     fn muted(self, text: impl AsRef<str>) -> String {
         self.paint("2", text)
     }
@@ -107,19 +131,34 @@ impl Theme {
 async fn main() -> Result<()> {
     let args = Args::parse();
     let theme = Theme::new(args.color);
-    let kds = match args.kds_url.as_deref() {
-        Some(url) => Kds::new(url).map_err(|error| anyhow!("invalid KDS URL: {error}"))?,
-        None => Kds::default(),
-    };
-
-    let mut builder = ClientBuilder::new(&args.api_url).with_kds(kds);
+    let mut builder = ClientBuilder::new(&args.api_url);
+    if let Some(url) = args.kds_url.as_deref() {
+        builder =
+            builder.with_kds(Kds::new(url).map_err(|error| anyhow!("invalid KDS URL: {error}"))?);
+    }
+    if let Some(url) = args.pcs_url.as_deref() {
+        builder =
+            builder.with_pcs(Pcs::new(url).map_err(|error| anyhow!("invalid PCS URL: {error}"))?);
+    }
+    if let Some(url) = args.policies_url.as_deref() {
+        builder = builder
+            .with_policies_url(url)
+            .map_err(|error| anyhow!("invalid policies URL: {error}"))?;
+    }
+    if let Some(url) = args.measurements_url.as_deref() {
+        builder = builder
+            .with_measurements_url(url)
+            .map_err(|error| anyhow!("invalid measurements URL: {error}"))?;
+    }
     if let Some(authorization) = args.authorization.as_deref() {
         builder = builder
             .with_authorization(authorization)
             .map_err(|error| anyhow!("invalid authorization header: {error}"))?;
     }
 
-    print_connecting(&args.api_url, theme);
+    if matches!(args.output, OutputFormat::Text) {
+        print_connecting(&args.api_url, theme);
+    }
     let started_at = Instant::now();
     let client = builder
         .build()
@@ -132,16 +171,32 @@ async fn main() -> Result<()> {
         .map_err(|error| anyhow!("confidential VM attestation failed: {error}"))?;
     let elapsed = started_at.elapsed();
 
-    let report = render_report(
-        &args.api_url,
-        result.pod_report(),
-        result.modules(),
-        result.headers(),
-        elapsed.as_millis(),
-        args.show_headers,
-        theme,
-    );
-    println!("{report}");
+    match args.output {
+        OutputFormat::Json => println!(
+            "{}",
+            serde_json::to_string_pretty(&result)
+                .context("failed to serialize the attestation result")?
+        ),
+        OutputFormat::Text => {
+            let report: ReportView = serde_json::from_value(
+                serde_json::to_value(&result)
+                    .context("failed to serialize the attestation result")?,
+            )
+            .context("failed to read the attested manifest")?;
+            println!(
+                "{}",
+                render_report(
+                    &report.attested_url,
+                    &report.manifest,
+                    result.modules(),
+                    result.headers(),
+                    elapsed.as_millis(),
+                    args.show_headers,
+                    theme,
+                )
+            );
+        }
+    }
     Ok(())
 }
 
@@ -157,7 +212,7 @@ fn print_connecting(api_url: &str, theme: Theme) {
 
 fn render_report(
     api_url: &str,
-    manifest: &Manifest,
+    manifest: &PodManifest,
     modules: Modules,
     headers: ResponseHeaders,
     elapsed_ms: u128,
@@ -203,43 +258,28 @@ fn render_report(
     divider(&mut output, theme);
     row(&mut output, &theme.label("ATTESTED MANIFEST"));
     row(&mut output, "");
-    field(&mut output, "Version", &manifest.version.to_string(), theme);
-    field(
+    wrapped_field(
         &mut output,
-        "Status",
-        &paint_status(manifest.status, theme),
+        "PodVM",
+        &sanitize(&manifest.podvm_version),
         theme,
     );
     wrapped_field(
         &mut output,
-        "Generated",
-        &sanitize(&manifest.generated_at),
-        theme,
-    );
-    wrapped_field(
-        &mut output,
-        "Manifest",
-        &sanitize(&manifest.manifest),
+        "Workload",
+        &sanitize(&manifest.workload_id),
         theme,
     );
     field(
         &mut output,
-        "Claims",
-        &manifest.claims.len().to_string(),
+        "OHTTP key",
+        if manifest.ohttp_key_config.is_some() {
+            "Present (bound to attestation)"
+        } else {
+            "Not presented"
+        },
         theme,
     );
-
-    divider(&mut output, theme);
-    row(&mut output, &theme.label("MANIFEST CLAIMS"));
-    if manifest.claims.is_empty() {
-        row(&mut output, "");
-        row(&mut output, &theme.muted("No manifest claims presented"));
-    } else {
-        for (index, (name, claim)) in manifest.claims.iter().enumerate() {
-            row(&mut output, "");
-            render_claim(&mut output, index + 1, name, claim, theme);
-        }
-    }
 
     let mut header_names = headers.keys();
     header_names.sort_unstable();
@@ -273,56 +313,6 @@ fn render_report(
 
     bottom_border(&mut output, theme);
     output
-}
-
-fn render_claim(output: &mut String, index: usize, name: &str, claim: &Claim, theme: Theme) {
-    let (claim_type, status) = match claim {
-        Claim::DmVerity(claim) => ("dm-verity", claim.status),
-        Claim::ContainerImageHash(claim) => ("container image", claim.status),
-        Claim::FileSha256(claim) => ("file sha256", claim.status),
-    };
-    let marker = match status {
-        Status::Ok => theme.green("●"),
-        Status::Error => theme.red("●"),
-    };
-    row(
-        output,
-        &format!(
-            "{} {}  {:<29} {:<16} {}",
-            theme.muted(format!("{index:02}")),
-            marker,
-            compact(name, 29),
-            claim_type,
-            paint_status(status, theme)
-        ),
-    );
-
-    match claim {
-        Claim::DmVerity(claim) => {
-            wrapped_field(output, "Device", &claim.device, theme);
-            wrapped_field(output, "Mapper", &claim.mapper, theme);
-            wrapped_field(output, "Root hash", &claim.root_hash, theme);
-            wrapped_field(output, "Data dev", &claim.data_device, theme);
-            wrapped_field(output, "Hash dev", &claim.hash_device, theme);
-        }
-        Claim::ContainerImageHash(claim) => {
-            wrapped_field(output, "Container", &claim.container, theme);
-            wrapped_field(output, "Configured", &claim.configured, theme);
-            wrapped_field(output, "Reference", &claim.reference, theme);
-            wrapped_field(output, "Config hash", &claim.config_sha256, theme);
-        }
-        Claim::FileSha256(claim) => {
-            wrapped_field(output, "Path", &claim.path, theme);
-            wrapped_field(output, "SHA-256", &claim.sha256, theme);
-        }
-    }
-}
-
-fn paint_status(status: Status, theme: Theme) -> String {
-    match status {
-        Status::Ok => theme.green("ok"),
-        Status::Error => theme.red("error"),
-    }
 }
 
 fn cpu_name(cpu: CpuModule) -> &'static str {

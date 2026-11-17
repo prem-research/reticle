@@ -8,6 +8,8 @@ pub mod query;
 pub mod rego;
 pub mod sigstore;
 
+use std::collections::HashMap;
+
 use attestation_protocol::{
     bind::Bind,
     modules::{CpuModule, GpuModule, Modules, ModulesBuilder},
@@ -38,7 +40,6 @@ use wasm_bindgen::prelude::*;
 
 use crate::{
     measurements::{MeasurementsProvider, url::UrlMeasurements},
-    ohttp::AttestedHttp,
     query::QueryParams,
     rego::{PolicyProvider, UrlPolicies},
 };
@@ -51,7 +52,7 @@ pub fn __prem_rs_start() {
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 
 pub struct AttestResult {
     attested_url: Url,
@@ -84,6 +85,21 @@ impl AttestResult {
 #[derive(Clone, Debug)]
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 pub struct ResponseHeaders(HeaderMap);
+
+impl Serialize for ResponseHeaders {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let map: HashMap<_, _> = self
+            .0
+            .iter()
+            .filter_map(|(k, v)| v.to_str().ok().map(|v| (k.as_str(), v)))
+            .collect();
+
+        map.serialize(serializer)
+    }
+}
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl ResponseHeaders {
