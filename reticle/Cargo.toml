@@ -40,7 +40,7 @@ ohttp = { version = "0.8.0", default-features = false, features = [
     "stream",
 ] }
 bhttp = { version = "0.8.0", features = ["http", "stream"] }
-reqwest-middleware = { version = "0.5.2", features = ["stream"] }
+reqwest-middleware = { version = "0.5.2", features = ["http2", "json", "query", "stream"] }
 http = "1.5.0"
 
 

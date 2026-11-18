@@ -41,7 +41,7 @@ pub(super) struct Provider {
 
 impl Provider {
     pub(super) fn new(middleware: OhttpMiddleware) -> reqwest_middleware::Result<Self> {
-        let transport = reqwest::Client::builder()
+        let reqwest_client = reqwest::ClientBuilder::new()
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
             .no_gzip()
@@ -49,11 +49,12 @@ impl Provider {
             .no_zstd()
             .no_deflate()
             .build()?;
-        Ok(Self {
-            client: ClientBuilder::new(transport)
-                .with(OhttpReqwest(middleware))
-                .build(),
-        })
+
+        let client = crate::httpclient::client_builder(reqwest_client)
+            .with(OhttpReqwest(middleware))
+            .build();
+
+        Ok(Self { client })
     }
 
     pub(super) fn request(&self, method: Method, url: Url) -> RequestBuilder {

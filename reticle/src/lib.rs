@@ -2,6 +2,7 @@
 #[cfg(target_family = "wasm")]
 pub mod fetch;
 pub mod gateway;
+pub mod httpclient;
 pub mod measurements;
 pub mod ohttp;
 pub mod query;
@@ -195,10 +196,6 @@ impl ClientBuilder {
     }
 
     pub async fn build(self) -> Result<Client, AttestationError> {
-        let reqwest_client = reqwest::Client::builder()
-            .default_headers(self.headers)
-            .build()?;
-
         let sigstore = sigstore::fetch_sigstore(self.sigstore_url)
             .await
             .context("failed fetching sigstore verifier")?;
@@ -233,7 +230,7 @@ impl ClientBuilder {
             pcs: self.pcs,
             query_params: QueryParams::new(),
             policy_validator: validator,
-            reqwest_client,
+            // reqwest_client,
         })
     }
 }
@@ -250,8 +247,7 @@ impl ClientBuilder {
 pub struct Client {
     /// base url
     url: Url,
-    reqwest_client: reqwest::Client,
-
+    // reqwest_client: reqwest::Client,
     query_params: QueryParams,
 
     kds: Kds,

@@ -37,8 +37,7 @@ impl Client {
         url: impl IntoUrl,
         query: &impl Serialize,
     ) -> Result<Response, AttestationError> {
-        let response = self
-            .reqwest_client
+        let response = crate::httpclient::client()
             .get(url)
             .query(&self.query_params)
             .query(&query)
