@@ -12,6 +12,7 @@ use crate::dcap::types::{EnclaveReport, TdxQuoteBody, TdxQuoteHeader};
 pub(crate) mod certificates;
 pub mod dcap;
 pub mod error;
+pub mod node;
 pub mod nonce;
 pub mod pcs;
 pub mod quote;
