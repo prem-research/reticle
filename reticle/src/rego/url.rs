@@ -10,16 +10,14 @@ use serde::Deserialize;
 use crate::{rego::PolicyProvider, sigstore::SigstoreVerifier};
 
 pub struct UrlPolicies {
-    client: reqwest::Client,
     base_url: Url,
 }
 
 impl UrlPolicies {
     pub fn new(url: impl IntoUrl) -> Result<Self, AttestationError> {
-        let client = reqwest::Client::default();
         let base_url = url.into_url()?;
 
-        Ok(Self { client, base_url })
+        Ok(Self { base_url })
     }
 
     async fn fetch_index(
@@ -28,8 +26,7 @@ impl UrlPolicies {
         sigstore: &SigstoreVerifier,
     ) -> Result<Index, AttestationError> {
         let url = self.base_url.join(index_file).unwrap();
-        let index = self
-            .client
+        let index = crate::httpclient::client()
             .get(url)
             .send()
             .await?
@@ -67,8 +64,7 @@ impl UrlPolicies {
             }
 
             let rego_fetch = async move {
-                let policy = self
-                    .client
+                let policy = crate::httpclient::client()
                     .get(url)
                     .send()
                     .await?

@@ -34,6 +34,8 @@ tokio = { workspace = true, features = [
     "rt-multi-thread",
 ], optional = true }
 serde_json.workspace = true
+reqwest-middleware = { version = "0.5.2", features = ["http2", "json", "query", "stream"] }
+
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
