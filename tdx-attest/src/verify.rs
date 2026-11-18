@@ -408,3 +408,74 @@ impl QuoteVerifier for TdxQuoteVerifier {
         Ok(&quote.body)
     }
 }
+
+#[cfg(test)]
+mod regression_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn level(components: &[u32; 16]) -> TcbLevel {
+        serde_json::from_value(json!({
+            "tcb": {"pcesvn": 1,
+                "sgxtcbcomponents": vec![json!({"svn": 1}); 16],
+                "tdxtcbcomponents": components.iter().map(|svn| json!({"svn": svn})).collect::<Vec<_>>()},
+            "tcbDate": "2026-01-01T00:00:00Z", "tcbStatus": "UpToDate"
+        })).unwrap()
+    }
+
+    #[test]
+    fn platform_components_use_quote_module_version() {
+        let pck = TcbExtension {
+            cpu_svn: Box::new([1; 16]),
+            pce_svn: 1,
+        };
+        let mut requirements = [1; 16];
+        requirements[0] = 10;
+        requirements[1] = 0;
+        let levels = [level(&requirements)];
+        let mut svn = [1; 16];
+        // Version 1 module SVN is appraised separately, even when the platform
+        // reference has zero at index 1. This failed in the old verifier.
+        assert!(match_platform_tcb(&pck, &svn, &levels).is_ok());
+        svn[1] = 0;
+        assert!(match_platform_tcb(&pck, &svn, &levels).is_err());
+        svn[0] = 10;
+        assert!(match_platform_tcb(&pck, &svn, &levels).is_ok());
+        svn[8] = 0;
+        assert!(match_platform_tcb(&pck, &svn, &levels).is_err());
+    }
+
+    #[test]
+    fn module_revocation_and_outdated_status_cannot_be_overridden_by_platform() {
+        use zerocopy::FromZeros;
+        let mut body = TdxQuoteBody::new_zeroed();
+        body.tee_tcb_svn[0] = 10;
+        body.tee_tcb_svn[1] = 1;
+        for (status, expected) in [
+            ("Revoked", TcbStatus::Revoked),
+            ("OutOfDate", TcbStatus::OutOfDate),
+            ("UpToDate", TcbStatus::UpToDate),
+        ] {
+            let info: TcbInfo = serde_json::from_value(json!({
+                "id":"TDX", "version":3, "issueDate":"2026-01-01T00:00:00Z", "nextUpdate":"2026-12-01T00:00:00Z",
+                "fmspc":"000000000000", "pceId":"0000", "tcbType":0, "tcbEvaluationDataNumber":1,
+                "tdxModuleIdentities":[{"id":"TDX_01", "mrsigner":"00".repeat(48),
+                    "attributes":"00".repeat(8), "attributesMask":"ff".repeat(8),
+                    "tcbLevels":[{"tcb":{"isvsvn":10}, "tcbDate":"2026-01-01T00:00:00Z", "tcbStatus":status}]}],
+                "tcbLevels":[]
+            })).unwrap();
+            let module = verify_tdx_module(&body, &info).unwrap();
+            assert_eq!(module, expected);
+            let effective =
+                effective_tcb_status(&TcbStatus::UpToDate, &module, &TcbStatus::UpToDate);
+            assert_eq!(effective, expected);
+            assert_eq!(effective >= TcbStatus::UpToDate, status == "UpToDate");
+            let mut unrecognised = body.clone();
+            unrecognised.tee_tcb_svn[1] = 2;
+            assert!(verify_tdx_module(&unrecognised, &info).is_err());
+            unrecognised = body.clone();
+            unrecognised.tee_tcb_svn[0] = 9;
+            assert!(verify_tdx_module(&unrecognised, &info).is_err());
+        }
+    }
+}
