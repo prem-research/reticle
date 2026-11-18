@@ -37,7 +37,8 @@ impl Client {
         url: impl IntoUrl,
         query: &impl Serialize,
     ) -> Result<Response, AttestationError> {
-        let response = crate::httpclient::client()
+        let response = self
+            .http_client
             .get(url)
             .query(&self.query_params)
             .query(&query)
@@ -46,7 +47,6 @@ impl Client {
 
         if !response.status().is_success() {
             response_to_error(response).await?;
-            unreachable!()
         }
 
         Ok(response)

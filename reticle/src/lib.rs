@@ -19,24 +19,26 @@ use libattest::{
     quote::QuoteVerifier,
     validation::{Validator, Verifiable},
 };
-use nvidia_attest::{EATToken, keychain::KeyChain, verifier::NvidiaVerifier};
-use serde::Serialize;
-use snp_attest::{kds::Kds, verify::SevQuoteVerifier};
-
 pub use nvidia_attest;
+use nvidia_attest::{EATToken, keychain::KeyChain, verifier::NvidiaVerifier};
 use reqwest::{
     Url,
     header::{HeaderMap, HeaderValue},
 };
+use serde::Serialize;
 pub use snp_attest;
+use snp_attest::{kds::Kds, verify::SevQuoteVerifier};
+use std::time::Duration;
 
 use tdx_attest::{TdxQuote, pcs::Pcs, verify::TdxQuoteVerifier};
 
+#[cfg(target_family = "wasm")]
 use wasm_bindgen::JsValue;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
 use crate::{
+    httpclient::{SafeHttp, SafeHttpBuilder},
     measurements::{MeasurementsProvider, url::UrlMeasurements},
     query::QueryParams,
     rego::{PolicyProvider, UrlPolicies},
@@ -63,6 +65,7 @@ impl AttestResult {
     /// Returns the manifest as serde serialized data. This means that it will
     /// go through JSON representation first. You can expect this to preserve the
     /// same format as the JSON report inside the CVM.
+    #[cfg(target_family = "wasm")]
     pub fn pod_report(&self) -> JsValue {
         serde_wasm_bindgen::to_value(&self.manifest)
             .expect("Failed serializing the manifest into a JsValue. This should not ever happen.")
@@ -120,6 +123,8 @@ pub struct ClientBuilder {
     measurements: Box<dyn MeasurementsProvider + Send>,
 
     headers: HeaderMap,
+
+    http_client: SafeHttpBuilder,
 }
 
 const PREM_PCCS: &str = "https://pccs.prem.io/";
@@ -138,6 +143,7 @@ impl ClientBuilder {
             measurements: Box::new(UrlMeasurements::new(PREM_MEASUREMENTS).unwrap()),
             headers: HeaderMap::default(),
             sigstore_url: PREM_MEASUREMENTS.to_string(),
+            http_client: SafeHttpBuilder::default().with_timeout(Duration::from_secs(10)), // set a good default for the reticle client
         }
     }
 
@@ -153,6 +159,16 @@ impl ClientBuilder {
     pub fn with_kds(mut self, kds: Kds) -> Self {
         self.kds = kds;
         self
+    }
+
+    /// Timeout specified in seconds for all outgoing HTTP requests
+    /// coming from this Reticle client
+    pub fn with_timeout(self, timeout: u64) -> Self {
+        let timeout = Duration::from_secs(timeout);
+        Self {
+            http_client: self.http_client.with_timeout(timeout),
+            ..self
+        }
     }
 
     /// Sets custom PCS for Intel collateral server
@@ -177,6 +193,8 @@ impl ClientBuilder {
     }
 
     pub async fn build(self) -> Result<Client, AttestationError> {
+        let client = self.http_client.build();
+
         let sigstore = sigstore::fetch_sigstore(self.sigstore_url)
             .await
             .context("failed fetching sigstore verifier")?;
@@ -185,14 +203,14 @@ impl ClientBuilder {
         // for us to inject the rest of the data
         let validator = self
             .policies
-            .fetch_validator(&sigstore)
+            .fetch_validator(&client, &sigstore)
             .await
             .context("failed fetching OPA policies from provider")?;
 
         // fetch measurements from trustbase. these are our golden values
         let measurements = self
             .measurements
-            .fetch_measurements(&sigstore)
+            .fetch_measurements(&client, &sigstore)
             .await
             .context("failed fetching measurements from provider")?;
 
@@ -211,7 +229,7 @@ impl ClientBuilder {
             pcs: self.pcs,
             query_params: QueryParams::new(),
             policy_validator: validator,
-            // reqwest_client,
+            http_client: client,
         })
     }
 }
@@ -230,9 +248,14 @@ pub struct Client {
     url: Url,
     // reqwest_client: reqwest::Client,
     query_params: QueryParams,
-
+    /// Re-usable client with settings such as timeout
+    /// and possiby retries and traceability
+    http_client: SafeHttp,
+    /// Sev-SNP key storage
     kds: Kds,
+    /// Intel key storage
     pcs: Pcs,
+
     policy_validator: Validator,
 }
 

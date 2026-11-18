@@ -2,6 +2,7 @@ use libattest::AttestationError;
 use reqwest::{IntoUrl, Url};
 
 use crate::{
+    httpclient::SafeHttp,
     measurements::{Measurements, MeasurementsProvider},
     sigstore::SigstoreVerifier,
 };
@@ -22,10 +23,11 @@ impl UrlMeasurements {
 impl MeasurementsProvider for UrlMeasurements {
     async fn fetch_measurements(
         &self,
+        client: &SafeHttp,
         sigstore: &SigstoreVerifier,
     ) -> Result<Measurements, AttestationError> {
         let measurements = self.base_url.join("measurements.json")?;
-        let measurements = reqwest::get(measurements).await?.text().await?;
+        let measurements = client.get(measurements).send().await?.text().await?;
 
         sigstore.verify_file("measurements.json", measurements.as_bytes())?;
 

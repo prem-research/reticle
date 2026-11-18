@@ -7,7 +7,7 @@ use libattest::{
 use reqwest::{IntoUrl, Url};
 use serde::Deserialize;
 
-use crate::{rego::PolicyProvider, sigstore::SigstoreVerifier};
+use crate::{httpclient::SafeHttp, rego::PolicyProvider, sigstore::SigstoreVerifier};
 
 pub struct UrlPolicies {
     base_url: Url,
@@ -22,11 +22,12 @@ impl UrlPolicies {
 
     async fn fetch_index(
         &self,
+        client: &SafeHttp,
         index_file: &str,
         sigstore: &SigstoreVerifier,
     ) -> Result<Index, AttestationError> {
         let url = self.base_url.join(index_file).unwrap();
-        let index = crate::httpclient::client()
+        let index = client
             .get(url)
             .send()
             .await?
@@ -44,6 +45,7 @@ impl UrlPolicies {
 
     async fn fetch_multiple<S, I>(
         &self,
+        client: &SafeHttp,
         paths: I,
         sigstore: &SigstoreVerifier,
     ) -> Result<Vec<String>, AttestationError>
@@ -64,7 +66,7 @@ impl UrlPolicies {
             }
 
             let rego_fetch = async move {
-                let policy = crate::httpclient::client()
+                let policy = client
                     .get(url)
                     .send()
                     .await?
@@ -92,12 +94,15 @@ impl UrlPolicies {
 impl PolicyProvider for UrlPolicies {
     async fn fetch_validator(
         &self,
+        client: &SafeHttp,
         sigstore: &SigstoreVerifier,
     ) -> Result<ValidationBuilder, AttestationError> {
-        let index = self.fetch_index("policies.json", sigstore).await?;
-        let policies = self.fetch_multiple(index.policies, sigstore).await?;
+        let index = self.fetch_index(client, "policies.json", sigstore).await?;
+        let policies = self
+            .fetch_multiple(client, index.policies, sigstore)
+            .await?;
 
-        let _data = self.fetch_multiple(index.data, sigstore).await?;
+        let _data = self.fetch_multiple(client, index.data, sigstore).await?;
         if !_data.is_empty() {
             libattest::bail!("policies-supplied data is no longer supported");
         }
