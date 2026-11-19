@@ -38,7 +38,7 @@ impl Client {
         query: &impl Serialize,
     ) -> Result<Response, AttestationError> {
         let response = self
-            .reqwest_client
+            .http_client
             .get(url)
             .query(&self.query_params)
             .query(&query)
@@ -46,8 +46,7 @@ impl Client {
             .await?;
 
         if !response.status().is_success() {
-            response_to_error(response).await?;
-            unreachable!()
+            match response_to_error(response).await? {}
         }
 
         Ok(response)
