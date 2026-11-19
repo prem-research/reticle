@@ -1,28 +1,10 @@
 use std::{collections::BTreeMap, path::Path};
 
 use anyhow::Context;
-use attestation_protocol::report::manifest::PodManifest;
-use serde::Deserialize;
+use attestation_protocol::{initdata::InitDataDocument, report::manifest::PodManifest};
 
 const OS_RELEASE: &str = "/run/podvm/os-release";
 const INIT_DATA: &str = "/run/podvm/initdata.toml";
-
-/// Describes a Kata podvm init-data toml configuration
-#[derive(Deserialize)]
-pub struct InitData {
-    algorithm: String,
-    version: String,
-    data: BTreeMap<String, String>,
-}
-
-impl InitData {
-    pub fn read(path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        let file = std::fs::read_to_string(path).context("failed reading init-data file")?;
-        let decoded = toml::from_str(&file).context("failed parsing init-data")?;
-
-        Ok(decoded)
-    }
-}
 
 pub fn parse_env(env: &str) -> anyhow::Result<BTreeMap<String, String>> {
     let kv: Vec<(&str, &str)> = env
@@ -51,14 +33,19 @@ pub fn fetch_claims() -> anyhow::Result<PodManifest> {
         .context("/etc/os-release does not contain podvm image version")?
         .to_string();
 
-    let mut init_data = InitData::read(INIT_DATA)?;
-    let workload_id = init_data
+    let init_data = std::fs::read_to_string(INIT_DATA).context("failed reading init-data file")?;
+    let init_data_document: InitDataDocument =
+        toml::from_str(&init_data).context("failed parsing init-data file")?;
+
+    let workload_id = init_data_document
         .data
-        .remove("id")
-        .context("missing workload id from init-data")?;
+        .get("id")
+        .context("missing workload id from init-data")?
+        .clone();
 
     Ok(PodManifest {
         podvm_version,
+        init_data_document,
         workload_id,
     })
 }

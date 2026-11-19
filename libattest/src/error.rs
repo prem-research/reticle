@@ -134,7 +134,7 @@ impl AttestationError {
         self
     }
 
-    pub(crate) fn from_anyhow(error: anyhow::Error) -> Self {
+    pub fn from_anyhow(error: anyhow::Error) -> Self {
         AttestationError {
             error,
             exposure: Exposure::Internal,

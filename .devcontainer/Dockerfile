@@ -51,7 +51,7 @@ RUN wget \
     /tmp/openssl-${OPENSSL_VER}.tar.gz
 
 RUN wget \
-    https://zlib.net/zlib-${ZLIB_VER}.tar.gz \
+    https://github.com/madler/zlib/releases/download/v${ZLIB_VER}/zlib-${ZLIB_VER}.tar.gz \
     -O /tmp/zlib-${ZLIB_VER}.tar.gz \
     && cd /tmp \
     && tar xvf zlib-${ZLIB_VER}.tar.gz \
