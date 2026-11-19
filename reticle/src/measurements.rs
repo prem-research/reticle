@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use libattest::AttestationError;
 use serde::{Deserialize, Serialize};
 
-use crate::sigstore::SigstoreVerifier;
+use crate::{httpclient::SafeHttp, sigstore::SigstoreVerifier};
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -156,6 +156,7 @@ pub enum VcpuType {
 pub trait MeasurementsProvider {
     async fn fetch_measurements(
         &self,
+        client: &SafeHttp,
         sigstore: &SigstoreVerifier,
     ) -> Result<Measurements, AttestationError>;
 }

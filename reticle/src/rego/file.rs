@@ -5,7 +5,7 @@ use libattest::{
     validation::{ValidationBuilder, Validator},
 };
 
-use crate::{rego::PolicyProvider, sigstore::SigstoreVerifier};
+use crate::{httpclient::SafeHttp, rego::PolicyProvider, sigstore::SigstoreVerifier};
 
 /// fetch rego policies from the filesystem. Useful for local testing.
 /// Will just list all .rego files in a directory and load them all
@@ -23,6 +23,7 @@ impl FilePolicies {
 impl PolicyProvider for FilePolicies {
     async fn fetch_validator(
         &self,
+        _: &SafeHttp,
         _: &SigstoreVerifier,
     ) -> Result<ValidationBuilder, AttestationError> {
         if !self.path.is_dir() {
