@@ -1,7 +1,11 @@
+pub mod initdata;
+
 use std::{collections::BTreeMap, path::Path};
 
 use anyhow::Context;
 use attestation_protocol::{initdata::InitDataDocument, report::manifest::PodManifest};
+
+use crate::metadata::initdata::InitDataParser;
 
 const OS_RELEASE: &str = "/run/podvm/os-release";
 const INIT_DATA: &str = "/run/podvm/initdata.toml";
@@ -43,9 +47,12 @@ pub fn fetch_claims() -> anyhow::Result<PodManifest> {
         .context("missing workload id from init-data")?
         .clone();
 
+    let parser = InitDataParser::new();
+    let init_data = parser.parse_initdata(&init_data_document)?;
+
     Ok(PodManifest {
         podvm_version,
-        init_data_document,
+        init_data,
         workload_id,
     })
 }

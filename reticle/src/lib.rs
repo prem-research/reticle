@@ -36,7 +36,7 @@ use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::*;
 
 use crate::{
-    measurements::{MeasurementsProvider, initdata::InitDataParser, url::UrlMeasurements},
+    measurements::{MeasurementsProvider, url::UrlMeasurements},
     query::QueryParams,
     rego::{PolicyProvider, UrlPolicies},
 };
@@ -372,10 +372,8 @@ impl Client {
         };
 
         // check for init-data correctness
-        let init_data = InitDataParser::new();
-        let init_data = init_data.parse_initdata(&report.manifest)?;
 
-        if attested_gpus as u64 != init_data.gpus {
+        if attested_gpus as u64 != report.manifest.init_data.gpus {
             libattest::bail!(exposed: "attested GPU count does not match the workload Init-Data");
         }
 
