@@ -391,7 +391,6 @@ impl Client {
         };
 
         // check for init-data correctness
-
         if attested_gpus as u64 != report.manifest.init_data.gpus {
             libattest::bail!(exposed: "attested GPU count does not match the workload Init-Data");
         }
