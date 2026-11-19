@@ -143,9 +143,9 @@ pub async fn attest(
     };
 
     let report = CvmReport {
+        manifest: PodManifest::clone(manifest),
         cpu: cpu_report,
         gpu: gpu_report,
-        manifest: PodManifest::clone(manifest),
     };
 
     Ok(report.into())

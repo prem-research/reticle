@@ -1,4 +1,4 @@
-use std::{convert::Infallible, fmt::Display};
+use std::fmt::Display;
 
 use libattest::error::AttestationError;
 use reqwest::{IntoUrl, Response};
@@ -23,7 +23,7 @@ impl Display for GatewayError {
     }
 }
 
-async fn response_to_error(response: Response) -> Result<Infallible, AttestationError> {
+async fn response_to_error(response: Response) -> Result<!, AttestationError> {
     let error: GatewayError = response.json().await?;
     let error = AttestationError::with_root(error);
 
@@ -37,8 +37,7 @@ impl Client {
         url: impl IntoUrl,
         query: &impl Serialize,
     ) -> Result<Response, AttestationError> {
-        let response = self
-            .reqwest_client
+        let response = crate::httpclient::client()
             .get(url)
             .query(&self.query_params)
             .query(&query)
@@ -46,8 +45,7 @@ impl Client {
             .await?;
 
         if !response.status().is_success() {
-            response_to_error(response).await?;
-            unreachable!()
+            match response_to_error(response).await? {}
         }
 
         Ok(response)

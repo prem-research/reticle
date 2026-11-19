@@ -27,5 +27,6 @@ pub fn ok<T>(ok: T) -> ApiJsonResult<T> {
 }
 
 pub type ApiJsonResult<T> = Result<Json<T>, ApiError>;
+pub type ApiResult<T> = Result<T, ApiError>;
 
 // impl<T: std::error::Error> From<T> {}

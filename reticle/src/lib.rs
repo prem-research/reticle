@@ -2,10 +2,14 @@
 #[cfg(target_family = "wasm")]
 pub mod fetch;
 pub mod gateway;
+pub mod httpclient;
 pub mod measurements;
+pub mod ohttp;
 pub mod query;
 pub mod rego;
 pub mod sigstore;
+
+use std::collections::HashMap;
 
 use attestation_protocol::{
     bind::Bind,
@@ -49,9 +53,10 @@ pub fn __prem_rs_start() {
 }
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 
 pub struct AttestResult {
+    attested_url: Url,
     manifest: PodManifest,
     modules: Modules,
     headers: ResponseHeaders,
@@ -81,6 +86,21 @@ impl AttestResult {
 #[derive(Clone, Debug)]
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 pub struct ResponseHeaders(HeaderMap);
+
+impl Serialize for ResponseHeaders {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let map: HashMap<_, _> = self
+            .0
+            .iter()
+            .filter_map(|(k, v)| v.to_str().ok().map(|v| (k.as_str(), v)))
+            .collect();
+
+        map.serialize(serializer)
+    }
+}
 
 #[cfg_attr(target_family = "wasm", wasm_bindgen)]
 impl ResponseHeaders {
@@ -176,10 +196,6 @@ impl ClientBuilder {
     }
 
     pub async fn build(self) -> Result<Client, AttestationError> {
-        let reqwest_client = reqwest::Client::builder()
-            .default_headers(self.headers)
-            .build()?;
-
         let sigstore = sigstore::fetch_sigstore(self.sigstore_url)
             .await
             .context("failed fetching sigstore verifier")?;
@@ -214,7 +230,7 @@ impl ClientBuilder {
             pcs: self.pcs,
             query_params: QueryParams::new(),
             policy_validator: validator,
-            reqwest_client,
+            // reqwest_client,
         })
     }
 }
@@ -231,8 +247,7 @@ impl ClientBuilder {
 pub struct Client {
     /// base url
     url: Url,
-    reqwest_client: reqwest::Client,
-
+    // reqwest_client: reqwest::Client,
     query_params: QueryParams,
 
     kds: Kds,
@@ -374,6 +389,7 @@ impl Client {
             .context("not enough modules were provided to complete attestation")?;
 
         Ok(AttestResult {
+            attested_url: self.url.clone(),
             manifest: report.manifest,
             modules,
             headers,
