@@ -215,7 +215,7 @@ impl ClientBuilder {
             .context("failed fetching measurements from provider")?;
 
         let validator = validator
-            .add_meaurements(measurements)?
+            .add_meaurements(&measurements)?
             .build()
             .context("failed building the rego engine")?;
 
@@ -375,18 +375,25 @@ impl Client {
         }
 
         // attest gpu report
-        match report.gpu {
-            GpuReport::Absent => (),
+        let attested_gpus = match report.gpu {
+            GpuReport::Absent => 0,
             GpuReport::Nvidia(nvidia) => {
                 let quote = EATToken::parse(&nvidia).context("failed parsing nvidia EAT token")?;
                 let keychain = KeyChain::fetch_keychain().await?;
                 let verifier = NvidiaVerifier::new(keychain);
 
                 let nonce = report.cpu.bind(&*nonce).into();
-                self.attest_quote(verifier, &report.manifest, &quote, &nonce, "nvidia.allow")?;
+                let claims =
+                    self.attest_quote(verifier, &report.manifest, &quote, &nonce, "nvidia.allow")?;
                 modules = modules.with_gpu(Some(GpuModule::Nvidia));
+                claims.gpu_claims().len()
             }
         };
+
+        // check for init-data correctness
+        if attested_gpus as u64 != report.manifest.init_data.gpus {
+            libattest::bail!(exposed: "attested GPU count does not match the workload Init-Data");
+        }
 
         let modules = modules
             .build()
