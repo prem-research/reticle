@@ -1,19 +1,13 @@
 use std::{ops::Deref, time::Duration};
 
-use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, RequestBuilder};
+use http::Extensions;
+use reqwest::{Request, Response};
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware, Middleware, Next};
 
+#[derive(Default)]
 pub struct SafeHttpBuilder {
     client: reqwest::Client,
     timeout: Option<Duration>,
-}
-
-impl Default for SafeHttpBuilder {
-    fn default() -> Self {
-        Self {
-            client: reqwest::Client::default(),
-            timeout: None,
-        }
-    }
 }
 
 impl SafeHttpBuilder {
@@ -25,13 +19,34 @@ impl SafeHttpBuilder {
     }
 
     pub fn build(self) -> SafeHttp {
-        let client = ClientBuilder::new(self.client)
-            .with_init(move |req: RequestBuilder| {
-                req.timeout(self.timeout.unwrap_or(Duration::MAX))
-            })
-            .build();
+        let mut client = ClientBuilder::new(self.client);
+        if let Some(timeout) = self.timeout {
+            client = client.with(DefaultTimeout(timeout));
+        }
 
-        SafeHttp { client }
+        SafeHttp {
+            client: client.build(),
+        }
+    }
+}
+
+/// Middleware applying a default timeout to every outgoing request.
+///
+/// `Request::timeout_mut` is honored on every target (wasm32 maps it to fetch's `AbortSignal`).
+/// A timeout already set on the request takes precedence.
+struct DefaultTimeout(Duration);
+
+#[cfg_attr(not(target_arch = "wasm32"), async_trait::async_trait)]
+#[cfg_attr(target_arch = "wasm32", async_trait::async_trait(?Send))]
+impl Middleware for DefaultTimeout {
+    async fn handle(
+        &self,
+        mut req: Request,
+        extensions: &mut Extensions,
+        next: Next<'_>,
+    ) -> reqwest_middleware::Result<Response> {
+        req.timeout_mut().get_or_insert(self.0);
+        next.run(req, extensions).await
     }
 }
 

@@ -3219,6 +3219,7 @@ dependencies = [
  "console_error_panic_hook",
  "futures",
  "hex",
+ "http 1.4.0",
  "libattest",
  "nvidia-attest",
  "reqwest",

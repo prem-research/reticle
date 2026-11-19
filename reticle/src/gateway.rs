@@ -46,7 +46,7 @@ impl Client {
             .await?;
 
         if !response.status().is_success() {
-            response_to_error(response).await?;
+            match response_to_error(response).await? {}
         }
 
         Ok(response)
