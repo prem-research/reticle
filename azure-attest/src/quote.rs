@@ -54,20 +54,20 @@ pub struct AzureQuote {
 
 // create only implementations
 impl AzureQuote {
-    pub(crate) fn new(
-        quote: TpmsAttest,
-        pcr_bank: PcrBankReading<Sha256>,
-        hardware_report: AttestationReport,
-        trust: AzureTrust,
-    ) -> Self {
-        Self {
-            quote,
-            hardware_report,
-            pcr_bank,
-            trust,
-        }
-    }
-
+    //     pub(crate) fn new(
+    //         quote: TpmsAttest,
+    //         pcr_bank: PcrBankReading<Sha256>,
+    //         hardware_report: AttestationReport,
+    //         trust: AzureTrust,
+    //     ) -> Self {
+    //         Self {
+    //             quote,
+    //             hardware_report,
+    //             pcr_bank,
+    //             trust,
+    //         }
+    //     }
+    //
     pub(crate) fn parse_hardware_report(&self) -> libattest::Result<ParsedHardwareReport> {
         let report = match &self.hardware_report.payload {
             HardwareReport::Tdx(items) => ParsedHardwareReport::Tdx(TdxQuote::from_bytes(items)?),

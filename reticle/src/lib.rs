@@ -56,6 +56,7 @@ pub fn __prem_rs_start() {
 #[derive(Clone, Debug, Serialize)]
 
 pub struct AttestResult {
+    #[serde(skip)]
     attested_url: Url,
     manifest: PodManifest,
     modules: Modules,
