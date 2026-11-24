@@ -326,7 +326,9 @@ impl Client {
         match &report.cpu {
             CpuReport::Sev(attestation) => {
                 let keychain = self.kds.fetch_certificates(attestation).await?;
-                let verifier = SevQuoteVerifier::new(keychain);
+                let crl = self.kds.fetch_crl(attestation).await?;
+
+                let verifier = SevQuoteVerifier::new(keychain).with_crl(crl);
 
                 // we ""bind"" the nonce to the manifest depending on what
                 // size of nonce our downstream module (in this case sev) needs.
@@ -354,10 +356,10 @@ impl Client {
                 let nonce = report.manifest.bind(&*nonce).into();
                 let verifier = ReportVerifierBuilder::default()
                     .sev(async |quote| {
-                        self.kds
-                            .fetch_certificates(quote)
-                            .await
-                            .map(SevQuoteVerifier::new)
+                        let certificates = self.kds.fetch_certificates(quote).await?;
+                        let crl = self.kds.fetch_crl(quote).await?;
+
+                        Ok(SevQuoteVerifier::new(certificates).with_crl(crl))
                     })
                     .tdx(async |_| libattest::bail!("TDX attestation is unimplemented for Azure"))
                     .fetch_collateral(azure_quote)
