@@ -2,6 +2,7 @@
 #[cfg(target_family = "wasm")]
 pub mod fetch;
 pub mod gateway;
+pub mod httpclient;
 pub mod measurements;
 pub mod query;
 pub mod rego;
@@ -18,16 +19,16 @@ use libattest::{
     quote::QuoteVerifier,
     validation::{Validator, Verifiable},
 };
-use nvidia_attest::{EATToken, keychain::KeyChain, verifier::NvidiaVerifier};
-use serde::Serialize;
-use snp_attest::{kds::Kds, verify::SevQuoteVerifier};
-
 pub use nvidia_attest;
+use nvidia_attest::{EATToken, keychain::KeyChain, verifier::NvidiaVerifier};
 use reqwest::{
     Url,
     header::{HeaderMap, HeaderValue},
 };
+use serde::Serialize;
 pub use snp_attest;
+use snp_attest::{kds::Kds, verify::SevQuoteVerifier};
+use std::time::Duration;
 
 /// Verify a raw TDX node quote without starting a PodVM session. Policy and
 /// reference data must be pinned by the caller, not supplied by the checked node.
@@ -46,11 +47,13 @@ pub async fn verify_tdx_node(
 
 use tdx_attest::{TdxQuote, pcs::Pcs, verify::TdxQuoteVerifier};
 
+#[cfg(target_family = "wasm")]
 use wasm_bindgen::JsValue;
 #[cfg(target_family = "wasm")]
 use wasm_bindgen::prelude::*;
 
 use crate::{
+    httpclient::{SafeHttp, SafeHttpBuilder},
     measurements::{MeasurementsProvider, url::UrlMeasurements},
     query::QueryParams,
     rego::{PolicyProvider, UrlPolicies},
@@ -77,6 +80,7 @@ impl AttestResult {
     /// Returns the manifest as serde serialized data. This means that it will
     /// go through JSON representation first. You can expect this to preserve the
     /// same format as the JSON report inside the CVM.
+    #[cfg(target_family = "wasm")]
     pub fn pod_report(&self) -> JsValue {
         serde_wasm_bindgen::to_value(&self.manifest)
             .expect("Failed serializing the manifest into a JsValue. This should not ever happen.")
@@ -134,6 +138,8 @@ pub struct ClientBuilder {
     measurements: Box<dyn MeasurementsProvider + Send>,
 
     headers: HeaderMap,
+
+    http_client: SafeHttpBuilder,
 }
 
 const PREM_PCCS: &str = "https://pccs.prem.io/";
@@ -152,6 +158,7 @@ impl ClientBuilder {
             measurements: Box::new(UrlMeasurements::new(PREM_MEASUREMENTS).unwrap()),
             headers: HeaderMap::default(),
             sigstore_url: PREM_MEASUREMENTS.to_string(),
+            http_client: SafeHttpBuilder::default().with_timeout(Duration::from_secs(10)), // set a good default for the reticle client
         }
     }
 
@@ -167,6 +174,16 @@ impl ClientBuilder {
     pub fn with_kds(mut self, kds: Kds) -> Self {
         self.kds = kds;
         self
+    }
+
+    /// Timeout specified in seconds for all outgoing HTTP requests
+    /// coming from this Reticle client
+    pub fn with_timeout(self, timeout: u64) -> Self {
+        let timeout = Duration::from_secs(timeout);
+        Self {
+            http_client: self.http_client.with_timeout(timeout),
+            ..self
+        }
     }
 
     /// Sets custom PCS for Intel collateral server
@@ -191,9 +208,7 @@ impl ClientBuilder {
     }
 
     pub async fn build(self) -> Result<Client, AttestationError> {
-        let reqwest_client = reqwest::Client::builder()
-            .default_headers(self.headers)
-            .build()?;
+        let client = self.http_client.build();
 
         let sigstore = sigstore::fetch_sigstore(self.sigstore_url)
             .await
@@ -203,19 +218,19 @@ impl ClientBuilder {
         // for us to inject the rest of the data
         let validator = self
             .policies
-            .fetch_validator(&sigstore)
+            .fetch_validator(&client, &sigstore)
             .await
             .context("failed fetching OPA policies from provider")?;
 
         // fetch measurements from trustbase. these are our golden values
         let measurements = self
             .measurements
-            .fetch_measurements(&sigstore)
+            .fetch_measurements(&client, &sigstore)
             .await
             .context("failed fetching measurements from provider")?;
 
         let validator = validator
-            .add_meaurements(measurements)?
+            .add_meaurements(&measurements)?
             .build()
             .context("failed building the rego engine")?;
 
@@ -229,7 +244,7 @@ impl ClientBuilder {
             pcs: self.pcs,
             query_params: QueryParams::new(),
             policy_validator: validator,
-            reqwest_client,
+            http_client: client,
         })
     }
 }
@@ -246,12 +261,16 @@ impl ClientBuilder {
 pub struct Client {
     /// base url
     url: Url,
-    reqwest_client: reqwest::Client,
-
+    // reqwest_client: reqwest::Client,
     query_params: QueryParams,
-
+    /// Re-usable client with settings such as timeout
+    /// and possiby retries and traceability
+    http_client: SafeHttp,
+    /// Sev-SNP key storage
     kds: Kds,
+    /// Intel key storage
     pcs: Pcs,
+
     policy_validator: Validator,
 }
 
@@ -322,7 +341,9 @@ impl Client {
         match &report.cpu {
             CpuReport::Sev(attestation) => {
                 let keychain = self.kds.fetch_certificates(attestation).await?;
-                let verifier = SevQuoteVerifier::new(keychain);
+                let crl = self.kds.fetch_crl(attestation).await?;
+
+                let verifier = SevQuoteVerifier::new(keychain).with_crl(crl);
 
                 // we ""bind"" the nonce to the manifest depending on what
                 // size of nonce our downstream module (in this case sev) needs.
@@ -350,10 +371,10 @@ impl Client {
                 let nonce = report.manifest.bind(&*nonce).into();
                 let verifier = ReportVerifierBuilder::default()
                     .sev(async |quote| {
-                        self.kds
-                            .fetch_certificates(quote)
-                            .await
-                            .map(SevQuoteVerifier::new)
+                        let certificates = self.kds.fetch_certificates(quote).await?;
+                        let crl = self.kds.fetch_crl(quote).await?;
+
+                        Ok(SevQuoteVerifier::new(certificates).with_crl(crl))
                     })
                     .tdx(async |_| libattest::bail!("TDX attestation is unimplemented for Azure"))
                     .fetch_collateral(azure_quote)
@@ -371,18 +392,25 @@ impl Client {
         }
 
         // attest gpu report
-        match report.gpu {
-            GpuReport::Absent => (),
+        let attested_gpus = match report.gpu {
+            GpuReport::Absent => 0,
             GpuReport::Nvidia(nvidia) => {
                 let quote = EATToken::parse(&nvidia).context("failed parsing nvidia EAT token")?;
                 let keychain = KeyChain::fetch_keychain().await?;
                 let verifier = NvidiaVerifier::new(keychain);
 
                 let nonce = report.cpu.bind(&*nonce).into();
-                self.attest_quote(verifier, &report.manifest, &quote, &nonce, "nvidia.allow")?;
+                let claims =
+                    self.attest_quote(verifier, &report.manifest, &quote, &nonce, "nvidia.allow")?;
                 modules = modules.with_gpu(Some(GpuModule::Nvidia));
+                claims.gpu_claims().len()
             }
         };
+
+        // check for init-data correctness
+        if attested_gpus as u64 != report.manifest.init_data.gpus {
+            libattest::bail!(exposed: "attested GPU count does not match the workload Init-Data");
+        }
 
         let modules = modules
             .build()

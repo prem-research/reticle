@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use attestation_protocol::report::manifest::PodManifest;
+use attestation_protocol::report::manifest::{InitData, PodManifest};
 use libattest::validation::{ValidationResult, Validator};
 use reticle::measurements::Measurements;
 use serde_json::json;
@@ -23,6 +23,7 @@ fn sha(byte: u8) -> Sha384 {
 
 fn manifest() -> PodManifest {
     PodManifest {
+        init_data: InitData { gpus: 0 },
         workload_id: "deepseek".to_owned(),
         podvm_version: "v0.3.19".to_owned(),
     }

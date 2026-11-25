@@ -5,7 +5,7 @@ use reqwest::{Client, Url};
 use sev::{Generation, certs::snp::Certificate, firmware::host::TcbVersion};
 use x509_cert::certificate::{CertificateInner, Rfc5280};
 
-static ARK: LazyLock<HashMap<&str, Certificate>> = LazyLock::new(|| {
+pub(super) static ARK: LazyLock<HashMap<&str, Certificate>> = LazyLock::new(|| {
     [
         ("Genoa", include_bytes!("./certificates/genoa.pem").as_ref()),
         ("Milan", include_bytes!("./certificates/milan.pem")),
