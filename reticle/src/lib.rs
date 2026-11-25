@@ -30,6 +30,21 @@ pub use snp_attest;
 use snp_attest::{kds::Kds, verify::SevQuoteVerifier};
 use std::time::Duration;
 
+/// Verify a raw TDX node quote without starting a PodVM session. Policy and
+/// reference data must be pinned by the caller, not supplied by the checked node.
+#[cfg(target_family = "wasm")]
+#[wasm_bindgen]
+pub async fn verify_tdx_node(
+    quote: Vec<u8>,
+    nonce_hex: String,
+    policy: String,
+    reference: String,
+) -> Result<String, JsValue> {
+    tdx_attest::node::verify_node(&quote, &nonce_hex, &policy, &reference, None)
+        .await
+        .map_err(|error| JsValue::from_str(&error))
+}
+
 use tdx_attest::{TdxQuote, pcs::Pcs, verify::TdxQuoteVerifier};
 
 #[cfg(target_family = "wasm")]

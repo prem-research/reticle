@@ -24,6 +24,17 @@ pub struct ValidationBuilder {
 }
 
 impl ValidationBuilder {
+    /// Add caller-pinned policy data without changing its document namespace.
+    /// This preserves policies using `data.reference_values`, alongside the
+    /// measurements API used by the PodVM protocol.
+    pub fn add_data_json(mut self, data: &str) -> crate::Result<Self> {
+        let value = Value::from_json_str(data)
+            .map_err(AttestationError::from_anyhow)
+            .context("invalid policy data JSON")?;
+        self.data.push(value);
+        Ok(self)
+    }
+
     pub fn add_meaurements(mut self, measurements: impl Serialize) -> crate::Result<Self> {
         #[derive(Serialize)]
         struct Measurements<T> {
@@ -93,7 +104,6 @@ impl Validator {
 
         // convert claims to rego compatible format
         let value = serde_value::to_value(input)?;
-        println!("{value:?}");
         let value = regorus::Value::deserialize(value)?;
         // here we set what input. will be in rego
         engine.set_input(value);
@@ -140,5 +150,38 @@ impl ValidationResult {
             Self::Success => Ok(()),
             Self::Failure { coverage } => Err(AttestationError::new(coverage)).context(msg),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pinned_reference_data_keeps_its_namespace_and_denies_mismatches() {
+        let validator = Validator::builder()
+            .add_policy("package tdx\ndefault allow := false\nallow if { input == data.reference_values.expected }")
+            .add_data_json(r#"{"reference_values":{"expected":"approved-node"}}"#)
+            .unwrap().build().unwrap();
+        assert!(
+            validator
+                .evaluate("tdx.allow", &"approved-node")
+                .unwrap()
+                .or_err("denied")
+                .is_ok()
+        );
+        assert!(
+            validator
+                .evaluate("tdx.allow", &"other-node")
+                .unwrap()
+                .or_err("denied")
+                .is_err()
+        );
+        assert!(validator.evaluate("tdx.missing", &"approved-node").is_err());
+    }
+
+    #[test]
+    fn malformed_reference_data_is_rejected() {
+        assert!(Validator::builder().add_data_json("{").is_err());
     }
 }

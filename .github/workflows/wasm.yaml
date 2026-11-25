@@ -207,6 +207,12 @@ jobs:
                   node-version: "24"
             - name: fix package.json
               run: mv reticle/pkg/package.json reticle/pkg/package.json.tmpl
+            - name: Check raw TDX verifier package exports
+              working-directory: reticle
+              run: |
+                  grep -q 'function verify_tdx_node(' pkg/reticle.d.ts
+                  grep -q 'function verify_tdx_node(' pkg-node/reticle.d.ts
+                  node -e 'if (typeof require("./pkg/reticle_main.cjs").verify_tdx_node !== "function") process.exit(1)'
             - name: Pack branch build
               if: github.ref_type == 'branch' && github.ref_name != 'main'
               working-directory: reticle/pkg
